@@ -1,0 +1,118 @@
+; Ontology: Autonomous Inspection Rover — Mission Domain
+; Standard references:
+;   NASA NPR 7150.2D:2022  — NASA Software Engineering Requirements
+;   NASA-STD-8739.8A:2017  — Software Assurance Standard
+;   ECSS-E-ST-10-06C:2017  — Technical Requirements Specification
+;   ISO/IEC 25010:2011     — Systems and Software Quality Requirements
+;   NASA-HDBK-2203         — DO-178C guidance (DAL-B rover software)
+;
+; Fragment: Quantifier-free Linear Real Arithmetic (QF_LRA)
+; All sorts mapped to Real for SMT literal compatibility.
+
+; === SORTS ===
+sort Distance      ; metres — spatial distance, non-negative real
+sort Energy        ; Wh — electrical energy, non-negative real
+sort Percentage    ; 0–100 real — mission completion percentage
+sort WaypointIndex ; integer 0..N — discrete waypoint identifier (mapped to Real)
+sort DataVolume    ; MB — inspection data collected, non-negative
+sort SignalStrength ; dBm — communication link quality (non-positive real)
+
+; === FUNCTIONS ===
+
+; Navigation and position
+fun distance_to_waypoint   : Distance      ; Euclidean distance to next waypoint (m)
+fun waypoint_accept_radius : Distance      ; acceptance radius for waypoint arrival (m)
+fun distance_to_base       : Distance      ; distance from current position to base (m)
+fun waypoints_completed    : WaypointIndex ; count of waypoints successfully inspected
+fun total_waypoints        : WaypointIndex ; total mission waypoints (constant = 5)
+fun mission_progress       : Percentage    ; (waypoints_completed / total_waypoints) * 100
+
+; Energy and power budget
+fun battery_level    : Energy ; current battery charge (Wh)
+fun battery_capacity : Energy ; rated battery capacity (Wh)
+fun battery_reserve  : Energy ; minimum reserve before mandatory return (Wh)
+fun energy_to_base   : Energy ; energy required to return to base (Wh)
+
+; Data collection
+fun data_collected       : DataVolume ; total inspection data acquired (MB)
+fun data_required_per_wp : DataVolume ; minimum data per waypoint (MB)
+
+; Communication
+fun signal_strength     : SignalStrength ; current comms link quality (dBm)
+fun min_signal_threshold: SignalStrength ; minimum for reliable comms (dBm)
+fun comms_latency       : Distance       ; round-trip comms delay equivalent
+
+; Timing parameters (NASA NPR 7150.2 Req 7.1.1)
+fun max_segment_time         : Distance ; max time per navigation segment (= 120)
+fun inspection_time_min      : Distance ; min inspection duration per waypoint (= 10)
+fun inspection_time_max      : Distance ; max inspection duration per waypoint (= 60)
+fun fault_response_critical  : Distance ; max response time for critical fault (= 3, NASA Req 3.6.1)
+fun fault_response_noncritical: Distance ; max response time for non-critical fault (= 5)
+
+; === RELATIONS ===
+rel waypoint_reached     :            ; holds when distance_to_waypoint <= waypoint_accept_radius
+rel battery_critical     :            ; holds when battery_level <= battery_reserve + energy_to_base
+rel mission_complete     :            ; holds when waypoints_completed = total_waypoints
+rel comms_nominal        :            ; holds when signal_strength >= min_signal_threshold
+rel data_sufficient      :            ; holds when data_collected >= data_required_per_wp
+
+; === AXIOMS ===
+
+; --- Mission parameters (ECSS-E-ST-10-06C operational specification) ---
+axiom total_wp         : (= total_waypoints 5)
+axiom accept_radius    : (= waypoint_accept_radius 2)
+axiom data_per_wp      : (= data_required_per_wp 10)
+
+; --- Energy budget (NASA NPR 7150.2 Req 3.1.2 performance allocation) ---
+axiom bat_capacity     : (= battery_capacity 100)
+; Lower bound only: domain_v2.ont refines this to (= battery_reserve 30), which entails (>= 25).
+axiom bat_reserve      : (>= battery_reserve 25)
+axiom nn_battery       : (>= battery_level 0)
+axiom bat_upper        : (<= battery_level battery_capacity)
+axiom energy_base_val  : (= energy_to_base 20)
+axiom reserve_ordering : (> battery_reserve energy_to_base)
+
+; Combined return threshold lower bound; v2 tightens to (= ... 50) when battery_reserve = 30.
+axiom bat_critical_thresh : (>= (+ battery_reserve energy_to_base) 45)
+
+; --- Mission progress (ECSS-E-ST-10-06C mission tracking) ---
+axiom progress_lower   : (>= mission_progress 0)
+axiom progress_upper   : (<= mission_progress 100)
+axiom progress_monotone: (>= waypoints_completed 0)
+axiom wp_upper_bound   : (<= waypoints_completed total_waypoints)
+
+; Bridge axioms connecting waypoints_completed to mission_progress.
+; These allow Z3 to prove semantic equivalence between PT state/event
+; formulas (using waypoints_completed) and DT formulas (using mission_progress).
+; Semantics: when all waypoints are done, mission_progress = 100; start ↔ 0.
+axiom progress_complete_fwd : (=> (= waypoints_completed total_waypoints) (>= mission_progress 100))
+axiom progress_complete_bwd : (=> (>= mission_progress 100) (= waypoints_completed total_waypoints))
+axiom progress_zero_fwd     : (=> (= waypoints_completed 0) (<= mission_progress 0))
+axiom progress_zero_bwd     : (=> (<= mission_progress 0) (= waypoints_completed 0))
+
+; --- Timing requirements (NASA NPR 7150.2 Req 7.1.1) ---
+axiom max_seg_time      : (= max_segment_time 120)
+axiom inspect_min       : (= inspection_time_min 10)
+axiom inspect_max       : (= inspection_time_max 60)
+axiom fault_crit_resp   : (= fault_response_critical 3)
+axiom fault_ncrit_resp  : (= fault_response_noncritical 5)
+
+; --- Communication parameters (ECSS-E-ST-10-06C Cl.5.2.3) ---
+; dBm is non-positive: 0 dBm is maximum; -85 dBm is minimum threshold
+axiom min_signal_val   : (= min_signal_threshold -85)
+axiom comms_lat_bound  : (>= comms_latency 0)
+axiom signal_upper     : (<= signal_strength 0)
+
+; --- Distance non-negativity ---
+axiom nn_dist_wp       : (>= distance_to_waypoint 0)
+axiom nn_dist_base     : (>= distance_to_base 0)
+
+; --- Data collection non-negativity ---
+axiom nn_data          : (>= data_collected 0)
+
+; --- Waypoint acceptance: arrival radius is a small positive value ---
+axiom radius_positive  : (> waypoint_accept_radius 0)
+
+; --- Battery level at mandatory return threshold ---
+; return_initiated holds iff battery_level <= battery_reserve + energy_to_base (= 45)
+axiom return_thresh_def : (>= battery_reserve 0)

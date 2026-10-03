@@ -1,0 +1,77 @@
+; Ontology: Autopilot Flight Safety System (v2)
+; Changes from domain.ont:
+;   Condition I:  Add sort Probability (per flight hour) + fun failure_prob_per_hour
+;                 (FAA AC 25.1309-1A quantitative reliability requirement: HAZ < 10^-7/hr)
+;   Condition II: Tighten max_pitch_up from 30 to 27 degrees
+;                 (updated ARP4754A re-assessment after fleet data review)
+; Theorem 1: alignment preserved because pt_v2.interp and dt_v2.interp reference
+;            max_pitch_up symbolically throughout.
+; Fragment: QF_LRA
+
+; === SORTS ===
+sort Angle       ; degrees -- pitch, roll, yaw angles
+sort Altitude    ; feet -- pressure altitude
+sort Speed       ; knots -- indicated airspeed
+sort AngularRate ; deg/s -- pitch/roll/yaw rates
+sort LoadFactor  ; g -- normal acceleration
+sort DALLevel    ; integer 1-5 -- Development Assurance Level (1=A, 5=E)
+sort Probability ; per flight hour -- quantitative reliability (NEW: FAA AC 25.1309-1A)
+
+; === FUNCTIONS ===
+fun pitch_angle  : Angle
+fun roll_angle   : Angle
+fun yaw_angle    : Angle
+fun altitude     : Altitude
+fun airspeed     : Speed
+fun pitch_rate   : AngularRate
+fun roll_rate    : AngularRate
+fun load_factor  : LoadFactor
+fun max_pitch_up   : Angle
+fun max_pitch_down : Angle
+fun max_roll       : Angle
+fun min_airspeed   : Speed
+fun max_airspeed   : Speed
+fun min_altitude   : Altitude
+fun max_pitch_rate : AngularRate
+fun max_roll_rate  : AngularRate
+fun max_load_factor: LoadFactor
+fun maneuver_altitude_gain : Altitude
+fun maneuver_turn_angle    : Angle
+fun ap_health_index : LoadFactor
+fun system_dal      : DALLevel
+; Condition I: NEW
+fun failure_prob_per_hour : Probability  ; per-flight-hour failure probability
+fun max_hazard_prob        : Probability  ; FAA AC 25.1309-1A HAZ limit: 10^-7 (integer approx: 0)
+
+; === RELATIONS ===
+rel in_flight_envelope   :
+rel maneuver_complete_rel:
+rel hazard_active        :
+
+; === AXIOMS ===
+; Condition II: max_pitch_up tightened from 30 to 27 degrees (fleet data re-assessment)
+axiom max_pitch_up_val   : (= max_pitch_up 27)
+axiom max_pitch_down_val : (= max_pitch_down 20)
+axiom max_roll_val       : (= max_roll 45)
+axiom min_airspeed_val   : (= min_airspeed 120)
+axiom max_airspeed_val   : (= max_airspeed 340)
+axiom min_alt_val        : (= min_altitude 1000)
+axiom max_pitch_rate_val : (= max_pitch_rate 3)
+axiom max_roll_rate_val  : (= max_roll_rate 7)
+axiom max_load_val       : (= max_load_factor 2)
+axiom min_load_val       : (>= load_factor -1)
+axiom maneuver_alt_val   : (= maneuver_altitude_gain 500)
+axiom maneuver_turn_val  : (= maneuver_turn_angle 30)
+axiom nn_altitude        : (>= altitude 0)
+axiom nn_airspeed        : (>= airspeed 0)
+axiom pitch_lower        : (>= pitch_angle -90)
+axiom pitch_upper        : (<= pitch_angle 90)
+axiom roll_lower         : (>= roll_angle -180)
+axiom roll_upper         : (<= roll_angle 180)
+axiom airspeed_upper     : (<= airspeed (+ max_airspeed 20))
+axiom load_upper         : (<= load_factor max_load_factor)
+axiom health_lower       : (>= ap_health_index 0)
+axiom health_upper       : (<= ap_health_index 1)
+; Condition I: reliability constraint (integer QF_LRA: probability modelled as non-negative bounded)
+axiom prob_lower         : (>= failure_prob_per_hour 0)
+axiom prob_upper         : (<= failure_prob_per_hour 1)

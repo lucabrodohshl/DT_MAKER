@@ -1,0 +1,31 @@
+; PT Interpretation: EngineControllerPT
+; FADEC / avionics software engineer perspective.
+; Standards: DO-178C, ARP4754A, FAA AC 33.28-3
+; All arithmetic in SMT-LIB2 prefix notation.
+
+; --- Location interpretations ---
+ENGINE_OFF          : (and (= n1_speed 0) (= fuel_flow 0))
+STARTING            : (and (> n1_speed 0) (< n1_speed 30) (>= fuel_flow min_fuel_flow))
+IDLE                : (and (>= n1_speed 25) (<= n1_speed 35) (>= fuel_flow min_fuel_flow) (<= fuel_flow 400))
+TAKEOFF             : (and (>= n1_speed 95) (<= n1_speed n1_takeoff_limit) (<= egt takeoff_egt_limit))
+CLIMB               : (and (>= n1_speed 88) (<= n1_speed 96) (<= egt max_egt))
+CRUISE              : (and (>= n1_speed 82) (<= n1_speed 90) (<= egt (- max_egt 50)))
+DESCENT             : (and (>= n1_speed 40) (<= n1_speed 60) (<= fuel_flow 1000))
+APPROACH            : (and (>= n1_speed 70) (<= n1_speed 82) (<= egt max_egt))
+LANDING             : (and (<= n1_speed 40) (<= fuel_flow 600))
+OVERHEAT            : (> egt max_egt)
+FLAME_OUT           : (< n1_speed flameout_n1_threshold)
+EMERGENCY_SHUTDOWN  : (and (= fuel_flow 0) (= n1_speed 0))
+
+; --- Event interpretations ---
+engine_start!        : (and (= n1_speed 0) (>= fuel_flow min_fuel_flow))
+idle_reached!        : (and (>= n1_speed 25) (<= n1_speed 35) (>= fuel_flow min_fuel_flow))
+takeoff_thrust!      : (and (>= n1_speed 95) (<= fuel_flow max_fuel_flow) (<= egt takeoff_egt_limit))
+climb_thrust!        : (and (>= n1_speed 88) (<= egt max_egt))
+descent_initiated!   : (and (<= n1_speed 60) (<= fuel_flow 1000))
+landing_thrust!      : (<= n1_speed 40)
+shutdown_normal!     : (and (<= n1_speed 10) (<= fuel_flow min_fuel_flow))
+overheat_detected!   : (> egt max_egt)
+emergency_shutdown!  : (and (> egt emergency_egt_threshold) (= fuel_flow 0))
+flameout_detected!   : (< n1_speed flameout_n1_threshold)
+relight_initiated!   : (and (< n1_speed flameout_n1_threshold) (>= fuel_flow min_fuel_flow))

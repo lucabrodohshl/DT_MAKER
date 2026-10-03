@@ -1,0 +1,85 @@
+; Ontology v2: Autonomous Pesticide Spraying Drone -- Energy Budget Domain (evolved)
+; Extends domain.ont with Definition 7 Conditions I, II, III from the paper.
+;
+; This file models battery degradation after 200 charge cycles, as discussed
+; in Section IV of the paper. It is the exact ontology evolution example from
+; the paper used to validate Theorem 1 (preservation of semantic alignment).
+;
+; Changes relative to domain.ont:
+;   Condition I  (vocabulary extension):
+;     Add sort Motor and fun rpm : Motor -> Real
+;     Source: electric motor telemetry vocabulary (EASA 2019/947 Annex)
+;     These additions do not affect any existing interpretation formulas.
+;
+;   Condition II (axiom strengthening -- battery degradation):
+;     Tighten battery_capacity from 500 to 450 (battery degradation after 200 cycles)
+;     Source: Section IV of the paper (exact example)
+;     The axiom total_upper: total_consumption <= battery_capacity
+;     now gives total_consumption <= 450 (was <= 500).
+;     Any context with total_consumption = 460 was valid under domain.ont
+;     but is correctly REJECTED under domain_v2.ont. (Verified in RUN 4.)
+;
+;   Condition III (derived/consistent interpretation update -- see pt_v2.interp):
+;     shutoff! updated to (and (<= total_consumption 450) (covered 1))
+;     power_down! updated to (and (>= (- 450 total_consumption) 0) (covered 1))
+;     These are semantically equivalent to the symbolic forms under domain_v2.ont
+;     (battery_capacity = 450), demonstrating that Theorem 1 holds.
+;
+; All original sorts, functions, relations, and non-strengthened axioms are preserved.
+
+; === SORTS === (all original sorts from domain.ont)
+sort Hectare      ; unit of land area -- discrete field zones
+sort Real         ; real-valued energy consumption
+sort Nat          ; natural-valued indices
+
+; === CONDITION I: new sort and function (vocabulary extension) ===
+; Source: EASA 2019/947 Annex I (electric motor operational parameters)
+sort Motor        ; electric motor identifier (DJI Agras T30 has 6 rotors)
+fun rpm           : Motor -> Real  ; revolutions per minute for motor m
+
+; === FUNCTIONS === (all from domain.ont, unchanged)
+fun consumption      : Hectare -> Real
+fun num_hectares     : Nat
+fun total_consumption: Real
+fun battery_capacity : Real
+
+; === RELATIONS === (all from domain.ont, unchanged)
+rel covered          : Hectare
+
+; === AXIOMS ===
+; Unchanged axioms from domain.ont:
+axiom num_h         : (= num_hectares 10)
+axiom nn_consumption: (>= (consumption 1) 0)
+axiom cons_upper    : (<= (consumption 1) 50)
+axiom cons_upper_2  : (<= (consumption 2) 50)
+axiom cons_upper_3  : (<= (consumption 3) 50)
+axiom cons_upper_4  : (<= (consumption 4) 50)
+axiom cons_upper_5  : (<= (consumption 5) 50)
+axiom total_nn      : (>= total_consumption 0)
+
+; === CONDITION II: strengthened axiom -- battery degradation ===
+; battery_capacity tightened from 500 to 450 (200 charge cycles: 10% degradation)
+; Source: Section IV of the paper (canonical example for Theorem 1)
+axiom bat_cap_v2    : (= battery_capacity 450)
+
+; total_upper re-stated with new battery_capacity bound (entailed by bat_cap_v2 + total_upper_sym):
+axiom total_upper   : (<= total_consumption battery_capacity)
+
+; Extended axioms (unchanged from domain.ont):
+fun max_per_hectare_dose : Real
+axiom max_dose_val  : (= max_per_hectare_dose 50)
+
+fun buffer_zone_width : Real
+axiom buffer_val    : (= buffer_zone_width 5)
+
+fun min_coverage_per_hectare : Real
+axiom min_coverage  : (= min_coverage_per_hectare 40)
+
+fun battery_reserve : Real
+axiom bat_reserve   : (= battery_reserve 50)
+
+fun max_flight_time : Real
+axiom max_flight    : (= max_flight_time 300)
+
+; RPM non-negativity (well-formedness for new Motor sort)
+axiom rpm_nn        : (>= (rpm 1) 0)

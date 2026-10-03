@@ -1,0 +1,5 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS3_aligned,true,9,1,1,70,1,6.357,2100
+CS3_thresh_drift,true,7,1,1,70,1,5.763,92
+CS3_timing_violation,true,9,1,1,70,1,5.635,116
+CS3_evo_v2,true,9,1,1,70,1,4.894,88

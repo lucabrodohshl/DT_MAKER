@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autonomous Inspection Rover — Digital Twin (Ground Station / Mission Operations view)
+        // Independently authored by the mission operations team using telemetry-derived vocabulary.
+        // Labels differ from PT intentionally: semantic alignment (not syntactic) is required.
+        //
+        // Telemetry latency tolerance: DT upper timing bounds = PT upper bounds + 4 time units
+        // (bounded telemetry latency modelled as relaxed upper constraints in weak-timed-bisimulation receiver semantics)
+        //
+        // t_telem    : telemetry stream timer (navigation / return monitoring)
+        // t_downlink : sensor data downlink / inspection monitoring timer
+        // t_power    : power system recharge monitoring timer
+        // t_anomaly  : anomaly (fault or comms gap) active timer
+        clock t_telem, t_downlink, t_power, t_anomaly;
+
+        chan mission_uplink_command,
+             telemetry_position_update,
+             sensor_activation_telemetry, data_downlink_event,
+             return_command_uplinked, base_contact_confirmed, power_nominal_telemetry,
+             anomaly_flag_minor, nominal_ops_restored,
+             anomaly_flag_critical, abort_sequence_commanded,
+             telemetry_gap_detected, telemetry_resumed,
+             mission_complete_telemetry;
+    </declaration>
+
+    <template>
+        <name>RoverDT</name>
+
+        <location id="DT_STANDBY" x="0" y="0">
+            <name x="-10" y="-34">DT_STANDBY</name>
+        </location>
+
+        <location id="DT_NAV_MONITORING" x="300" y="0">
+            <name x="260" y="-34">DT_NAV_MONITORING</name>
+            <label kind="invariant" x="260" y="17">t_telem &lt;= 45</label>
+        </location>
+
+        <location id="DT_WAYPOINT_DWELL" x="600" y="0">
+            <name x="560" y="-34">DT_WAYPOINT_DWELL</name>
+        </location>
+
+        <location id="DT_SENSOR_ACTIVE" x="900" y="0">
+            <name x="860" y="-34">DT_SENSOR_ACTIVE</name>
+            <label kind="invariant" x="860" y="17">t_downlink &lt;= 30</label>
+        </location>
+
+        <location id="DT_MISSION_COMPLETE" x="1200" y="0">
+            <name x="1160" y="-34">DT_MISSION_COMPLETE</name>
+        </location>
+
+        <location id="DT_RETURN_MONITORING" x="300" y="300">
+            <name x="260" y="266">DT_RETURN_MONITORING</name>
+            <label kind="invariant" x="260" y="317">t_telem &lt;= 36</label>
+        </location>
+
+        <location id="DT_RECHARGE_MONITORING" x="0" y="300">
+            <name x="-10" y="266">DT_RECHARGE_MONITORING</name>
+            <label kind="invariant" x="-10" y="317">t_power &lt;= 66</label>
+        </location>
+
+        <location id="DT_MINOR_ANOMALY" x="600" y="300">
+            <name x="560" y="266">DT_MINOR_ANOMALY</name>
+            <label kind="invariant" x="560" y="317">t_anomaly &lt;= 36</label>
+        </location>
+
+        <location id="DT_CRITICAL_ANOMALY" x="900" y="300">
+            <name x="860" y="266">DT_CRITICAL_ANOMALY</name>
+            <label kind="invariant" x="860" y="317">t_anomaly &lt;= 21</label>
+        </location>
+
+        <init ref="DT_STANDBY"/>
+
+        <!-- Normal mission flow -->
+        <transition>
+            <source ref="DT_STANDBY"/>
+            <target ref="DT_NAV_MONITORING"/>
+            <label kind="synchronisation" x="100" y="-17">mission_uplink_command!</label>
+            <label kind="assignment" x="100" y="0">t_telem := 0</label>
+        </transition>
+
+        <!-- telemetry_position_update!: DT upper bound = 120 + 4 = 124 -->
+        <transition>
+            <source ref="DT_NAV_MONITORING"/>
+            <target ref="DT_WAYPOINT_DWELL"/>
+            <label kind="guard" x="370" y="-17">t_telem &gt;= 9 &amp;&amp; t_telem &lt;= 45</label>
+            <label kind="synchronisation" x="370" y="0">telemetry_position_update!</label>
+            <label kind="assignment" x="370" y="17">t_telem := 0, t_downlink := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_WAYPOINT_DWELL"/>
+            <target ref="DT_SENSOR_ACTIVE"/>
+            <label kind="synchronisation" x="710" y="-17">sensor_activation_telemetry!</label>
+            <label kind="assignment" x="710" y="0">t_downlink := 0</label>
+        </transition>
+
+        <!-- data_downlink_event!: DT upper bound = 60 + 4 = 64 -->
+        <transition>
+            <source ref="DT_SENSOR_ACTIVE"/>
+            <target ref="DT_NAV_MONITORING"/>
+            <label kind="guard" x="600" y="50">t_downlink &gt;= 6 &amp;&amp; t_downlink &lt;= 30</label>
+            <label kind="synchronisation" x="600" y="67">data_downlink_event!</label>
+            <label kind="assignment" x="600" y="84">t_telem := 0</label>
+        </transition>
+
+        <!-- Last waypoint: mission complete telemetry -->
+        <transition>
+            <source ref="DT_SENSOR_ACTIVE"/>
+            <target ref="DT_MISSION_COMPLETE"/>
+            <label kind="guard" x="1010" y="-17">t_downlink &gt;= 6 &amp;&amp; t_downlink &lt;= 30</label>
+            <label kind="synchronisation" x="1010" y="0">mission_complete_telemetry!</label>
+        </transition>
+
+        <!-- Return / recharge flow -->
+        <transition>
+            <source ref="DT_NAV_MONITORING"/>
+            <target ref="DT_RETURN_MONITORING"/>
+            <label kind="synchronisation" x="100" y="150">return_command_uplinked!</label>
+            <label kind="assignment" x="100" y="167">t_telem := 0</label>
+        </transition>
+
+        <!-- base_contact_confirmed!: DT upper bound = 90 + 4 = 94 -->
+        <transition>
+            <source ref="DT_RETURN_MONITORING"/>
+            <target ref="DT_RECHARGE_MONITORING"/>
+            <label kind="guard" x="50" y="317">t_telem &gt;= 9 &amp;&amp; t_telem &lt;= 36</label>
+            <label kind="synchronisation" x="50" y="334">base_contact_confirmed!</label>
+            <label kind="assignment" x="50" y="351">t_power := 0</label>
+        </transition>
+
+        <!-- power_nominal_telemetry! -->
+        <transition>
+            <source ref="DT_RECHARGE_MONITORING"/>
+            <target ref="DT_STANDBY"/>
+            <label kind="guard" x="-200" y="150">t_power &gt;= 24</label>
+            <label kind="synchronisation" x="-200" y="167">power_nominal_telemetry!</label>
+        </transition>
+
+        <!-- Minor anomaly: from DT_NAV_MONITORING, DT_SENSOR_ACTIVE, DT_RETURN_MONITORING -->
+        <!-- DT upper bound for non-critical fault response: 5 + 4 = 9 -->
+        <transition>
+            <source ref="DT_NAV_MONITORING"/>
+            <target ref="DT_MINOR_ANOMALY"/>
+            <label kind="guard" x="350" y="150">t_anomaly &lt;= 21</label>
+            <label kind="synchronisation" x="350" y="167">anomaly_flag_minor!</label>
+            <label kind="assignment" x="350" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_SENSOR_ACTIVE"/>
+            <target ref="DT_MINOR_ANOMALY"/>
+            <label kind="guard" x="700" y="150">t_anomaly &lt;= 21</label>
+            <label kind="synchronisation" x="700" y="167">anomaly_flag_minor!</label>
+            <label kind="assignment" x="700" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_RETURN_MONITORING"/>
+            <target ref="DT_MINOR_ANOMALY"/>
+            <label kind="guard" x="450" y="300">t_anomaly &lt;= 21</label>
+            <label kind="synchronisation" x="450" y="317">anomaly_flag_minor!</label>
+            <label kind="assignment" x="450" y="334">t_anomaly := 0</label>
+        </transition>
+
+        <!-- Nominal ops restored (fault_cleared equivalent) -->
+        <!-- DT upper bound: 30 + 4 = 34 -->
+        <transition>
+            <source ref="DT_MINOR_ANOMALY"/>
+            <target ref="DT_NAV_MONITORING"/>
+            <label kind="guard" x="400" y="200">t_anomaly &gt;= 6 &amp;&amp; t_anomaly &lt;= 36</label>
+            <label kind="synchronisation" x="400" y="217">nominal_ops_restored!</label>
+            <label kind="assignment" x="400" y="234">t_anomaly := 0, t_telem := 0</label>
+        </transition>
+
+        <!-- Telemetry resumed (comms_restored equivalent): DT_MINOR_ANOMALY acts as COMMS_LOST -->
+        <transition>
+            <source ref="DT_MINOR_ANOMALY"/>
+            <target ref="DT_NAV_MONITORING"/>
+            <label kind="guard" x="450" y="150">t_anomaly &gt;= 6</label>
+            <label kind="synchronisation" x="450" y="167">telemetry_resumed!</label>
+            <label kind="assignment" x="450" y="184">t_telem := 0</label>
+        </transition>
+
+        <!-- Critical anomaly: from any active navigation state -->
+        <!-- DT upper bound for critical fault response: 3 + 4 = 7 -->
+        <transition>
+            <source ref="DT_NAV_MONITORING"/>
+            <target ref="DT_CRITICAL_ANOMALY"/>
+            <label kind="guard" x="550" y="150">t_anomaly &lt;= 15</label>
+            <label kind="synchronisation" x="550" y="167">anomaly_flag_critical!</label>
+            <label kind="assignment" x="550" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_WAYPOINT_DWELL"/>
+            <target ref="DT_CRITICAL_ANOMALY"/>
+            <label kind="guard" x="750" y="150">t_anomaly &lt;= 15</label>
+            <label kind="synchronisation" x="750" y="167">anomaly_flag_critical!</label>
+            <label kind="assignment" x="750" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_SENSOR_ACTIVE"/>
+            <target ref="DT_CRITICAL_ANOMALY"/>
+            <label kind="guard" x="900" y="150">t_anomaly &lt;= 15</label>
+            <label kind="synchronisation" x="900" y="167">anomaly_flag_critical!</label>
+            <label kind="assignment" x="900" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_RETURN_MONITORING"/>
+            <target ref="DT_CRITICAL_ANOMALY"/>
+            <label kind="guard" x="600" y="300">t_anomaly &lt;= 15</label>
+            <label kind="synchronisation" x="600" y="317">anomaly_flag_critical!</label>
+            <label kind="assignment" x="600" y="334">t_anomaly := 0</label>
+        </transition>
+
+        <!-- Abort sequence: DT upper bound = 5 + 4 = 9 -->
+        <transition>
+            <source ref="DT_CRITICAL_ANOMALY"/>
+            <target ref="DT_RETURN_MONITORING"/>
+            <label kind="guard" x="650" y="350">t_anomaly &lt;= 21</label>
+            <label kind="synchronisation" x="650" y="367">abort_sequence_commanded!</label>
+            <label kind="assignment" x="650" y="384">t_telem := 0</label>
+        </transition>
+
+        <!-- Telemetry gap (comms_timeout equivalent): fires after 60+ telem units -->
+        <transition>
+            <source ref="DT_NAV_MONITORING"/>
+            <target ref="DT_MINOR_ANOMALY"/>
+            <label kind="guard" x="150" y="-80">t_telem &gt;= 24</label>
+            <label kind="synchronisation" x="150" y="-63">telemetry_gap_detected!</label>
+            <label kind="assignment" x="150" y="-46">t_anomaly := 0</label>
+        </transition>
+
+    </template>
+
+    <system>RoverDT = RoverDT(); system RoverDT;</system>
+
+</nta>

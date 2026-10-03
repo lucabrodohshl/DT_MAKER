@@ -1,0 +1,31 @@
+; PT Interpretation: ThreeTankPT
+; Maps each PT location and event label to its IEC 61511 domain-level meaning.
+; Standard: IEC 61511-1:2016
+
+; --- Location interpretations (Condition I: state consistency) ---
+; NOTE: formulas use strict inequalities / active-flow conditions to avoid
+;       being tautologies under the domain axioms (which already assert >= 0
+;       and capacity bounds).  Only these non-trivial predicates allow the
+;       seeding step to distinguish incompatible location pairs.
+IDLE             : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+FILLING          : (>= (inflow_rate 1) 2)
+FLOWING_12       : (and (>= (level 1) min_safe_level) (>= (inflow_rate 2) 2))
+FLOWING_23       : (and (>= (level 2) min_safe_level) (>= (inflow_rate 3) 2))
+DRAINING         : (> (outflow_rate 3) 0)
+PROOF_TEST       : (>= total_volume min_safe_level)
+ALARM            : (< (level 3) min_safe_level)
+EMERGENCY_STOP   : (< (level 3) min_safe_level)
+
+; --- Event interpretations (Conditions II-III: transition matching) ---
+pump_on!             : (and (>= (inflow_rate 1) 2) (<= (level 1) (capacity 1)))
+pump_off!            : (<= (inflow_rate 1) 0)
+valve12_open!        : (and (>= (level 1) 5) (>= (outflow_rate 1) 2))
+valve12_close!       : (<= (outflow_rate 1) 0)
+valve23_open!        : (and (>= (level 2) 5) (>= (outflow_rate 2) 2))
+valve23_close!       : (<= (outflow_rate 2) 0)
+drain!               : (> (outflow_rate 3) 0)
+level_critical!      : (< (level 3) min_safe_level)
+proof_test_start!    : (>= total_volume min_safe_level)
+proof_test_complete! : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+emergency_shutdown!  : (< (level 3) min_safe_level)
+system_reset!        : (>= total_volume min_safe_level)

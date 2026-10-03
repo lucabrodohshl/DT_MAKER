@@ -1,0 +1,15 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/DTPTAlignmentTargets.cmake")
+
+# Set the found flag
+set(DTPTAlignment_FOUND TRUE)
+
+# Set library and include directories
+get_target_property(DTPTAlignment_INCLUDE_DIRS dtpta INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(DTPTAlignment_LIBRARIES   dtpta INTERFACE_LINK_LIBRARIES)
+
+check_required_components(DTPTAlignment)

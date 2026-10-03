@@ -1,0 +1,71 @@
+; DT Interpretation: RoverDT
+; Ground station / mission operations perspective.
+; Uses telemetry-derived quantities: mission_progress percentage,
+; signal_strength from downlink, data_collected from downlink stream.
+;
+; Semantically equivalent to PT interpretations under Delta.
+; Z3 confirms each pair (I_PT(e), I_DT(e')) is iff-entailed by Delta.
+;
+; Key alignment challenge (RQ2 motivation):
+;   PT fires waypoint_reached! — onboard navigation confirms arrival
+;   DT fires mission_uplink_command!      : (and (>= battery_level battery_reserve) (= mission_progress 0))
+telemetry_position_update! — ground station sees telemetry match
+;   Both require: distance_to_waypoint <= waypoint_accept_radius AND battery >= reserve
+;   Syntactic bisimulation FAILS (different labels); semantic alignment SUCCEEDS.
+
+; --- Location interpretations ---
+DT_STANDBY            : (and (>= battery_level battery_reserve) (= mission_progress 0))
+DT_NAV_MONITORING     : (and (> distance_to_waypoint 0) (>= battery_level battery_reserve))
+DT_WAYPOINT_DWELL     : (<= distance_to_waypoint waypoint_accept_radius)
+DT_SENSOR_ACTIVE      : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected 0))
+DT_RETURN_MONITORING  : (and (> distance_to_base 0) (< battery_level battery_capacity))
+DT_RECHARGE_MONITORING: (= distance_to_base 0)
+DT_MINOR_ANOMALY      : (>= battery_level battery_reserve)
+DT_CRITICAL_ANOMALY   : (< battery_level battery_capacity)
+DT_MISSION_COMPLETE   : (= mission_progress 100)
+
+; --- Event interpretations ---
+; Each DT event is semantically equivalent to its PT counterpart under Delta.
+
+; mission_uplink_command! ~ mission_start!
+; Delta |= (and (>= battery_level battery_reserve) (= mission_progress 0))
+;       <-> (and (>= battery_level battery_reserve) (= waypoints_completed 0))
+; Proof: progress_zero_fwd + progress_zero_bwd axioms in domain.ont
+
+; telemetry_position_update! ~ waypoint_reached!
+; Delta |= (and (<= distance_to_waypoint waypoint_accept_radius) (>= battery_level battery_reserve))
+;       <-> same — trivially equivalent (identical formula)
+telemetry_position_update!   : (and (<= distance_to_waypoint waypoint_accept_radius) (>= battery_level battery_reserve))
+
+; sensor_activation_telemetry! ~ inspection_start!
+
+; data_downlink_event! ~ inspection_complete!
+data_downlink_event!         : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected data_required_per_wp))
+
+; return_command_uplinked! ~ return_initiated!
+return_command_uplinked!     : (<= battery_level (+ battery_reserve energy_to_base))
+
+; base_contact_confirmed! ~ base_reached!
+base_contact_confirmed!      : (= distance_to_base 0)
+
+; power_nominal_telemetry! ~ charge_complete!
+
+; anomaly_flag_minor! ~ fault_noncritical!
+
+; nominal_ops_restored! ~ fault_cleared!
+
+; anomaly_flag_critical! ~ fault_critical!
+; Delta |= (< battery_level battery_reserve) <-> (< battery_level battery_reserve) — trivial
+anomaly_flag_critical!       : (< battery_level battery_reserve)
+
+; abort_sequence_commanded! ~ emergency_return!
+abort_sequence_commanded!    : (< battery_level battery_reserve)
+
+; telemetry_gap_detected! ~ comms_timeout!
+
+; telemetry_resumed! ~ comms_restored!
+
+; mission_complete_telemetry! ~ mission_end!
+; Delta |= (= mission_progress 100) <-> (= waypoints_completed total_waypoints)
+; Proof: progress_complete_fwd + progress_complete_bwd axioms in domain.ont
+mission_complete_telemetry!  : (= mission_progress 100)

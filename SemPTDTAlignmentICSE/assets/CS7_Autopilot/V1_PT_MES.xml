@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 MES PT -- Manoeuvre Execution Subsystem (Physical Twin)
+        // Subsystem: MES_READY, HAZARD_DETECTED, MANEUVER_CLIMB/DESCEND/LEFT/RIGHT, MES_DONE
+        // Events: hazard_alert!, maneuver_climb/descend/left/right!, maneuver_complete!
+        // ARP4754A: manoeuvre initiation &lt;= 2 time units; DO-178C: completion &lt;= 30 units
+        clock t_hazard, t_maneuver;
+        chan hazard_alert, maneuver_climb, maneuver_descend, maneuver_left, maneuver_right, maneuver_complete;
+    </declaration>
+    <template>
+        <name>AutopilotPT_MES</name>
+        <location id="MES_READY" x="0" y="0">
+            <name x="-10" y="-34">MES_READY</name>
+        </location>
+        <location id="HAZARD_DETECTED" x="300" y="0">
+            <name x="260" y="-34">HAZARD_DETECTED</name>
+            <label kind="invariant" x="260" y="17">t_hazard &lt;= 2</label>
+        </location>
+        <location id="MANEUVER_CLIMB" x="600" y="0">
+            <name x="560" y="-34">MANEUVER_CLIMB</name>
+            <label kind="invariant" x="560" y="17">t_maneuver &lt;= 30</label>
+        </location>
+        <location id="MANEUVER_DESCEND" x="600" y="200">
+            <name x="560" y="166">MANEUVER_DESCEND</name>
+            <label kind="invariant" x="560" y="217">t_maneuver &lt;= 30</label>
+        </location>
+        <location id="MANEUVER_LEFT" x="900" y="0">
+            <name x="860" y="-34">MANEUVER_LEFT</name>
+            <label kind="invariant" x="860" y="17">t_maneuver &lt;= 30</label>
+        </location>
+        <location id="MANEUVER_RIGHT" x="900" y="200">
+            <name x="860" y="166">MANEUVER_RIGHT</name>
+            <label kind="invariant" x="860" y="217">t_maneuver &lt;= 30</label>
+        </location>
+        <location id="MES_DONE" x="1200" y="100">
+            <name x="1160" y="66">MES_DONE</name>
+        </location>
+        <init ref="MES_READY"/>
+        <transition>
+            <source ref="MES_READY"/>
+            <target ref="HAZARD_DETECTED"/>
+            <label kind="synchronisation" x="100" y="-17">hazard_alert!</label>
+            <label kind="assignment" x="100" y="0">t_hazard := 0</label>
+        </transition>
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_CLIMB"/>
+            <label kind="guard" x="370" y="-17">t_hazard &lt;= 2</label>
+            <label kind="synchronisation" x="370" y="0">maneuver_climb!</label>
+            <label kind="assignment" x="370" y="17">t_maneuver := 0</label>
+        </transition>
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_DESCEND"/>
+            <label kind="guard" x="370" y="100">t_hazard &lt;= 2</label>
+            <label kind="synchronisation" x="370" y="117">maneuver_descend!</label>
+            <label kind="assignment" x="370" y="134">t_maneuver := 0</label>
+        </transition>
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_LEFT"/>
+            <label kind="guard" x="600" y="-51">t_hazard &lt;= 2</label>
+            <label kind="synchronisation" x="600" y="-34">maneuver_left!</label>
+            <label kind="assignment" x="600" y="-17">t_maneuver := 0</label>
+        </transition>
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_RIGHT"/>
+            <label kind="guard" x="600" y="100">t_hazard &lt;= 2</label>
+            <label kind="synchronisation" x="600" y="117">maneuver_right!</label>
+            <label kind="assignment" x="600" y="134">t_maneuver := 0</label>
+        </transition>
+        <transition>
+            <source ref="MANEUVER_CLIMB"/>
+            <target ref="MES_DONE"/>
+            <label kind="guard" x="900" y="-17">t_maneuver &gt;= 5 &amp;&amp; t_maneuver &lt;= 30</label>
+            <label kind="synchronisation" x="900" y="0">maneuver_complete!</label>
+        </transition>
+        <transition>
+            <source ref="MANEUVER_DESCEND"/>
+            <target ref="MES_DONE"/>
+            <label kind="guard" x="900" y="150">t_maneuver &gt;= 5 &amp;&amp; t_maneuver &lt;= 30</label>
+            <label kind="synchronisation" x="900" y="167">maneuver_complete!</label>
+        </transition>
+        <transition>
+            <source ref="MANEUVER_LEFT"/>
+            <target ref="MES_DONE"/>
+            <label kind="guard" x="1050" y="-17">t_maneuver &gt;= 5 &amp;&amp; t_maneuver &lt;= 30</label>
+            <label kind="synchronisation" x="1050" y="0">maneuver_complete!</label>
+        </transition>
+        <transition>
+            <source ref="MANEUVER_RIGHT"/>
+            <target ref="MES_DONE"/>
+            <label kind="guard" x="1050" y="150">t_maneuver &gt;= 5 &amp;&amp; t_maneuver &lt;= 30</label>
+            <label kind="synchronisation" x="1050" y="167">maneuver_complete!</label>
+        </transition>
+    </template>
+    <system>
+        AutopilotPT_MES = AutopilotPT_MES();
+        system AutopilotPT_MES;
+    </system>
+</nta>

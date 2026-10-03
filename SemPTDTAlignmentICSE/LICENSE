@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 The Authors (anonymized for double-blind review)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---------------------------------------------------------------------------
+Build-time dependency notice
+---------------------------------------------------------------------------
+The MIT license above covers ONLY the source code authored for this artifact
+(src/, include/, benchmark/, simulation/, scripts/, the build files, and the
+case-study inputs under assets/).
+
+This software does not bundle its third-party dependencies; setup.sh fetches
+and builds them locally. When compiled, the resulting binaries statically link
+the UPPAAL DBM library (UDBM, GPL-3.0) and the UPPAAL timed-automata parser
+(UTAP, LGPL-2.1-or-later). A compiled binary is therefore a combined work
+governed by the terms of the GNU GPL-3.0. See THIRD_PARTY.md for the full list
+of dependencies, their licenses, and copyright holders.

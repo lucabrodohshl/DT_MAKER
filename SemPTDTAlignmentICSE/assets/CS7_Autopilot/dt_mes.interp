@@ -1,0 +1,19 @@
+; Interpretation: dt_mes -- Manoeuvre Execution Subsystem (DT)
+; Covers: MES_DT_READY, FSD_ENVELOPE_BREACH, FSD_CLIMB, FSD_DESCEND, FSD_SAFETY_MANEUVER
+; Events: flight_envelope_breach!, safety_climb_initiated!, safety_descent_initiated!,
+;         safety_turn_left_initiated!, safety_turn_right_initiated!, safety_maneuver_confirmed!
+
+; === LOCATION INTERPRETATIONS ===
+MES_DT_READY        : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+FSD_ENVELOPE_BREACH : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+FSD_CLIMB           : (and (>= altitude min_altitude) (>= airspeed min_airspeed) (> pitch_angle 0))
+FSD_DESCEND         : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed) (< pitch_angle 0))
+FSD_SAFETY_MANEUVER : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+
+; === EVENT INTERPRETATIONS ===
+flight_envelope_breach!     : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+safety_climb_initiated!     : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+safety_descent_initiated!   : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed))
+safety_turn_left_initiated! : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+safety_turn_right_initiated!: (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+safety_maneuver_confirmed!  : (and (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))

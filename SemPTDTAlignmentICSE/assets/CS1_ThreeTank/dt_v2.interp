@@ -1,0 +1,28 @@
+; DT Interpretation v2: ThreeTankDT under domain_v2.ont
+; CONDITION III (Ontology evolution): tightened safety-critical interpretation
+; reflecting min_safe_level = 12 (was 10 in dt.interp / domain.ont).
+
+; --- Location interpretations ---
+MONITOR_IDLE           : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+MONITOR_INFLOW_ACTIVE  : (>= (inflow_rate 1) 2)
+MONITOR_TRANSFER_T1T2  : (and (>= (level 1) min_safe_level) (>= (inflow_rate 2) 2))
+MONITOR_TRANSFER_T2T3  : (and (>= (level 2) min_safe_level) (>= (inflow_rate 3) 2))
+MONITOR_OUTFLOW        : (> (outflow_rate 3) 0)
+MONITOR_DIAGNOSTIC     : (>= total_volume min_safe_level)
+MONITOR_SAFETY_ALERT   : (< (level 3) min_safe_level)
+MONITOR_TRIP           : (< (level 3) min_safe_level)
+
+; --- Event interpretations (updated to reflect min_safe_level = 12) ---
+pump_activate_monitor!    : (and (>= (inflow_rate 1) 2) (<= (level 1) (capacity 1)))
+pump_deactivate_monitor!  : (<= (inflow_rate 1) 0)
+inflow_t2_start!          : (and (>= (level 1) 5) (>= (outflow_rate 1) 2))
+inflow_t2_stop!           : (<= (outflow_rate 1) 0)
+inflow_t3_start!          : (and (>= (level 2) 5) (>= (outflow_rate 2) 2))
+inflow_t3_stop!           : (<= (outflow_rate 2) 0)
+outflow_start!            : (> (outflow_rate 3) 0)
+; Tightened: safety_margin_breach now triggers when level(3) < 12 (under domain_v2.ont)
+safety_margin_breach!     : (< (level 3) min_safe_level)
+diagnostic_cycle_start!   : (>= total_volume min_safe_level)
+diagnostic_cycle_complete! : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+protective_trip_command!  : (< (level 3) min_safe_level)
+system_reset!             : (>= total_volume min_safe_level)

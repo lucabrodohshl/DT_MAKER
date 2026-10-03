@@ -1,0 +1,61 @@
+; PT Interpretation: RoverPT
+; Flight software engineer perspective.
+; Standards: NASA NPR 7150.2D:2022, NASA-STD-8739.8A:2017, ECSS-E-ST-10-06C:2017
+;
+; All formulas in SMT-LIB2 prefix notation.
+; Arithmetic: (+ a b), (- a b), (* a b) — no infix.
+
+; --- Location interpretations ---
+STANDBY          : (and (>= battery_level battery_reserve) (= waypoints_completed 0))
+NAVIGATING       : (and (> distance_to_waypoint 0) (>= battery_level battery_reserve))
+AT_WAYPOINT      : (<= distance_to_waypoint waypoint_accept_radius)
+INSPECTING       : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected 0))
+RETURNING        : (and (> distance_to_base 0) (< battery_level battery_capacity))
+CHARGING         : (= distance_to_base 0)
+SAFE_MODE        : (>= battery_level battery_reserve)
+FAULT_CRITICAL   : (< battery_level battery_capacity)
+MISSION_COMPLETE : (= waypoints_completed total_waypoints)
+COMMS_LOST       : (>= battery_level battery_reserve)
+
+; --- Event interpretations ---
+; All arithmetic uses prefix SMT-LIB2 notation.
+
+; mission_start!: rover has sufficient battery and is at mission start (wp=0)
+
+; waypoint_reached!: onboard navigation confirms arrival (position error < acceptance radius)
+; NASA NPR 7150.2 Req 7.1.1: arrival only valid while battery sufficient
+waypoint_reached!    : (and (<= distance_to_waypoint waypoint_accept_radius) (>= battery_level battery_reserve))
+
+; inspection_start!: sensor suite activated at waypoint position
+
+; inspection_complete!: minimum data volume acquired (ECSS-E-ST-10-06C inspection requirement)
+inspection_complete! : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected data_required_per_wp))
+
+; return_initiated!: mandatory return when battery <= battery_reserve + energy_to_base (= 45 Wh)
+; NASA NPR 7150.2: battery budget < 25% triggers mandatory return (modelled as threshold 45)
+return_initiated!    : (<= battery_level (+ battery_reserve energy_to_base))
+
+; base_reached!: rover confirms contact with base station
+base_reached!        : (= distance_to_base 0)
+
+; charge_complete!: battery replenished to near-full (within 5 Wh of capacity)
+
+; fault_noncritical!: non-critical fault — battery safe, marginal signal degradation
+; NASA-STD-8739.8A Sec.3.3: non-critical fault must be responded to within 5 time units
+
+; fault_cleared!: fault resolved — battery still sufficient, signal restored
+
+; fault_critical!: critical fault — battery below safety reserve
+; NASA NPR 7150.2 Req 3.6.1: critical fault response within 3 time units
+fault_critical!      : (< battery_level battery_reserve)
+
+; emergency_return!: mission abort — battery critically low
+emergency_return!    : (< battery_level battery_reserve)
+
+; comms_timeout!: communication timeout declared after 60 time units silence
+; ECSS-E-ST-10-06C Cl.5.2.3: comms loss declared after allocated timeout window
+
+; comms_restored!: communication link re-established
+
+; mission_end!: all waypoints inspected — mission complete
+mission_end!         : (= waypoints_completed total_waypoints)

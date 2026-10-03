@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 MES DT -- Manoeuvre Execution Subsystem (Digital Twin)
+        // Subsystem: MES_DT_READY, FSD_ENVELOPE_BREACH, FSD_CLIMB, FSD_DESCEND,
+        //            FSD_SAFETY_MANEUVER, MES_DT_DONE
+        // DT timing: +2 latency; breach window t_env &lt;= 4; manoeuvre [5,32]
+        clock t_env, t_safety;
+        chan flight_envelope_breach, safety_climb_initiated, safety_descent_initiated,
+             safety_turn_left_initiated, safety_turn_right_initiated, safety_maneuver_confirmed;
+    </declaration>
+    <template>
+        <name>FlightSafetyDT_MES</name>
+        <location id="MES_DT_READY" x="0" y="0">
+            <name x="-10" y="-34">MES_DT_READY</name>
+        </location>
+        <location id="FSD_ENVELOPE_BREACH" x="300" y="0">
+            <name x="260" y="-34">FSD_ENVELOPE_BREACH</name>
+            <label kind="invariant" x="260" y="17">t_env &lt;= 4</label>
+        </location>
+        <location id="FSD_CLIMB" x="600" y="0">
+            <name x="560" y="-34">FSD_CLIMB</name>
+            <label kind="invariant" x="560" y="17">t_safety &lt;= 32</label>
+        </location>
+        <location id="FSD_DESCEND" x="600" y="200">
+            <name x="560" y="166">FSD_DESCEND</name>
+            <label kind="invariant" x="560" y="217">t_safety &lt;= 32</label>
+        </location>
+        <location id="FSD_SAFETY_MANEUVER" x="900" y="100">
+            <name x="860" y="66">FSD_SAFETY_MANEUVER</name>
+            <label kind="invariant" x="860" y="117">t_safety &lt;= 32</label>
+        </location>
+        <location id="MES_DT_DONE" x="1200" y="100">
+            <name x="1160" y="66">MES_DT_DONE</name>
+        </location>
+        <init ref="MES_DT_READY"/>
+        <transition>
+            <source ref="MES_DT_READY"/>
+            <target ref="FSD_ENVELOPE_BREACH"/>
+            <label kind="synchronisation" x="100" y="-17">flight_envelope_breach!</label>
+            <label kind="assignment" x="100" y="0">t_env := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_CLIMB"/>
+            <label kind="guard" x="370" y="-17">t_env &lt;= 4</label>
+            <label kind="synchronisation" x="370" y="0">safety_climb_initiated!</label>
+            <label kind="assignment" x="370" y="17">t_safety := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_DESCEND"/>
+            <label kind="guard" x="370" y="100">t_env &lt;= 4</label>
+            <label kind="synchronisation" x="370" y="117">safety_descent_initiated!</label>
+            <label kind="assignment" x="370" y="134">t_safety := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_SAFETY_MANEUVER"/>
+            <label kind="guard" x="500" y="-51">t_env &lt;= 4</label>
+            <label kind="synchronisation" x="500" y="-34">safety_turn_left_initiated!</label>
+            <label kind="assignment" x="500" y="-17">t_safety := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_SAFETY_MANEUVER"/>
+            <label kind="guard" x="500" y="100">t_env &lt;= 4</label>
+            <label kind="synchronisation" x="500" y="117">safety_turn_right_initiated!</label>
+            <label kind="assignment" x="500" y="134">t_safety := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_CLIMB"/>
+            <target ref="MES_DT_DONE"/>
+            <label kind="guard" x="870" y="-17">t_safety &gt;= 5 &amp;&amp; t_safety &lt;= 32</label>
+            <label kind="synchronisation" x="870" y="0">safety_maneuver_confirmed!</label>
+        </transition>
+        <transition>
+            <source ref="FSD_DESCEND"/>
+            <target ref="MES_DT_DONE"/>
+            <label kind="guard" x="870" y="150">t_safety &gt;= 5 &amp;&amp; t_safety &lt;= 32</label>
+            <label kind="synchronisation" x="870" y="167">safety_maneuver_confirmed!</label>
+        </transition>
+        <transition>
+            <source ref="FSD_SAFETY_MANEUVER"/>
+            <target ref="MES_DT_DONE"/>
+            <label kind="guard" x="1050" y="67">t_safety &gt;= 5 &amp;&amp; t_safety &lt;= 32</label>
+            <label kind="synchronisation" x="1050" y="84">safety_maneuver_confirmed!</label>
+        </transition>
+    </template>
+    <system>
+        FlightSafetyDT_MES = FlightSafetyDT_MES();
+        system FlightSafetyDT_MES;
+    </system>
+</nta>

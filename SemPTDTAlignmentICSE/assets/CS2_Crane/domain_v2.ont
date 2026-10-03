@@ -1,0 +1,113 @@
+; Ontology v2: Overhead Travelling Crane (Refined)
+; Ontology evolution per Definition 7 — Three conditions satisfied:
+;
+; Condition I   — Vocabulary extension (sort Vibration + two functions)
+; Condition II  — Axiom strengthening (rated_load refined from 500 to 475)
+; Condition III — Interpretation tightening (updated in pt_v2.interp, dt_v2.interp)
+;
+; EN 13001 field re-assessment revealed phi_2 = 1.05, not 1.0.
+; Effective rated capacity reduced from 500 kg to 475 kg.
+
+; === SORTS (all from v1 + extension) ===
+sort Load
+sort Force
+sort Speed
+sort Height
+sort FloorIndex
+sort CycleCount
+sort Temperature
+sort Time
+sort Vibration     ; mm/s RMS — vibration level (EN 15011 Cl.6.3 condition monitoring)
+
+; === FUNCTIONS (all from v1 + extension) ===
+fun current_load      : Load
+fun rated_load        : Load
+fun max_load          : Load
+fun dynamic_factor    : Force
+fun current_height    : Height
+fun floor_height      : FloorIndex -> Height
+fun max_height        : Height
+fun min_height        : Height
+fun hoist_speed       : Speed
+fun max_hoist_speed_loaded   : Speed
+fun max_hoist_speed_unloaded : Speed
+fun travel_speed      : Speed
+fun max_travel_speed  : Speed
+fun hoist_cycles_total  : CycleCount
+fun duty_cycle_limit    : CycleCount
+fun cycles_since_rest   : CycleCount
+fun thermal_rest_limit  : CycleCount
+fun motor_temperature   : Temperature
+fun max_motor_temp      : Temperature
+fun ambient_temperature : Temperature
+fun hoist_force         : Force
+fun brake_force         : Force
+fun min_brake_force     : Force
+fun vibration_level     : Vibration   ; current hoist vibration (mm/s RMS)
+fun max_vibration       : Vibration   ; EN 15011 alarm threshold
+
+; === RELATIONS ===
+rel overloaded          :
+rel thermally_limited   :
+rel at_upper_limit      :
+rel at_lower_limit      :
+rel duty_limit_reached  :
+rel service_life_exceeded :
+
+; === AXIOMS ===
+
+; --- EN 13001 rated capacity (CONDITION II: tightened from 500 to 475) ---
+axiom rated_load_v2      : (= rated_load 475)
+axiom dynamic_factor_val : (= dynamic_factor 1)
+axiom max_load_def       : (= max_load rated_load)
+
+; --- EN 15011 speed limits (unchanged) ---
+axiom max_hoist_loaded   : (= max_hoist_speed_loaded 1)
+axiom max_hoist_unloaded : (= max_hoist_speed_unloaded 2)
+axiom max_travel_sp      : (= max_travel_speed 3)
+
+; --- Non-negativity ---
+axiom nn_load            : (>= current_load 0)
+axiom nn_height          : (>= current_height 0)
+axiom nn_hoist_speed     : (>= hoist_speed 0)
+axiom nn_travel_speed    : (>= travel_speed 0)
+axiom nn_cycles          : (>= hoist_cycles_total 0)
+axiom nn_cycles_rest     : (>= cycles_since_rest 0)
+axiom nn_temp            : (>= motor_temperature 0)
+axiom nn_vib             : (>= vibration_level 0)
+
+; --- Floor height definitions ---
+axiom floor0_height      : (= (floor_height 0) 0)
+axiom floor1_height      : (= (floor_height 1) 4)
+axiom floor2_height      : (= (floor_height 2) 8)
+
+; --- Height limit switches ---
+axiom max_h              : (= max_height 9)
+axiom min_h              : (= min_height 0)
+axiom height_upper_bound : (<= current_height max_height)
+axiom height_lower_bound : (>= current_height min_height)
+
+; --- IEC 60204 Cl.12.4 thermal protection ---
+axiom max_temp_val       : (= max_motor_temp 120)
+axiom ambient_val        : (= ambient_temperature 20)
+axiom temp_bound         : (>= motor_temperature ambient_temperature)
+axiom temp_upper         : (<= motor_temperature (+ max_motor_temp 10))
+
+; --- ISO 4301 M4 duty cycle limits ---
+axiom duty_limit_val     : (= duty_cycle_limit 25000)
+axiom thermal_rest_lim   : (= thermal_rest_limit 120)
+axiom cycles_monotone    : (>= hoist_cycles_total cycles_since_rest)
+
+; --- IEC 60204 Cl.10.6 brake requirements ---
+axiom min_brake_val      : (= min_brake_force 10)
+axiom brake_bound        : (>= brake_force 0)
+
+; --- Load vs rated capacity ---
+axiom load_capacity_rel  : (<= current_load (+ max_load 50))
+
+; --- Hoist speed constraint ---
+axiom speed_loaded_bound : (<= hoist_speed (+ max_hoist_speed_loaded 1))
+
+; --- EN 15011 Cl.6.3 vibration monitoring (new in v2) ---
+axiom max_vib            : (= max_vibration 10)
+axiom vib_bound          : (<= vibration_level max_vibration)

@@ -1,0 +1,35 @@
+; Interpretation: pt_v2 -- PT with updated ontology (domain_v2.ont)
+; Identical to pt.interp; all formulas reference max_pitch_up symbolically.
+; Theorem 1: ontology tightening (max_pitch_up 30->27) does not invalidate alignment
+; because the DT interp also references max_pitch_up symbolically.
+
+; === LOCATION INTERPRETATIONS ===
+STANDBY           : (and (>= ap_health_index 0) (= pitch_rate 0))
+NOMINAL           : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+TRANSITION_UP     : (and (>= airspeed min_airspeed) (>= pitch_rate 0))
+TRANSITION_DOWN   : (and (>= airspeed min_airspeed) (<= pitch_rate 0))
+MANEUVER_CLIMB    : (and (>= airspeed min_airspeed) (> pitch_angle 0) (<= pitch_rate max_pitch_rate))
+MANEUVER_DESCEND  : (and (>= airspeed min_airspeed) (< pitch_angle 0) (<= pitch_rate max_pitch_rate))
+MANEUVER_LEFT     : (and (>= airspeed min_airspeed) (<= roll_angle 0) (<= roll_rate max_roll_rate))
+MANEUVER_RIGHT    : (and (>= airspeed min_airspeed) (>= roll_angle 0) (<= roll_rate max_roll_rate))
+RECOVERY          : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll))
+HAZARD_DETECTED   : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+EMERGENCY_OVERRIDE: (>= ap_health_index 0)
+SYSTEM_FAULT      : (< ap_health_index 0)
+
+; === EVENT INTERPRETATIONS ===
+activate!            : (>= airspeed min_airspeed)
+hazard_alert!        : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+maneuver_climb!      : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+maneuver_descend!    : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed))
+maneuver_left!       : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+maneuver_right!      : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+maneuver_complete!   : (and (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+recovery_complete!   : (and (<= pitch_angle 5) (<= roll_angle 10) (>= airspeed min_airspeed))
+emergency_override!  : (< ap_health_index 1)
+thrust_up!           : (and (>= airspeed min_airspeed) (<= airspeed max_airspeed))
+thrust_down!         : (>= airspeed min_airspeed)
+transition_complete! : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+system_fault!        : (< ap_health_index 0)
+fault_reset!         : (> ap_health_index 0)
+manual_takeover!     : (> ap_health_index 0)

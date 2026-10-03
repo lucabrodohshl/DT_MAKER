@@ -1,0 +1,21 @@
+; Interpretation: pt_mes -- Manoeuvre Execution Subsystem (PT)
+; Covers: MES_READY, HAZARD_DETECTED, MANEUVER_CLIMB, MANEUVER_DESCEND,
+;         MANEUVER_LEFT, MANEUVER_RIGHT
+; Events: hazard_alert!, maneuver_climb!, maneuver_descend!, maneuver_left!,
+;         maneuver_right!, maneuver_complete!
+
+; === LOCATION INTERPRETATIONS ===
+MES_READY       : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+HAZARD_DETECTED : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+MANEUVER_CLIMB  : (and (>= airspeed min_airspeed) (> pitch_angle 0) (<= pitch_rate max_pitch_rate))
+MANEUVER_DESCEND: (and (>= airspeed min_airspeed) (< pitch_angle 0) (<= pitch_rate max_pitch_rate))
+MANEUVER_LEFT   : (and (>= airspeed min_airspeed) (<= roll_angle 0) (<= roll_rate max_roll_rate))
+MANEUVER_RIGHT  : (and (>= airspeed min_airspeed) (>= roll_angle 0) (<= roll_rate max_roll_rate))
+
+; === EVENT INTERPRETATIONS ===
+hazard_alert!      : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+maneuver_climb!    : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+maneuver_descend!  : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed))
+maneuver_left!     : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+maneuver_right!    : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+maneuver_complete! : (and (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))

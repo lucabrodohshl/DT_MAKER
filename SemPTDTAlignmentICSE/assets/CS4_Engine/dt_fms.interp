@@ -1,0 +1,16 @@
+; DT Interpretation: FuelMgmtDT (FMS subsystem)
+; Subset of dt.interp covering FMS DT event alphabet.
+
+; --- Location interpretations ---
+HM_OFFLINE          : (and (= n1_speed 0) (= fuel_flow 0))
+HM_SPOOLING         : (and (> n1_speed 0) (< n1_speed 30) (> health_index_n1 0))
+HM_GROUND_OPS       : (and (>= n1_speed 25) (<= n1_speed 35) (>= health_index_egt 0))
+HM_PROTECTIVE_STOP  : (and (= fuel_flow 0) (= n1_speed 0))
+HM_SHUTDOWN         : (and (<= n1_speed 10) (<= fuel_flow min_fuel_flow))
+
+; --- Event interpretations ---
+engine_spool_telemetry!      : (and (= n1_speed 0) (>= fuel_flow min_fuel_flow))
+idle_confirmation_event!     : (and (>= n1_speed 25) (<= n1_speed 35) (>= health_index_n1 0))
+ground_ops_mode!             : (and (<= n1_speed 35) (>= health_index_egt 0))
+shutdown_telemetry!          : (and (<= n1_speed 10) (<= fuel_flow min_fuel_flow))
+protective_shutdown_command! : (and (> egt emergency_egt_threshold) (= fuel_flow 0))

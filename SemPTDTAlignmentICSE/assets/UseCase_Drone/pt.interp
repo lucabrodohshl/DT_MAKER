@@ -1,0 +1,67 @@
+; Interpretation: SprayingDronePT -- PT (precision agriculture firmware engineer)
+; Ontology: domain.ont
+; Standards: EPPO PP 1/213(3):2012, EU 2009/128/EC, EASA 2019/947, ISO 16119-4:2014
+;
+; Perspective: precision agriculture firmware engineer (field-level spraying vocabulary)
+; This interpretation EXACTLY MATCHES Example 2 of the paper.
+;
+; All function applications use SMT-LIB2 prefix notation: (f x) for f(x).
+; Arithmetic: (- a b) for a-b, (<= a b) for a<=b, etc.
+; Relations:  (covered 1) for covered(hectare_1).
+
+; === LOCATION INTERPRETATIONS ===
+; GROUNDED: drone at base, battery fully discharged/ready
+; Total consumption is zero at base (energy budget reset)
+GROUNDED       : (= total_consumption 0)
+
+; NAVIGATING: in-flight between zones; energy being consumed
+; Consumption non-negative and within battery capacity
+NAVIGATING     : (and (>= total_consumption 0) (<= total_consumption battery_capacity))
+
+; ENTERING_ZONE: approaching zone boundary; must have battery reserve remaining
+; battery_reserve = 50, so total_consumption <= battery_capacity - battery_reserve = 450
+ENTERING_ZONE  : (and (>= total_consumption 0) (<= total_consumption (- battery_capacity battery_reserve)))
+
+; SPRAYING: active spray application; per-hectare consumption within EPPO limit
+; consumption(1) <= max_per_hectare_dose = 50 (EPPO PP 1/213(3) Sec.4.2)
+SPRAYING       : (and (<= (consumption 1) max_per_hectare_dose) (<= total_consumption battery_capacity))
+
+; EXITING_ZONE: coverage confirmed for current hectare
+EXITING_ZONE   : (covered 1)
+
+; RETURNING: mission done or battery limit; total within capacity
+RETURNING      : (<= total_consumption battery_capacity)
+
+; RECHARGING: at base, battery recharging; total is zero (reset at landing)
+RECHARGING     : (= total_consumption 0)
+
+; FAULT: hardware fault; any energy state possible (fault can occur anytime)
+FAULT          : (>= total_consumption 0)
+
+; === EVENT INTERPRETATIONS === (EXACTLY as in Example 2 of the paper)
+
+; spray! -- activate spray nozzle for current hectare
+; EPPO PP 1/213(3) Sec.4.2: per-hectare consumption within application rate limit
+spray!         : (<= (consumption 1) 50)
+
+; shutoff! -- mission complete, shut off spray and return
+; Example 2: total_consumption <= battery_capacity AND covered(current_hectare)
+shutoff!       : (and (<= total_consumption battery_capacity) (covered 1))
+
+; exit_zone! -- coverage of current zone confirmed, exit zone
+; Coverage relation holds for hectare 1
+exit_zone!     : (covered 1)
+
+; enter_zone! -- approach zone boundary; battery reserve must remain
+; total_consumption <= battery_capacity - battery_reserve = 500 - 50 = 450
+enter_zone!    : (<= total_consumption (- battery_capacity battery_reserve))
+
+; takeoff! -- take off from base with fresh battery
+takeoff!       : (= total_consumption 0)
+
+; land! -- land at base; energy within capacity
+land!          : (<= total_consumption battery_capacity)
+
+; return_base!, recharge_complete!, fault_detected!, fault_return! are
+; PT-internal lifecycle events.  The DT abstracts over them (tau), so they
+; are intentionally absent from this interp file (Definition 8: A = dom(I_PT)).

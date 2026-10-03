@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 NOS PT -- Normal Operations Subsystem (Physical Twin)
+        // Subsystem: STANDBY, NOMINAL, TRANSITION_UP, TRANSITION_DOWN
+        // Events: activate!, thrust_up!, thrust_down!, transition_complete!
+        clock t_active, t_trans;
+        chan activate, thrust_up, thrust_down, transition_complete;
+    </declaration>
+    <template>
+        <name>AutopilotPT_NOS</name>
+        <location id="STANDBY" x="0" y="0">
+            <name x="-10" y="-34">STANDBY</name>
+        </location>
+        <location id="NOMINAL" x="300" y="0">
+            <name x="260" y="-34">NOMINAL</name>
+        </location>
+        <location id="TRANSITION_UP" x="600" y="0">
+            <name x="560" y="-34">TRANSITION_UP</name>
+            <label kind="invariant" x="560" y="17">t_trans &lt;= 20</label>
+        </location>
+        <location id="TRANSITION_DOWN" x="600" y="200">
+            <name x="560" y="166">TRANSITION_DOWN</name>
+            <label kind="invariant" x="560" y="217">t_trans &lt;= 20</label>
+        </location>
+        <init ref="STANDBY"/>
+        <transition>
+            <source ref="STANDBY"/>
+            <target ref="NOMINAL"/>
+            <label kind="synchronisation" x="100" y="-17">activate!</label>
+            <label kind="assignment" x="100" y="0">t_active := 0</label>
+        </transition>
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="TRANSITION_UP"/>
+            <label kind="guard" x="370" y="-17">t_active &gt;= 5</label>
+            <label kind="synchronisation" x="370" y="0">thrust_up!</label>
+            <label kind="assignment" x="370" y="17">t_trans := 0</label>
+        </transition>
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="TRANSITION_DOWN"/>
+            <label kind="guard" x="370" y="100">t_active &gt;= 5</label>
+            <label kind="synchronisation" x="370" y="117">thrust_down!</label>
+            <label kind="assignment" x="370" y="134">t_trans := 0</label>
+        </transition>
+        <transition>
+            <source ref="TRANSITION_UP"/>
+            <target ref="NOMINAL"/>
+            <label kind="guard" x="670" y="-17">t_trans &gt;= 3 &amp;&amp; t_trans &lt;= 20</label>
+            <label kind="synchronisation" x="670" y="0">transition_complete!</label>
+            <label kind="assignment" x="670" y="17">t_active := 0, t_trans := 0</label>
+        </transition>
+        <transition>
+            <source ref="TRANSITION_DOWN"/>
+            <target ref="NOMINAL"/>
+            <label kind="guard" x="670" y="200">t_trans &gt;= 3 &amp;&amp; t_trans &lt;= 20</label>
+            <label kind="synchronisation" x="670" y="217">transition_complete!</label>
+            <label kind="assignment" x="670" y="234">t_active := 0, t_trans := 0</label>
+        </transition>
+    </template>
+    <system>
+        AutopilotPT_NOS = AutopilotPT_NOS();
+        system AutopilotPT_NOS;
+    </system>
+</nta>

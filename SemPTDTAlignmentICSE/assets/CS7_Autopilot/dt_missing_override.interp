@@ -1,0 +1,33 @@
+; Interpretation: dt_missing_override -- Variant C: pilot_authority_event! entirely omitted
+; The most critical override event has no DT semantic mapping.
+; DO-178C: pilot override is a DAL-A safety function; omission violates ARP4754A Sec.5.3 coverage.
+; IEC 62443-3-3 SR 2.12: missing safety-critical signal = coverage gap.
+; Expected result: NOT ALIGNED (label pilot_authority_event! has PT mapping but no DT mapping)
+
+; === LOCATION INTERPRETATIONS (unchanged from dt.interp) ===
+FSD_DISENGAGED      : (and (>= ap_health_index 0) (= pitch_rate 0))
+FSD_NOMINAL         : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+FSD_POWER_TRANSITION: (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+FSD_ENVELOPE_BREACH : (and (>= airspeed min_airspeed) (>= altitude min_altitude))
+FSD_CLIMB           : (and (>= altitude min_altitude) (>= airspeed min_airspeed) (> pitch_angle 0))
+FSD_DESCEND         : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed) (< pitch_angle 0))
+FSD_SAFETY_MANEUVER : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+FSD_RECOVERY        : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll))
+FSD_PILOT_AUTHORITY : (>= ap_health_index 0)
+FSD_FAULT           : (< ap_health_index 0)
+
+; === EVENT INTERPRETATIONS (Variant C: pilot_authority_event! OMITTED) ===
+ap_engage_telemetry!        : (>= airspeed min_airspeed)
+flight_envelope_breach!     : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+safety_climb_initiated!     : (and (>= altitude min_altitude) (>= airspeed min_airspeed))
+safety_descent_initiated!   : (and (>= altitude (+ min_altitude 500)) (>= airspeed min_airspeed))
+safety_turn_left_initiated! : (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+safety_turn_right_initiated!: (and (>= airspeed min_airspeed) (<= roll_angle max_roll))
+safety_maneuver_confirmed!  : (and (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+nominal_envelope_restored!  : (and (<= pitch_angle 5) (<= roll_angle 10) (>= airspeed min_airspeed))
+; pilot_authority_event! -- OMITTED (IEC 62443-3-3 SR 2.12 / SR 3.3 gap)
+power_increase_event!       : (and (>= airspeed min_airspeed) (<= airspeed max_airspeed))
+power_decrease_event!       : (>= airspeed min_airspeed)
+power_mode_stable!          : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+ap_fault_telemetry!         : (< ap_health_index 0)
+ap_reset_telemetry!         : (> ap_health_index 0)

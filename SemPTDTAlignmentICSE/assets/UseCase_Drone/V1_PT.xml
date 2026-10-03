@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS10 PT -- Autonomous Pesticide Spraying Drone (EPPO PP 1/213(3) / EU 2009/128/EC)
+        // Standard: EPPO PP 1/213(3):2012    (precision spraying, max 50 AU/ha, 85% coverage)
+        //           EU Reg. 2009/128/EC Art.12 (aquatic buffer zone, aerial application)
+        //           EASA Reg.(EU) 2019/947    (UAS.OPEN.040: battery limit, VLOS)
+        //           ISO 16119-4:2014           (spray equipment, coverage uniformity)
+        //           ICAO Annex 2:2005          (UAS rules of the air, flight time limits)
+        //
+        // Perspective: precision agriculture firmware engineer (field-level spraying vocabulary)
+        // This model is the Physical Twin (PT) -- exactly as described in Example 2 of the paper.
+        //
+        // Events (Example 2 vocabulary):
+        //   spray!         -- trigger spray nozzle for current hectare
+        //   shutoff!       -- mission complete, shut off spray and return
+        //   exit_zone!     -- coverage of current zone confirmed, exit
+        //   enter_zone!    -- enter a spray zone boundary
+        //   takeoff!       -- take off from base
+        //   return_base!   -- initiate return to base
+        //   land!          -- land at base
+        //   recharge_complete! -- battery fully recharged
+        //   fault_detected!    -- hardware fault (GPS, nozzle, battery)
+        //   fault_return!      -- initiate emergency return from fault state
+        //
+        // Clocks:
+        //   t_flight  : time in flight (accumulates, triggers zone window and return limit)
+        //   t_spray   : time actively spraying current hectare (ISO 16119-4 coverage window)
+        //   t_battery : battery proxy clock (also recharge timer; resets at takeoff and land)
+        //   t_zone    : time since entering/exiting zone boundary
+        //
+        // Timing (standards-derived):
+        //   NAVIGATING invariant: t_flight &lt;= 30 (ICAO Annex 2 max continuous flight segment)
+        //   SPRAYING invariant:   t_spray &lt;= 20  (ISO 16119-4 max time per hectare)
+        //   RECHARGING invariant: t_battery &lt;= 120 (EASA 2019/947 max recharge time)
+        //   enter_zone guard:     t_flight in [2, 30] (min navigation time to zone)
+        //   spray guard:          t_zone &gt;= 1 (EPPO PP 1/213(3) zone verification delay)
+        //   exit_zone guard:      t_spray in [5, 20] (ISO 16119-4 coverage uniformity window)
+        //   return guard:         t_battery &gt;= 450 (EASA 2019/947: battery_capacity - battery_reserve)
+        //   fault guard:          t_battery &lt;= 3 (critical low battery -- fault detection window)
+        //   recharge_complete:    t_battery in [60, 120]
+        clock t_flight, t_spray, t_battery, t_zone;
+        chan takeoff, enter_zone, spray, exit_zone, return_base, shutoff,
+             land, recharge_complete, fault_detected, fault_return;
+    </declaration>
+    <template>
+        <name>SprayingDronePT</name>
+        <!-- Locations -->
+        <location id="GROUNDED" x="0" y="0">
+            <name x="-10" y="-34">GROUNDED</name>
+        </location>
+        <location id="NAVIGATING" x="300" y="0">
+            <name x="260" y="-34">NAVIGATING</name>
+            <label kind="invariant" x="260" y="17">t_flight &lt;= 30</label>
+        </location>
+        <location id="ENTERING_ZONE" x="600" y="0">
+            <name x="560" y="-34">ENTERING_ZONE</name>
+        </location>
+        <location id="SPRAYING" x="600" y="-200">
+            <name x="560" y="-234">SPRAYING</name>
+            <label kind="invariant" x="560" y="-217">t_spray &lt;= 20</label>
+        </location>
+        <location id="EXITING_ZONE" x="300" y="-200">
+            <name x="260" y="-234">EXITING_ZONE</name>
+        </location>
+        <location id="RETURNING" x="0" y="-200">
+            <name x="-50" y="-234">RETURNING</name>
+        </location>
+        <location id="RECHARGING" x="-300" y="0">
+            <name x="-360" y="-34">RECHARGING</name>
+            <label kind="invariant" x="-360" y="17">t_battery &lt;= 120</label>
+        </location>
+        <location id="FAULT" x="0" y="200">
+            <name x="-20" y="166">FAULT</name>
+        </location>
+        <init ref="GROUNDED"/>
+
+        <!-- GROUNDED -> NAVIGATING: fresh battery, take off -->
+        <transition>
+            <source ref="GROUNDED"/>
+            <target ref="NAVIGATING"/>
+            <label kind="guard" x="50" y="-17">t_battery &lt;= 0</label>
+            <label kind="synchronisation" x="50" y="0">takeoff!</label>
+            <label kind="assignment" x="50" y="17">t_flight := 0, t_battery := 0</label>
+        </transition>
+
+        <!-- NAVIGATING -> ENTERING_ZONE: approach zone boundary [2,30] TU -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="ENTERING_ZONE"/>
+            <label kind="guard" x="350" y="-17">t_flight &gt;= 2 &amp;&amp; t_flight &lt;= 30</label>
+            <label kind="synchronisation" x="350" y="0">enter_zone!</label>
+            <label kind="assignment" x="350" y="17">t_zone := 0</label>
+        </transition>
+
+        <!-- ENTERING_ZONE -> SPRAYING: zone verified (t_zone>=1), activate nozzle -->
+        <!-- Example 2: consumption(current_hectare) <= 50 (EPPO PP 1/213(3) Sec.4.2) -->
+        <transition>
+            <source ref="ENTERING_ZONE"/>
+            <target ref="SPRAYING"/>
+            <label kind="guard" x="610" y="-117">t_zone &gt;= 1</label>
+            <label kind="synchronisation" x="610" y="-100">spray!</label>
+            <label kind="assignment" x="610" y="-83">t_spray := 0</label>
+        </transition>
+
+        <!-- SPRAYING -> EXITING_ZONE: coverage confirmed, ISO 16119-4 window [5,20] -->
+        <!-- Example 2: covered(current_hectare) -->
+        <transition>
+            <source ref="SPRAYING"/>
+            <target ref="EXITING_ZONE"/>
+            <label kind="guard" x="340" y="-217">t_spray &gt;= 5 &amp;&amp; t_spray &lt;= 20</label>
+            <label kind="synchronisation" x="340" y="-200">exit_zone!</label>
+            <label kind="assignment" x="340" y="-183">t_zone := 0</label>
+        </transition>
+
+        <!-- EXITING_ZONE -> NAVIGATING: settle zone boundary, proceed to next hectare -->
+        <transition>
+            <source ref="EXITING_ZONE"/>
+            <target ref="NAVIGATING"/>
+            <label kind="guard" x="260" y="-117">t_zone &gt;= 1</label>
+            <label kind="assignment" x="260" y="-100">t_flight := 0</label>
+        </transition>
+
+        <!-- EXITING_ZONE -> RETURNING: battery approaching limit (EASA 2019/947 reserve) -->
+        <transition>
+            <source ref="EXITING_ZONE"/>
+            <target ref="RETURNING"/>
+            <label kind="guard" x="100" y="-217">t_battery &gt;= 450</label>
+            <label kind="synchronisation" x="100" y="-200">return_base!</label>
+        </transition>
+
+        <!-- NAVIGATING -> RETURNING: mission complete or battery limit -->
+        <!-- Example 2: total_consumption <= battery_capacity AND covered -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="RETURNING"/>
+            <label kind="guard" x="50" y="-117">t_battery &gt;= 450</label>
+            <label kind="synchronisation" x="50" y="-100">shutoff!</label>
+            <label kind="assignment" x="50" y="-83">t_flight := 0</label>
+        </transition>
+
+        <!-- RETURNING -> RECHARGING: land at base -->
+        <transition>
+            <source ref="RETURNING"/>
+            <target ref="RECHARGING"/>
+            <label kind="guard" x="-200" y="-117">t_flight &gt;= 2</label>
+            <label kind="synchronisation" x="-200" y="-100">land!</label>
+            <label kind="assignment" x="-200" y="-83">t_battery := 0</label>
+        </transition>
+
+        <!-- RECHARGING -> GROUNDED: recharge complete [60,120] TU -->
+        <transition>
+            <source ref="RECHARGING"/>
+            <target ref="GROUNDED"/>
+            <label kind="guard" x="-260" y="-17">t_battery &gt;= 60</label>
+            <label kind="synchronisation" x="-260" y="0">recharge_complete!</label>
+        </transition>
+
+        <!-- NAVIGATING -> FAULT: critical battery during navigation -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="FAULT"/>
+            <label kind="guard" x="100" y="100">t_battery &lt;= 3</label>
+            <label kind="synchronisation" x="100" y="117">fault_detected!</label>
+        </transition>
+
+        <!-- SPRAYING -> FAULT: critical battery during spraying -->
+        <transition>
+            <source ref="SPRAYING"/>
+            <target ref="FAULT"/>
+            <label kind="guard" x="610" y="83">t_battery &lt;= 3</label>
+            <label kind="synchronisation" x="610" y="100">fault_detected!</label>
+        </transition>
+
+        <!-- FAULT -> RETURNING: emergency return -->
+        <transition>
+            <source ref="FAULT"/>
+            <target ref="RETURNING"/>
+            <label kind="synchronisation" x="-100" y="83">fault_return!</label>
+        </transition>
+
+    </template>
+    <system>
+        process PT = SprayingDronePT();
+        system PT;
+    </system>
+</nta>

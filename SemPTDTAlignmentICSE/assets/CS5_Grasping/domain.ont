@@ -1,0 +1,90 @@
+; Ontology: Autonomous Space Debris Grasping System
+; Standard references:
+;   ECSS-E-ST-40C:2009    -- Space Engineering: Software (Sec 5.2.4, 5.3.3, 6.4)
+;   ECSS-E-ST-10-06C:2017 -- Technical Requirements Specification
+;   ECSS-Q-ST-80C:2017    -- Software Product Assurance
+;   ISO 9283:1998         -- Manipulating Industrial Robots: Performance Criteria
+;   CCSDS 727.0-B-5:2017  -- CFDP (telemetry latency bounds for LEO)
+;   NASA-STD-8719.13C:2013-- Software Safety Standard (Req 4.2.3, 4.4.1)
+;
+; Fragment: Quantifier-free Linear Real Arithmetic (QF_LRA)
+; All sorts mapped to Real for SMT literal compatibility.
+
+; === SORTS ===
+sort Angle         ; degrees -- rotational alignment error
+sort Force         ; Newtons -- grasp/contact force
+sort Distance      ; metres -- approach range and position error
+sort Torque        ; Nm -- reaction torque from target rotation
+sort AngularRate   ; deg/s -- target tumble rate
+sort SignalDelay   ; time units -- CFDP telemetry one-way delay (modelled as integer time units)
+
+; === FUNCTIONS ===
+
+; Alignment and proximity
+fun alignment_error       : Angle     ; rotational error to target body frame (degrees)
+fun max_alignment_error   : Angle     ; ISO 9283 / ECSS tolerance: 2 degrees
+fun approach_distance     : Distance  ; range to target centre of mass (m)
+fun contact_threshold     : Distance  ; distance at which contact is declared (m)
+fun position_error        : Distance  ; translational error at end-effector (m)
+fun max_position_error    : Distance  ; ISO 9283 positioning accuracy: 0.002 m (= 1 in model units)
+
+; Force and torque
+fun grasp_force           : Force     ; current end-effector grasp force (N)
+fun min_grasp_force       : Force     ; minimum for secure capture -- NASA-STD-8719.13C margin: 50 N
+fun max_grasp_force       : Force     ; structural limit -- 300 N
+fun contact_force         : Force     ; force at first contact declaration (N)
+fun target_torque         : Torque    ; reaction torque from tumbling target (Nm)
+fun max_target_torque     : Torque    ; maximum handleable tumble torque: 10 Nm
+
+; Target dynamics
+fun target_tumble_rate    : AngularRate ; target angular velocity (deg/s)
+fun max_tumble_rate       : AngularRate ; maximum for safe approach (ECSS-E-ST-40C Sec 5.3.3): 3 deg/s
+
+; Communication
+fun telem_delay           : SignalDelay ; current one-way CFDP delay (time units)
+fun max_telem_delay       : SignalDelay ; CCSDS 727.0-B-5 LEO bound: 4 time units
+
+; Mission progress
+fun mission_phase_progress : Angle     ; 0-100% mission progress (reusing sort for scalar)
+
+; === AXIOMS ===
+
+; --- ISO 9283 alignment tolerance ---
+; Upper bound only: domain_v2.ont refines this to (= max_alignment_error 1), which entails (<= 2).
+axiom max_align_val       : (<= max_alignment_error 2)
+axiom contact_thresh_val  : (= contact_threshold 1)
+axiom max_pos_error_val   : (= max_position_error 1)
+
+; --- Force parameters (NASA-STD-8719.13C structural margins) ---
+axiom min_grasp_val       : (= min_grasp_force 50)
+axiom max_grasp_val       : (= max_grasp_force 300)
+axiom grasp_ordering      : (< min_grasp_force max_grasp_force)
+
+; --- Non-negativity constraints ---
+axiom nn_align            : (>= alignment_error 0)
+axiom nn_dist             : (>= approach_distance 0)
+axiom nn_grasp            : (>= grasp_force 0)
+axiom nn_contact          : (>= contact_force 0)
+axiom nn_torque           : (>= target_torque 0)
+axiom nn_tumble           : (>= target_tumble_rate 0)
+axiom nn_delay            : (>= telem_delay 0)
+
+; --- Target dynamics limits (ECSS-E-ST-40C Sec 5.3.3 proximity operations) ---
+axiom max_tumble_val      : (= max_tumble_rate 3)
+axiom max_torque_val      : (= max_target_torque 10)
+
+; --- CFDP telemetry latency (CCSDS 727.0-B-5 LEO: max 4 time units) ---
+axiom max_delay_val       : (= max_telem_delay 4)
+axiom delay_bound         : (<= telem_delay max_telem_delay)
+
+; --- Structural safety: contact force within actuator limits ---
+axiom contact_force_bound : (<= contact_force max_grasp_force)
+
+; --- Grasp force within structural limits ---
+axiom grasp_safety        : (<= grasp_force max_grasp_force)
+axiom grasp_lower_bound   : (>= grasp_force 0)
+
+; --- Approach alignment: relaxed bound during approach, tightened to max_alignment_error at CONTACT ---
+; During approach: alignment_error <= max_alignment_error + 10 (acquisition window)
+; During CONTACT: alignment_error <= max_alignment_error (ISO 9283)
+axiom align_approach_bound: (<= alignment_error (+ max_alignment_error 10))

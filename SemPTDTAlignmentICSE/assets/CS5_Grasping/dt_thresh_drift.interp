@@ -1,0 +1,35 @@
+; DT Interpretation: GraspingMissionDT -- THRESHOLD DRIFT VARIANT (Variant B)
+; Differs from dt.interp in ONE place:
+;   capture_confirmed_telemetry! fires at grasp_force >= 40 instead of >= min_grasp_force (= 50)
+;
+; The 10N gap means the DT reports successful capture when force is insufficient.
+; Z3 counterexample: grasp_force = 45 satisfies (>= 45 40) but not (>= 45 50).
+; Consequence: debris could be re-released during disposal manoeuvre.
+; Oakes Monitor 2 fires at grasp_force >= min_grasp_force -- would NOT detect this
+; because the monitor checks the PT value, not the DT threshold formula.
+
+; --- Location interpretations (identical to dt.interp) ---
+DT_IDLE              : (and (= grasp_force 0) (> approach_distance contact_threshold))
+DT_PROXIMITY_OPS     : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+DT_ATTITUDE_SYNC     : (and (<= approach_distance 5) (<= alignment_error (+ max_alignment_error 1)))
+DT_CAPTURE_SEQUENCE  : (and (<= approach_distance contact_threshold) (> grasp_force 0))
+DT_CAPTURE_CONFIRMED : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+DT_RELEASE_OPS       : (>= grasp_force 0)
+DT_ABORT_SEQUENCE    : (= grasp_force 0)
+DT_ANOMALY           : (> target_torque max_target_torque)
+
+; --- Event interpretations (DRIFT: capture_confirmed_telemetry! threshold 40 instead of min_grasp_force) ---
+mission_phase_start!         : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+proximity_ops_confirmed!     : (and (<= approach_distance 5) (<= target_tumble_rate max_tumble_rate))
+attitude_sync_telemetry!     : (and (<= alignment_error max_alignment_error) (<= approach_distance (+ contact_threshold 1)))
+capture_sequence_start!      : (and (<= alignment_error max_alignment_error) (<= approach_distance contact_threshold))
+
+; DRIFT: threshold changed from min_grasp_force (50N) to literal 40N
+capture_confirmed_telemetry! : (and (>= grasp_force 40) (<= grasp_force max_grasp_force))
+
+release_sequence_start!      : (>= grasp_force min_grasp_force)
+release_confirmed!           : (= grasp_force 0)
+abort_uplink!                : (>= target_tumble_rate (- max_tumble_rate 1))
+safe_config_confirmed!       : (and (= grasp_force 0) (> approach_distance contact_threshold))
+anomaly_detected_telemetry!  : (> target_torque max_target_torque)
+emergency_abort_command!     : (and (> target_torque max_target_torque) (= grasp_force 0))

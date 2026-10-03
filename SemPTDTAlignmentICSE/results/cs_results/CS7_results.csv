@@ -1,0 +1,6 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS7_aligned,true,25,1,6475,253,6475,53.421,5224
+CS7_thresh_drift,false,23,1,0,253,3,14.643,108
+CS7_timing_violation,true,25,1,7242,506,7242,56.313,3412
+CS7_missing_override,false,24,1,0,236,3,13.578,120
+CS7_evo_v2,true,25,1,6475,253,6475,53.978,3124

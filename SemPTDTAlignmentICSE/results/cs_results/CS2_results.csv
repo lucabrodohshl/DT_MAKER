@@ -1,0 +1,5 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS2_aligned,true,14,1,110017,166,110017,873.916,44700
+CS2_thresh_drift,false,12,1,0,166,1,12.127,108
+CS2_missing_estop,false,12,1,0,152,1,10.812,108
+CS2_evo_v2,true,14,1,110017,178,110017,940.563,43292

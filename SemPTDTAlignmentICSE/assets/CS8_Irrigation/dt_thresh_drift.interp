@@ -1,0 +1,50 @@
+; Interpretation: dt_thresh_drift -- Variant A: FAO-56 deficit threshold drift
+;
+; deficit_threshold_breach! fires at irrigation_deficit > 20 instead of > raw(1) (= 15).
+;
+; FAO-56 agricultural consequence:
+;   The 5mm gap represents the crop water stress zone between raw(1) = 15mm and 20mm.
+;   In this zone (irrigation_deficit in (15, 20] mm), crops are experiencing measurable
+;   yield penalty (stomatal closure begins, growth rate reduced) but the DT monitoring
+;   twin fails to trigger the deficit alert and associated irrigation command.
+;
+;   Agronomically, this represents a DT calibrated with field capacity estimates from
+;   a different soil type or previous year's measurements, causing the agronomist's
+;   model to underestimate the actual depletion risk.
+;
+;   Z3 counterexample: irrigation_deficit = 18, raw(1) = 15
+;     PT formula: (> 18 (raw 1)) = (> 18 15) = true  -- PT fires deficit alarm
+;     DT formula: (> 18 20)                  = false -- DT does NOT fire deficit alert
+;     Semantically inequivalent at deficit_alarm! ~ deficit_threshold_breach!
+;
+;   Also breaks ALARM_DEFICIT ~ DT_DEFICIT_ALERT state consistency:
+;     PT ALARM_DEFICIT: (> irrigation_deficit (raw 1)) = (> 18 15) = true
+;     DT DT_DEFICIT_ALERT: (> irrigation_deficit 20) = (> 18 20) = false
+;     State interpretations disagree at irrigation_deficit = 18
+;
+; Expected result: NOT ALIGNED (Condition I state inconsistency + Condition III event gap)
+
+; === LOCATION INTERPRETATIONS (all unchanged from dt.interp EXCEPT DT_DEFICIT_ALERT) ===
+DT_MONITORING           : (and (>= (soil_moisture 1) (wilting_point 1)) (>= (soil_moisture 2) (wilting_point 2)) (>= (soil_moisture 3) (wilting_point 3)))
+DT_WATER_APPLICATION_Z1 : (and (< (soil_moisture 1) (raw 1)) (>= (irrigation_applied 1) 0))
+DT_WATER_APPLICATION_Z2 : (and (< (soil_moisture 2) (raw 2)) (>= (irrigation_applied 2) 0))
+DT_WATER_APPLICATION_Z3 : (and (< (soil_moisture 3) (raw 3)) (>= (irrigation_applied 3) 0))
+DT_DRAINAGE             : (>= (soil_moisture 1) 0)
+; DRIFTED: fires at > 20mm instead of > raw(1) = 15mm (5mm water stress gap)
+DT_DEFICIT_ALERT        : (> irrigation_deficit 20)
+DT_OVERFLOW_ALERT       : (>= (soil_moisture 1) (field_capacity 1))
+
+; === EVENT INTERPRETATIONS (all unchanged from dt.interp EXCEPT deficit events) ===
+water_application_zone1!    : (and (< (soil_moisture 1) (raw 1)) (<= et_crop max_application_rate))
+water_application_zone2!    : (and (< (soil_moisture 2) (raw 2)) (<= et_crop max_application_rate))
+water_application_zone3!    : (and (< (soil_moisture 3) (raw 3)) (<= et_crop max_application_rate))
+water_application_event!    : (and (>= (irrigation_applied 1) min_application_per_zone) (<= (soil_moisture 1) (field_capacity 1)))
+drainage_cycle_start!       : (> (soil_moisture 1) (raw 1))
+; DRIFTED: fires at > 20mm instead of > raw(1) = 15mm
+; Crops experience yield-reducing stress in irrigation_deficit range (15, 20] mm
+deficit_threshold_breach!   : (> irrigation_deficit 20)
+emergency_water_application!: (> irrigation_deficit 20)
+field_capacity_exceeded!    : (>= (soil_moisture 1) (field_capacity 1))
+soil_moisture_nominal!      : (< (soil_moisture 1) (field_capacity 1))
+system_check_start!         : (<= irrigation_deficit 0)
+system_check_complete!      : (>= (soil_moisture 1) (wilting_point 1))

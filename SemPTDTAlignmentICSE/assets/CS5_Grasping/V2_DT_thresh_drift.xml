@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autonomous Space Debris Grasping -- Digital Twin THRESHOLD DRIFT VARIANT (Variant B)
+        // MISALIGNMENT: capture_confirmed_telemetry expressed with grasp_force &gt;= 40
+        // instead of &gt;= min_grasp_force (= 50). The 10N gap means the DT reports
+        // successful capture when the grasp force is insufficient for safe debris disposal.
+        // XML structure IDENTICAL to V2_DT.xml; drift captured only in dt_thresh_drift.interp.
+        clock t_telem, t_capture, t_force, t_anomaly;
+
+        chan mission_phase_start,
+             proximity_ops_confirmed,
+             attitude_sync_telemetry,
+             capture_sequence_start,
+             capture_confirmed_telemetry,
+             release_sequence_start,
+             release_confirmed,
+             abort_uplink,
+             safe_config_confirmed,
+             anomaly_detected_telemetry,
+             emergency_abort_command;
+    </declaration>
+
+    <template>
+        <name>GraspingMissionDT</name>
+
+        <location id="DT_IDLE" x="0" y="0">
+            <name x="-10" y="-34">DT_IDLE</name>
+        </location>
+
+        <location id="DT_PROXIMITY_OPS" x="300" y="0">
+            <name x="260" y="-34">DT_PROXIMITY_OPS</name>
+            <label kind="invariant" x="260" y="17">t_telem &lt;= 64</label>
+        </location>
+
+        <location id="DT_ATTITUDE_SYNC" x="600" y="0">
+            <name x="560" y="-34">DT_ATTITUDE_SYNC</name>
+            <label kind="invariant" x="560" y="17">t_telem &lt;= 44</label>
+        </location>
+
+        <location id="DT_CAPTURE_SEQUENCE" x="900" y="0">
+            <name x="860" y="-34">DT_CAPTURE_SEQUENCE</name>
+            <label kind="invariant" x="860" y="17">t_capture &lt;= 14</label>
+        </location>
+
+        <location id="DT_CAPTURE_CONFIRMED" x="1200" y="0">
+            <name x="1160" y="-34">DT_CAPTURE_CONFIRMED</name>
+        </location>
+
+        <location id="DT_RELEASE_OPS" x="1200" y="300">
+            <name x="1160" y="266">DT_RELEASE_OPS</name>
+        </location>
+
+        <location id="DT_ABORT_SEQUENCE" x="300" y="300">
+            <name x="260" y="266">DT_ABORT_SEQUENCE</name>
+            <label kind="invariant" x="260" y="317">t_anomaly &lt;= 34</label>
+        </location>
+
+        <location id="DT_ANOMALY" x="600" y="300">
+            <name x="560" y="266">DT_ANOMALY</name>
+            <label kind="invariant" x="560" y="317">t_anomaly &lt;= 7</label>
+        </location>
+
+        <init ref="DT_IDLE"/>
+
+        <transition>
+            <source ref="DT_IDLE"/>
+            <target ref="DT_PROXIMITY_OPS"/>
+            <label kind="synchronisation" x="100" y="-17">mission_phase_start!</label>
+            <label kind="assignment" x="100" y="0">t_telem := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_PROXIMITY_OPS"/>
+            <target ref="DT_ATTITUDE_SYNC"/>
+            <label kind="guard" x="370" y="-17">t_telem &gt;= 10 &amp;&amp; t_telem &lt;= 64</label>
+            <label kind="synchronisation" x="370" y="0">proximity_ops_confirmed!</label>
+            <label kind="assignment" x="370" y="17">t_telem := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_ATTITUDE_SYNC"/>
+            <target ref="DT_CAPTURE_SEQUENCE"/>
+            <label kind="guard" x="670" y="-17">t_telem &gt;= 5 &amp;&amp; t_telem &lt;= 44</label>
+            <label kind="synchronisation" x="670" y="0">attitude_sync_telemetry!</label>
+            <label kind="assignment" x="670" y="17">t_capture := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_SEQUENCE"/>
+            <target ref="DT_CAPTURE_CONFIRMED"/>
+            <label kind="guard" x="970" y="-17">t_capture &gt;= 1 &amp;&amp; t_capture &lt;= 14</label>
+            <label kind="synchronisation" x="970" y="0">capture_sequence_start!</label>
+            <label kind="assignment" x="970" y="17">t_force := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_CONFIRMED"/>
+            <target ref="DT_RELEASE_OPS"/>
+            <label kind="guard" x="1210" y="100">t_force &gt;= 5 &amp;&amp; t_force &lt;= 24</label>
+            <label kind="synchronisation" x="1210" y="117">capture_confirmed_telemetry!</label>
+            <label kind="assignment" x="1210" y="134">t_force := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_RELEASE_OPS"/>
+            <target ref="DT_IDLE"/>
+            <label kind="guard" x="500" y="350">t_force &gt;= 5</label>
+            <label kind="synchronisation" x="500" y="367">release_sequence_start!</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_RELEASE_OPS"/>
+            <target ref="DT_IDLE"/>
+            <label kind="guard" x="500" y="400">t_force &gt;= 3</label>
+            <label kind="synchronisation" x="500" y="417">release_confirmed!</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_PROXIMITY_OPS"/>
+            <target ref="DT_ABORT_SEQUENCE"/>
+            <label kind="guard" x="280" y="150">t_anomaly &lt;= 7</label>
+            <label kind="synchronisation" x="280" y="167">abort_uplink!</label>
+            <label kind="assignment" x="280" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_ATTITUDE_SYNC"/>
+            <target ref="DT_ABORT_SEQUENCE"/>
+            <label kind="guard" x="560" y="150">t_anomaly &lt;= 7</label>
+            <label kind="synchronisation" x="560" y="167">abort_uplink!</label>
+            <label kind="assignment" x="560" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_SEQUENCE"/>
+            <target ref="DT_ABORT_SEQUENCE"/>
+            <label kind="guard" x="750" y="150">t_anomaly &lt;= 7</label>
+            <label kind="synchronisation" x="750" y="167">abort_uplink!</label>
+            <label kind="assignment" x="750" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_CONFIRMED"/>
+            <target ref="DT_ABORT_SEQUENCE"/>
+            <label kind="guard" x="900" y="150">t_anomaly &lt;= 7</label>
+            <label kind="synchronisation" x="900" y="167">abort_uplink!</label>
+            <label kind="assignment" x="900" y="184">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_ABORT_SEQUENCE"/>
+            <target ref="DT_IDLE"/>
+            <label kind="guard" x="100" y="350">t_anomaly &gt;= 5 &amp;&amp; t_anomaly &lt;= 34</label>
+            <label kind="synchronisation" x="100" y="367">safe_config_confirmed!</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_ATTITUDE_SYNC"/>
+            <target ref="DT_ANOMALY"/>
+            <label kind="guard" x="580" y="200">t_anomaly &lt;= 6</label>
+            <label kind="synchronisation" x="580" y="217">anomaly_detected_telemetry!</label>
+            <label kind="assignment" x="580" y="234">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_SEQUENCE"/>
+            <target ref="DT_ANOMALY"/>
+            <label kind="guard" x="750" y="200">t_anomaly &lt;= 6</label>
+            <label kind="synchronisation" x="750" y="217">anomaly_detected_telemetry!</label>
+            <label kind="assignment" x="750" y="234">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_CAPTURE_CONFIRMED"/>
+            <target ref="DT_ANOMALY"/>
+            <label kind="guard" x="900" y="200">t_anomaly &lt;= 6</label>
+            <label kind="synchronisation" x="900" y="217">anomaly_detected_telemetry!</label>
+            <label kind="assignment" x="900" y="234">t_anomaly := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DT_ANOMALY"/>
+            <target ref="DT_ABORT_SEQUENCE"/>
+            <label kind="guard" x="420" y="300">t_anomaly &lt;= 7</label>
+            <label kind="synchronisation" x="420" y="317">emergency_abort_command!</label>
+            <label kind="assignment" x="420" y="334">t_anomaly := 0</label>
+        </transition>
+
+    </template>
+
+    <system>
+        GraspingMissionDT = GraspingMissionDT();
+        system GraspingMissionDT;
+    </system>
+</nta>

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Thrust Management Subsystem -- Physical Twin (TMS subsystem for compositional verification)
+        // Locations: IDLE, TAKEOFF, CLIMB, CRUISE, DESCENT, APPROACH, LANDING, OVERHEAT, FLAME_OUT
+        // Events: takeoff_thrust!, climb_thrust!, cruise_thrust!, descent_initiated!,
+        //         approach_thrust!, landing_thrust!, overheat_detected!, flameout_detected!,
+        //         relight_initiated!
+        clock t_phase, t_temp, t_fuel, t_fault;
+
+        chan takeoff_thrust, climb_thrust, cruise_thrust,
+             descent_initiated, approach_thrust, landing_thrust,
+             overheat_detected, flameout_detected, relight_initiated;
+    </declaration>
+
+    <template>
+        <name>ThrustMgmtPT</name>
+
+        <location id="IDLE" x="0" y="0">
+            <name x="-20" y="-34">IDLE</name>
+        </location>
+
+        <location id="TAKEOFF" x="300" y="0">
+            <name x="260" y="-34">TAKEOFF</name>
+            <label kind="invariant" x="260" y="17">t_phase &lt;= 120</label>
+        </location>
+
+        <location id="CLIMB" x="600" y="0">
+            <name x="560" y="-34">CLIMB</name>
+        </location>
+
+        <location id="CRUISE" x="900" y="0">
+            <name x="860" y="-34">CRUISE</name>
+        </location>
+
+        <location id="DESCENT" x="900" y="300">
+            <name x="860" y="266">DESCENT</name>
+            <label kind="invariant" x="860" y="317">t_phase &lt;= 300</label>
+        </location>
+
+        <location id="APPROACH" x="600" y="300">
+            <name x="560" y="266">APPROACH</name>
+            <label kind="invariant" x="560" y="317">t_phase &lt;= 60</label>
+        </location>
+
+        <location id="LANDING" x="300" y="300">
+            <name x="260" y="266">LANDING</name>
+        </location>
+
+        <location id="OVERHEAT" x="600" y="-300">
+            <name x="560" y="-334">OVERHEAT</name>
+            <label kind="invariant" x="560" y="-283">t_fault &lt;= 5</label>
+        </location>
+
+        <location id="FLAME_OUT" x="900" y="-300">
+            <name x="860" y="-334">FLAME_OUT</name>
+            <label kind="invariant" x="860" y="-283">t_fault &lt;= 3</label>
+        </location>
+
+        <init ref="IDLE"/>
+
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="TAKEOFF"/>
+            <label kind="guard">t_phase &gt;= 3</label>
+            <label kind="synchronisation">takeoff_thrust!</label>
+            <label kind="assignment">t_phase = 0, t_fuel = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TAKEOFF"/>
+            <target ref="CLIMB"/>
+            <label kind="guard">t_phase &gt;= 10 &amp;&amp; t_phase &lt;= 120</label>
+            <label kind="synchronisation">climb_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CLIMB"/>
+            <target ref="CRUISE"/>
+            <label kind="guard">t_phase &gt;= 30</label>
+            <label kind="synchronisation">cruise_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="DESCENT"/>
+            <label kind="guard">t_phase &gt;= 60</label>
+            <label kind="synchronisation">descent_initiated!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DESCENT"/>
+            <target ref="APPROACH"/>
+            <label kind="guard">t_phase &gt;= 20 &amp;&amp; t_phase &lt;= 300</label>
+            <label kind="synchronisation">approach_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="LANDING"/>
+            <label kind="guard">t_phase &gt;= 5 &amp;&amp; t_phase &lt;= 60</label>
+            <label kind="synchronisation">landing_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="LANDING"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_phase &gt;= 5</label>
+        </transition>
+
+        <!-- Overheat -->
+        <transition>
+            <source ref="TAKEOFF"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 3</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CLIMB"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 3</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 3</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <!-- Flame-out -->
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 2</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DESCENT"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 2</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 2</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FLAME_OUT"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_fault &gt;= 1 &amp;&amp; t_fault &lt;= 3</label>
+            <label kind="synchronisation">relight_initiated!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        ThrustMgmtPT = ThrustMgmtPT();
+        system ThrustMgmtPT;
+    </system>
+</nta>

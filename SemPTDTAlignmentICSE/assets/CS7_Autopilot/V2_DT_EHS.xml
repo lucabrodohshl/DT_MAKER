@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 EHS DT -- Emergency Handling Subsystem (Digital Twin)
+        // Subsystem: FSD_RECOVERY, EHS_DT_NOMINAL, FSD_PILOT_AUTHORITY, FSD_FAULT
+        // DT timing: recovery [10, 62] = PT [10, 60] + 2 latency
+        clock t_rec, t_ap;
+        chan nominal_envelope_restored, pilot_authority_event, ap_reset_telemetry,
+             ap_fault_telemetry;
+    </declaration>
+    <template>
+        <name>FlightSafetyDT_EHS</name>
+        <location id="FSD_RECOVERY" x="0" y="0">
+            <name x="-10" y="-34">FSD_RECOVERY</name>
+            <label kind="invariant" x="-10" y="17">t_rec &lt;= 62</label>
+        </location>
+        <location id="EHS_DT_NOMINAL" x="300" y="0">
+            <name x="260" y="-34">EHS_DT_NOMINAL</name>
+        </location>
+        <location id="FSD_PILOT_AUTHORITY" x="600" y="0">
+            <name x="560" y="-34">FSD_PILOT_AUTHORITY</name>
+        </location>
+        <location id="FSD_FAULT" x="300" y="200">
+            <name x="260" y="166">FSD_FAULT</name>
+        </location>
+        <init ref="FSD_RECOVERY"/>
+        <transition>
+            <source ref="FSD_RECOVERY"/>
+            <target ref="EHS_DT_NOMINAL"/>
+            <label kind="guard" x="100" y="-17">t_rec &gt;= 10 &amp;&amp; t_rec &lt;= 62</label>
+            <label kind="synchronisation" x="100" y="0">nominal_envelope_restored!</label>
+            <label kind="assignment" x="100" y="17">t_ap := 0</label>
+        </transition>
+        <transition>
+            <source ref="EHS_DT_NOMINAL"/>
+            <target ref="FSD_PILOT_AUTHORITY"/>
+            <label kind="synchronisation" x="370" y="-17">pilot_authority_event!</label>
+        </transition>
+        <transition>
+            <source ref="FSD_PILOT_AUTHORITY"/>
+            <target ref="FSD_RECOVERY"/>
+            <label kind="synchronisation" x="300" y="-51">ap_reset_telemetry!</label>
+            <label kind="assignment" x="300" y="-34">t_rec := 0</label>
+        </transition>
+        <transition>
+            <source ref="EHS_DT_NOMINAL"/>
+            <target ref="FSD_FAULT"/>
+            <label kind="synchronisation" x="270" y="100">ap_fault_telemetry!</label>
+        </transition>
+        <transition>
+            <source ref="FSD_FAULT"/>
+            <target ref="EHS_DT_NOMINAL"/>
+            <label kind="synchronisation" x="270" y="150">ap_reset_telemetry!</label>
+            <label kind="assignment" x="270" y="167">t_ap := 0</label>
+        </transition>
+    </template>
+    <system>
+        FlightSafetyDT_EHS = FlightSafetyDT_EHS();
+        system FlightSafetyDT_EHS;
+    </system>
+</nta>

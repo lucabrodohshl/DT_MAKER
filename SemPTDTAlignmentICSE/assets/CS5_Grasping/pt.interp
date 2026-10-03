@@ -1,0 +1,52 @@
+; PT Interpretation: GraspingPT
+; GNC engineer perspective. Standards: ECSS-E-ST-40C, ISO 9283, NASA-STD-8719.13C
+;
+; All formulas in SMT-LIB2 prefix notation.
+; Arithmetic: (+ a b), (- a b) -- no infix.
+
+; --- Location interpretations ---
+STANDBY   : (and (= grasp_force 0) (> approach_distance contact_threshold))
+APPROACH  : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+ALIGNMENT : (and (<= approach_distance 5) (<= alignment_error (+ max_alignment_error 1)))
+CONTACT   : (and (<= approach_distance contact_threshold) (<= alignment_error max_alignment_error))
+GRASPING  : (and (<= approach_distance contact_threshold) (> grasp_force 0) (<= grasp_force max_grasp_force))
+SECURED   : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+RELEASE   : (and (>= grasp_force 0) (<= approach_distance contact_threshold))
+ABORT     : (= grasp_force 0)
+FAULT     : (and (>= alignment_error max_alignment_error) (> target_torque max_target_torque))
+
+; --- Event interpretations ---
+; approach_start!: GNC system armed, tumble rate nominal, approaching
+approach_start!      : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+
+; approach_complete!: approach phase complete, within proximity ops range
+approach_complete!   : (and (<= approach_distance 5) (<= target_tumble_rate max_tumble_rate))
+
+; alignment_achieved!: rotational alignment within tolerance (ISO 9283)
+alignment_achieved!  : (and (<= alignment_error max_alignment_error) (<= approach_distance (+ contact_threshold 1)))
+
+; grasp_initiated!: contact confirmed, grasp actuators energised
+; Oakes et al. Monitor 1 baseline: alignment_error <= max_alignment_error at this event
+grasp_initiated!     : (and (<= alignment_error max_alignment_error) (<= approach_distance contact_threshold))
+
+; grasp_secured!: grasp force sufficient for secure capture
+; Oakes et al. Monitor 2 baseline: grasp_force >= min_grasp_force at this event
+grasp_secured!       : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+
+; release_initiated!: deliberate release (mission end or abort recovery)
+release_initiated!   : (>= grasp_force min_grasp_force)
+
+; release_complete!: end-effector fully released, contact force zero
+release_complete!    : (= grasp_force 0)
+
+; abort_command!: emergency abort -- NASA-STD-8719.13C Req 4.2.3 (within 3 time units)
+abort_command!       : (>= target_tumble_rate (- max_tumble_rate 1))
+
+; abort_complete!: retraction complete, system in safe configuration
+abort_complete!      : (and (= grasp_force 0) (> approach_distance contact_threshold))
+
+; fault_detected!: actuator or GNC fault -- torque exceeds structural limit
+fault_detected!      : (> target_torque max_target_torque)
+
+; fault_abort!: fault abort sequence -- torque still elevated
+fault_abort!         : (and (> target_torque max_target_torque) (= grasp_force 0))

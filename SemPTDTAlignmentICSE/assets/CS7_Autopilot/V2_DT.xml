@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autopilot FSM -- Digital Twin (Flight Test and Safety Analysis Team view)
+        // Standard references:
+        //   DO-178C:2011, ARP4754A:2010, FAA AC 25.1309-1A
+        //   ASTM F2761-09 (monitoring interface vocabulary concept)
+        //
+        // DT uses flight performance / safety analysis vocabulary (ARP4754A).
+        // DT timing = PT timing + 2 time units (telemetry latency budget).
+        //
+        // t_ap     : autopilot nominal engagement timer (reset on engage/recovery)
+        // t_safety : safety manoeuvre execution timer (reset on manoeuvre start)
+        // t_env    : envelope breach response timer (reset on breach event)
+        // t_rec    : recovery phase timer (reset on recovery start)
+        clock t_ap, t_safety, t_env, t_rec;
+
+        chan ap_engage_telemetry,
+             flight_envelope_breach,
+             safety_climb_initiated,
+             safety_descent_initiated,
+             safety_turn_left_initiated,
+             safety_turn_right_initiated,
+             safety_maneuver_confirmed,
+             nominal_envelope_restored,
+             pilot_authority_event,
+             power_increase_event,
+             power_decrease_event,
+             power_mode_stable,
+             ap_fault_telemetry,
+             ap_reset_telemetry;
+    </declaration>
+
+    <template>
+        <name>FlightSafetyDT</name>
+
+        <location id="FSD_DISENGAGED" x="0" y="0">
+            <name x="-10" y="-34">FSD_DISENGAGED</name>
+        </location>
+
+        <location id="FSD_NOMINAL" x="300" y="0">
+            <name x="260" y="-34">FSD_NOMINAL</name>
+        </location>
+
+        <location id="FSD_POWER_TRANSITION" x="600" y="0">
+            <name x="560" y="-34">FSD_POWER_TRANSITION</name>
+            <label kind="invariant" x="560" y="17">t_ap &lt;= 330</label>
+        </location>
+
+        <location id="FSD_ENVELOPE_BREACH" x="0" y="300">
+            <name x="-40" y="266">FSD_ENVELOPE_BREACH</name>
+            <!-- t_env <= 4: DT response window = PT 2 units + 2 telemetry -->
+            <label kind="invariant" x="-40" y="317">t_env &lt;= 60</label>
+        </location>
+
+        <location id="FSD_CLIMB" x="300" y="300">
+            <name x="260" y="266">FSD_CLIMB</name>
+            <label kind="invariant" x="260" y="317">t_safety &lt;= 480</label>
+        </location>
+
+        <location id="FSD_DESCEND" x="600" y="300">
+            <name x="560" y="266">FSD_DESCEND</name>
+            <label kind="invariant" x="560" y="317">t_safety &lt;= 480</label>
+        </location>
+
+        <location id="FSD_SAFETY_MANEUVER" x="450" y="500">
+            <name x="410" y="466">FSD_SAFETY_MANEUVER</name>
+            <label kind="invariant" x="410" y="517">t_safety &lt;= 480</label>
+        </location>
+
+        <location id="FSD_RECOVERY" x="900" y="0">
+            <name x="860" y="-34">FSD_RECOVERY</name>
+            <label kind="invariant" x="860" y="17">t_rec &lt;= 930</label>
+        </location>
+
+        <location id="FSD_PILOT_AUTHORITY" x="900" y="300">
+            <name x="860" y="266">FSD_PILOT_AUTHORITY</name>
+        </location>
+
+        <location id="FSD_FAULT" x="1200" y="0">
+            <name x="1160" y="-34">FSD_FAULT</name>
+        </location>
+
+        <init ref="FSD_DISENGAGED"/>
+
+        <!-- Autopilot engagement -->
+        <transition>
+            <source ref="FSD_DISENGAGED"/>
+            <target ref="FSD_NOMINAL"/>
+            <label kind="synchronisation" x="100" y="-17">ap_engage_telemetry!</label>
+            <label kind="assignment" x="100" y="0">t_ap := 0</label>
+        </transition>
+
+        <!-- Power mode transitions (DT: t_ap >= 5 matches PT t_active >= 5) -->
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_POWER_TRANSITION"/>
+            <label kind="guard" x="370" y="-17">t_ap &gt;= 75</label>
+            <label kind="synchronisation" x="370" y="0">power_increase_event!</label>
+            <label kind="assignment" x="370" y="17">t_ap := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_POWER_TRANSITION"/>
+            <label kind="guard" x="370" y="50">t_ap &gt;= 75</label>
+            <label kind="synchronisation" x="370" y="67">power_decrease_event!</label>
+            <label kind="assignment" x="370" y="84">t_ap := 0</label>
+        </transition>
+
+        <!-- Power mode stable: DT [3, 22] = PT [3, 20] + 2 latency -->
+        <transition>
+            <source ref="FSD_POWER_TRANSITION"/>
+            <target ref="FSD_NOMINAL"/>
+            <label kind="guard" x="670" y="-17">t_ap &gt;= 45 &amp;&amp; t_ap &lt;= 330</label>
+            <label kind="synchronisation" x="670" y="0">power_mode_stable!</label>
+            <label kind="assignment" x="670" y="17">t_ap := 0</label>
+        </transition>
+
+        <!-- Flight envelope breach: DT window <= 4 = PT <= 2 + 2 telemetry -->
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_ENVELOPE_BREACH"/>
+            <label kind="synchronisation" x="100" y="150">flight_envelope_breach!</label>
+            <label kind="assignment" x="100" y="167">t_env := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_POWER_TRANSITION"/>
+            <target ref="FSD_ENVELOPE_BREACH"/>
+            <label kind="synchronisation" x="250" y="150">flight_envelope_breach!</label>
+            <label kind="assignment" x="250" y="167">t_env := 0</label>
+        </transition>
+
+        <!-- Safety manoeuvre initiation: within FSD_ENVELOPE_BREACH invariant (t_env <= 4) -->
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_CLIMB"/>
+            <label kind="guard" x="100" y="300">t_env &lt;= 60</label>
+            <label kind="synchronisation" x="100" y="317">safety_climb_initiated!</label>
+            <label kind="assignment" x="100" y="334">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_DESCEND"/>
+            <label kind="guard" x="200" y="300">t_env &lt;= 60</label>
+            <label kind="synchronisation" x="200" y="317">safety_descent_initiated!</label>
+            <label kind="assignment" x="200" y="334">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_SAFETY_MANEUVER"/>
+            <label kind="guard" x="100" y="400">t_env &lt;= 60</label>
+            <label kind="synchronisation" x="100" y="417">safety_turn_left_initiated!</label>
+            <label kind="assignment" x="100" y="434">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_SAFETY_MANEUVER"/>
+            <label kind="guard" x="200" y="440">t_env &lt;= 60</label>
+            <label kind="synchronisation" x="200" y="457">safety_turn_right_initiated!</label>
+            <label kind="assignment" x="200" y="474">t_safety := 0</label>
+        </transition>
+
+        <!-- Safety manoeuvre confirmation: DT [5, 32] = PT [5, 30] + 2 latency -->
+        <transition>
+            <source ref="FSD_CLIMB"/>
+            <target ref="FSD_RECOVERY"/>
+            <label kind="guard" x="500" y="150">t_safety &gt;= 75 &amp;&amp; t_safety &lt;= 480</label>
+            <label kind="synchronisation" x="500" y="167">safety_maneuver_confirmed!</label>
+            <label kind="assignment" x="500" y="184">t_rec := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_DESCEND"/>
+            <target ref="FSD_RECOVERY"/>
+            <label kind="guard" x="650" y="150">t_safety &gt;= 75 &amp;&amp; t_safety &lt;= 480</label>
+            <label kind="synchronisation" x="650" y="167">safety_maneuver_confirmed!</label>
+            <label kind="assignment" x="650" y="184">t_rec := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_SAFETY_MANEUVER"/>
+            <target ref="FSD_RECOVERY"/>
+            <label kind="guard" x="580" y="350">t_safety &gt;= 75 &amp;&amp; t_safety &lt;= 480</label>
+            <label kind="synchronisation" x="580" y="367">safety_maneuver_confirmed!</label>
+            <label kind="assignment" x="580" y="384">t_rec := 0</label>
+        </transition>
+
+        <!-- Nominal envelope restored: DT [10, 62] = PT [10, 60] + 2 latency -->
+        <transition>
+            <source ref="FSD_RECOVERY"/>
+            <target ref="FSD_NOMINAL"/>
+            <label kind="guard" x="600" y="-17">t_rec &gt;= 150 &amp;&amp; t_rec &lt;= 930</label>
+            <label kind="synchronisation" x="600" y="0">nominal_envelope_restored!</label>
+            <label kind="assignment" x="600" y="17">t_ap := 0</label>
+        </transition>
+
+        <!-- Pilot authority / emergency override -->
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_PILOT_AUTHORITY"/>
+            <label kind="synchronisation" x="700" y="150">pilot_authority_event!</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_ENVELOPE_BREACH"/>
+            <target ref="FSD_PILOT_AUTHORITY"/>
+            <label kind="guard" x="400" y="280">t_env &lt;= 45</label>
+            <label kind="synchronisation" x="400" y="297">pilot_authority_event!</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_PILOT_AUTHORITY"/>
+            <target ref="FSD_DISENGAGED"/>
+            <label kind="synchronisation" x="450" y="200">ap_reset_telemetry!</label>
+        </transition>
+
+        <!-- Autopilot fault (DO-178C: fault if ap_health_index degraded) -->
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_FAULT"/>
+            <label kind="synchronisation" x="700" y="-51">ap_fault_telemetry!</label>
+        </transition>
+
+        <transition>
+            <source ref="FSD_FAULT"/>
+            <target ref="FSD_DISENGAGED"/>
+            <label kind="synchronisation" x="600" y="-51">ap_reset_telemetry!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        FlightSafetyDT = FlightSafetyDT();
+        system FlightSafetyDT;
+    </system>
+
+</nta>

@@ -1,0 +1,24 @@
+; PT Interpretation: ThrustMgmtPT (TMS subsystem)
+; Subset of pt.interp covering TMS event alphabet.
+
+; --- Location interpretations ---
+IDLE                : (and (>= n1_speed 25) (<= n1_speed 35) (>= fuel_flow min_fuel_flow) (<= fuel_flow 400))
+TAKEOFF             : (and (>= n1_speed 95) (<= n1_speed n1_takeoff_limit) (<= egt takeoff_egt_limit))
+CLIMB               : (and (>= n1_speed 88) (<= n1_speed 96) (<= egt max_egt))
+CRUISE              : (and (>= n1_speed 82) (<= n1_speed 90) (<= egt (- max_egt 50)))
+DESCENT             : (and (>= n1_speed 40) (<= n1_speed 60) (<= fuel_flow 1000))
+APPROACH            : (and (>= n1_speed 70) (<= n1_speed 82) (<= egt max_egt))
+LANDING             : (and (<= n1_speed 40) (<= fuel_flow 600))
+OVERHEAT            : (> egt max_egt)
+FLAME_OUT           : (< n1_speed flameout_n1_threshold)
+
+; --- Event interpretations ---
+takeoff_thrust!      : (and (>= n1_speed 95) (<= fuel_flow max_fuel_flow) (<= egt takeoff_egt_limit))
+climb_thrust!        : (and (>= n1_speed 88) (<= egt max_egt))
+cruise_thrust!       : (and (>= n1_speed 82) (<= egt (- max_egt 50)))
+descent_initiated!   : (and (<= n1_speed 60) (<= fuel_flow 1000))
+approach_thrust!     : (and (>= n1_speed 70) (<= egt max_egt))
+landing_thrust!      : (<= n1_speed 40)
+overheat_detected!   : (> egt max_egt)
+flameout_detected!   : (< n1_speed flameout_n1_threshold)
+relight_initiated!   : (and (< n1_speed flameout_n1_threshold) (>= fuel_flow min_fuel_flow))

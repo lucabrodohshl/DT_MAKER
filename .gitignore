@@ -1,0 +1,34 @@
+# Build trees
+/build/
+/cmake-build-*/
+compile_commands.json
+
+# Third-party sources/builds produced by scripts/bootstrap-deps.sh (pinned, not vendored)
+/third_party/src/
+/third_party/build/
+/third_party/install/
+/third_party/downloads/
+
+# Runtime artefacts
+/var/
+*.ledger.jsonl
+/packages/*.twinpkg/
+
+# Web
+/web/node_modules/
+/web/dist/
+
+# LaTeX
+/proof/build/
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/

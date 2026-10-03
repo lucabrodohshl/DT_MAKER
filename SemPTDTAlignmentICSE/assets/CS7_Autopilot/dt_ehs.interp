@@ -1,0 +1,15 @@
+; Interpretation: dt_ehs -- Emergency Handling Subsystem (DT)
+; Covers: FSD_RECOVERY, EHS_DT_NOMINAL, FSD_PILOT_AUTHORITY, FSD_FAULT
+; Events: nominal_envelope_restored!, pilot_authority_event!, ap_reset_telemetry!, ap_fault_telemetry!
+
+; === LOCATION INTERPRETATIONS ===
+FSD_RECOVERY       : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll))
+EHS_DT_NOMINAL     : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+FSD_PILOT_AUTHORITY: (>= ap_health_index 0)
+FSD_FAULT          : (< ap_health_index 0)
+
+; === EVENT INTERPRETATIONS ===
+nominal_envelope_restored! : (and (<= pitch_angle 5) (<= roll_angle 10) (>= airspeed min_airspeed))
+pilot_authority_event!     : (< ap_health_index 1)
+ap_reset_telemetry!        : (> ap_health_index 0)
+ap_fault_telemetry!        : (< ap_health_index 0)

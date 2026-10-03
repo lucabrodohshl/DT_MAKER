@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autonomous Space Debris Grasping -- Physical Twin (GNC Engineer view)
+        // Standard references:
+        //   ECSS-E-ST-40C:2009    -- Space Engineering: Software (Sec 5.2.4, 5.3.3, 6.4)
+        //   ECSS-E-ST-10-06C:2017 -- Technical Requirements Specification
+        //   ECSS-Q-ST-80C:2017    -- Software Product Assurance
+        //   ISO 9283:1998         -- Manipulating Industrial Robots: Performance Criteria
+        //   CCSDS 727.0-B-5:2017  -- CFDP telemetry latency bounds
+        //   NASA-STD-8719.13C:2013-- Software Safety Standard
+        //
+        // t_approach : elapsed time in approach phase (STANDBY -&gt; APPROACH -&gt; ALIGNMENT)
+        // t_align    : elapsed time in alignment manoeuvre (ALIGNMENT)
+        // t_contact  : elapsed time since contact confirmed (CONTACT)
+        // t_grasp    : elapsed time since grasp started / since SECURED
+        // t_abort    : elapsed time since abort or fault command
+        clock t_approach, t_align, t_contact, t_grasp, t_abort;
+
+        chan approach_start,
+             approach_complete,
+             alignment_achieved,
+             grasp_initiated,
+             grasp_secured,
+             release_initiated,
+             release_complete,
+             abort_command,
+             abort_complete,
+             fault_detected,
+             fault_abort;
+    </declaration>
+
+    <template>
+        <name>GraspingPT</name>
+
+        <location id="STANDBY" x="0" y="0">
+            <name x="-10" y="-34">STANDBY</name>
+        </location>
+
+        <location id="APPROACH" x="300" y="0">
+            <name x="260" y="-34">APPROACH</name>
+            <label kind="invariant" x="260" y="17">t_approach &lt;= 384</label>
+        </location>
+
+        <location id="ALIGNMENT" x="600" y="0">
+            <name x="560" y="-34">ALIGNMENT</name>
+            <label kind="invariant" x="560" y="17">t_align &lt;= 264</label>
+        </location>
+
+        <location id="CONTACT" x="900" y="0">
+            <name x="860" y="-34">CONTACT</name>
+            <label kind="invariant" x="860" y="17">t_contact &lt;= 84</label>
+        </location>
+
+        <location id="GRASPING" x="1200" y="0">
+            <name x="1160" y="-34">GRASPING</name>
+            <label kind="invariant" x="1160" y="17">t_grasp &lt;= 144</label>
+        </location>
+
+        <location id="SECURED" x="1500" y="0">
+            <name x="1460" y="-34">SECURED</name>
+        </location>
+
+        <location id="RELEASE" x="1500" y="300">
+            <name x="1460" y="266">RELEASE</name>
+        </location>
+
+        <location id="ABORT" x="600" y="300">
+            <name x="560" y="266">ABORT</name>
+            <label kind="invariant" x="560" y="317">t_abort &lt;= 204</label>
+        </location>
+
+        <location id="FAULT" x="900" y="300">
+            <name x="860" y="266">FAULT</name>
+            <label kind="invariant" x="860" y="317">t_abort &lt;= 42</label>
+        </location>
+
+        <init ref="STANDBY"/>
+
+        <!-- Normal grasping sequence -->
+        <transition>
+            <source ref="STANDBY"/>
+            <target ref="APPROACH"/>
+            <label kind="synchronisation" x="100" y="-17">approach_start!</label>
+            <label kind="assignment" x="100" y="0">t_approach := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="ALIGNMENT"/>
+            <label kind="guard" x="370" y="-17">t_approach &gt;= 60 &amp;&amp; t_approach &lt;= 384</label>
+            <label kind="synchronisation" x="370" y="0">approach_complete!</label>
+            <label kind="assignment" x="370" y="17">t_align := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ALIGNMENT"/>
+            <target ref="CONTACT"/>
+            <label kind="guard" x="670" y="-17">t_align &gt;= 30 &amp;&amp; t_align &lt;= 264</label>
+            <label kind="synchronisation" x="670" y="0">alignment_achieved!</label>
+            <label kind="assignment" x="670" y="17">t_contact := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CONTACT"/>
+            <target ref="GRASPING"/>
+            <label kind="guard" x="970" y="-17">t_contact &gt;= 6 &amp;&amp; t_contact &lt;= 84</label>
+            <label kind="synchronisation" x="970" y="0">grasp_initiated!</label>
+            <label kind="assignment" x="970" y="17">t_grasp := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="GRASPING"/>
+            <target ref="SECURED"/>
+            <label kind="guard" x="1270" y="-17">t_grasp &gt;= 180 &amp;&amp; t_grasp &lt;= 144</label>
+            <label kind="synchronisation" x="1270" y="0">grasp_secured!</label>
+            <label kind="assignment" x="1270" y="17">t_grasp := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="SECURED"/>
+            <target ref="RELEASE"/>
+            <label kind="guard" x="1510" y="100">t_grasp &gt;= 180</label>
+            <label kind="synchronisation" x="1510" y="117">release_initiated!</label>
+            <label kind="assignment" x="1510" y="134">t_grasp := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="RELEASE"/>
+            <target ref="STANDBY"/>
+            <label kind="guard" x="700" y="350">t_grasp &gt;= 18</label>
+            <label kind="synchronisation" x="700" y="367">release_complete!</label>
+        </transition>
+
+        <!-- Abort paths: reachable from APPROACH, ALIGNMENT, CONTACT, GRASPING -->
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="ABORT"/>
+            <label kind="guard" x="280" y="150">t_abort &lt;= 42</label>
+            <label kind="synchronisation" x="280" y="167">abort_command!</label>
+            <label kind="assignment" x="280" y="184">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ALIGNMENT"/>
+            <target ref="ABORT"/>
+            <label kind="guard" x="560" y="150">t_abort &lt;= 42</label>
+            <label kind="synchronisation" x="560" y="167">abort_command!</label>
+            <label kind="assignment" x="560" y="184">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CONTACT"/>
+            <target ref="ABORT"/>
+            <label kind="guard" x="860" y="150">t_abort &lt;= 42</label>
+            <label kind="synchronisation" x="860" y="167">abort_command!</label>
+            <label kind="assignment" x="860" y="184">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="GRASPING"/>
+            <target ref="ABORT"/>
+            <label kind="guard" x="1100" y="200">t_abort &lt;= 42</label>
+            <label kind="synchronisation" x="1100" y="217">abort_command!</label>
+            <label kind="assignment" x="1100" y="234">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ABORT"/>
+            <target ref="STANDBY"/>
+            <label kind="guard" x="200" y="350">t_abort &gt;= 30 &amp;&amp; t_abort &lt;= 204</label>
+            <label kind="synchronisation" x="200" y="367">abort_complete!</label>
+        </transition>
+
+        <!-- Fault paths: reachable from ALIGNMENT, CONTACT, GRASPING -->
+        <transition>
+            <source ref="ALIGNMENT"/>
+            <target ref="FAULT"/>
+            <label kind="guard" x="620" y="200">t_abort &lt;= 36</label>
+            <label kind="synchronisation" x="620" y="217">fault_detected!</label>
+            <label kind="assignment" x="620" y="234">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CONTACT"/>
+            <target ref="FAULT"/>
+            <label kind="guard" x="880" y="150">t_abort &lt;= 36</label>
+            <label kind="synchronisation" x="880" y="167">fault_detected!</label>
+            <label kind="assignment" x="880" y="184">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="GRASPING"/>
+            <target ref="FAULT"/>
+            <label kind="guard" x="1050" y="150">t_abort &lt;= 36</label>
+            <label kind="synchronisation" x="1050" y="167">fault_detected!</label>
+            <label kind="assignment" x="1050" y="184">t_abort := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FAULT"/>
+            <target ref="ABORT"/>
+            <label kind="guard" x="870" y="300">t_abort &lt;= 42</label>
+            <label kind="synchronisation" x="870" y="317">fault_abort!</label>
+            <label kind="assignment" x="870" y="334">t_abort := 0</label>
+        </transition>
+
+    </template>
+
+    <system>
+        GraspingPT = GraspingPT();
+        system GraspingPT;
+    </system>
+</nta>

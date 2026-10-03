@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 NOS DT -- Normal Operations Subsystem (Digital Twin)
+        // Subsystem: FSD_DISENGAGED, FSD_NOMINAL, FSD_POWER_TRANSITION
+        // Events: ap_engage_telemetry!, power_increase_event!, power_decrease_event!, power_mode_stable!
+        // DT timing: +2 units latency over PT
+        clock t_ap;
+        chan ap_engage_telemetry, power_increase_event, power_decrease_event, power_mode_stable;
+    </declaration>
+    <template>
+        <name>FlightSafetyDT_NOS</name>
+        <location id="FSD_DISENGAGED" x="0" y="0">
+            <name x="-10" y="-34">FSD_DISENGAGED</name>
+        </location>
+        <location id="FSD_NOMINAL" x="300" y="0">
+            <name x="260" y="-34">FSD_NOMINAL</name>
+        </location>
+        <location id="FSD_POWER_TRANSITION" x="600" y="0">
+            <name x="560" y="-34">FSD_POWER_TRANSITION</name>
+            <label kind="invariant" x="560" y="17">t_ap &lt;= 22</label>
+        </location>
+        <init ref="FSD_DISENGAGED"/>
+        <transition>
+            <source ref="FSD_DISENGAGED"/>
+            <target ref="FSD_NOMINAL"/>
+            <label kind="synchronisation" x="100" y="-17">ap_engage_telemetry!</label>
+            <label kind="assignment" x="100" y="0">t_ap := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_POWER_TRANSITION"/>
+            <label kind="guard" x="370" y="-17">t_ap &gt;= 5</label>
+            <label kind="synchronisation" x="370" y="0">power_increase_event!</label>
+            <label kind="assignment" x="370" y="17">t_ap := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_NOMINAL"/>
+            <target ref="FSD_POWER_TRANSITION"/>
+            <label kind="guard" x="370" y="50">t_ap &gt;= 5</label>
+            <label kind="synchronisation" x="370" y="67">power_decrease_event!</label>
+            <label kind="assignment" x="370" y="84">t_ap := 0</label>
+        </transition>
+        <transition>
+            <source ref="FSD_POWER_TRANSITION"/>
+            <target ref="FSD_NOMINAL"/>
+            <label kind="guard" x="670" y="-17">t_ap &gt;= 3 &amp;&amp; t_ap &lt;= 22</label>
+            <label kind="synchronisation" x="670" y="0">power_mode_stable!</label>
+            <label kind="assignment" x="670" y="17">t_ap := 0</label>
+        </transition>
+    </template>
+    <system>
+        FlightSafetyDT_NOS = FlightSafetyDT_NOS();
+        system FlightSafetyDT_NOS;
+    </system>
+</nta>

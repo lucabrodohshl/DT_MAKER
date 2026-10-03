@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS9 PT -- Precision Irrigation System (ISO 11783 ISOBUS / FAO-56)
+        // Standard: ISO 11783-7:2015 (ISOBUS implement messages, section control)
+        //           ISO 11783-10:2015 (task controller prescription maps)
+        //           FAO-56:1998 (Penman-Monteith ET and depletion threshold)
+        //           EN 13101:2003 (underground reservoir capacity constraints)
+        //           EU Regulation 2009/128/EC Art.12 (spray inhibit timing)
+        //
+        // Perspective: precision agriculture engineer (ISOBUS firmware vocabulary)
+        //
+        // Clocks:
+        //   t_irrigate : total time in irrigation (across phases)
+        //   t_monitor  : time in monitoring / draining / maintenance phase
+        //   t_dry      : time since last irrigation complete (FAO-56 deficit accumulation)
+        //   t_zone     : time in current irrigation zone (ISO 11783-10 prescription window)
+        //   t_sensor   : sensor data freshness (ISO 11783-7: sensor response &lt;=3 units)
+        //
+        // Key timing (ISO 11783-7 / FAO-56):
+        //   FAO-56 deficit threshold: irrigate after t_dry &gt;= 24 (depletion p=50% of TAW)
+        //   FAO-56 critical deficit:  alarm after t_dry &gt;= 48
+        //   ISO 11783-7 sensor response: t_sensor &lt;= 3 (ISOBUS command latency)
+        //   ISO 11783-7 overflow response: t_sensor &lt;= 1 (section control minimum)
+        //   ISO 11783-10 Zone 1 window: [10, 60] units
+        //   ISO 11783-10 Zone 2 window: [8, 45] units
+        //   ISO 11783-10 Zone 3 window: [6, 30] units
+        //   Drain settling: [3, 15] units
+        //   Maintenance: [10, 60] units
+        clock t_irrigate, t_monitor, t_dry, t_zone, t_sensor;
+        chan irrigation_start_z1, irrigation_start_z2, irrigation_start_z3,
+             irrigation_complete, drain_start, deficit_alarm, emergency_irrigation,
+             overflow_alarm, overflow_cleared, maintenance_start, maintenance_complete;
+    </declaration>
+    <template>
+        <name>IrrigationControllerPT</name>
+        <location id="MONITORING" x="0" y="0">
+            <name x="-10" y="-34">MONITORING</name>
+        </location>
+        <location id="IRRIGATION_ZONE_1" x="300" y="-200">
+            <name x="260" y="-234">IRRIGATION_ZONE_1</name>
+            <label kind="invariant" x="260" y="-217">t_zone &lt;= 60</label>
+        </location>
+        <location id="IRRIGATION_ZONE_2" x="300" y="0">
+            <name x="260" y="-34">IRRIGATION_ZONE_2</name>
+            <label kind="invariant" x="260" y="17">t_zone &lt;= 45</label>
+        </location>
+        <location id="IRRIGATION_ZONE_3" x="300" y="200">
+            <name x="260" y="166">IRRIGATION_ZONE_3</name>
+            <label kind="invariant" x="260" y="217">t_zone &lt;= 30</label>
+        </location>
+        <location id="DRAINING" x="-200" y="200">
+            <name x="-240" y="166">DRAINING</name>
+            <label kind="invariant" x="-240" y="217">t_monitor &lt;= 15</label>
+        </location>
+        <location id="ALARM_DEFICIT" x="-300" y="-100">
+            <name x="-360" y="-134">ALARM_DEFICIT</name>
+        </location>
+        <location id="ALARM_OVERFLOW" x="600" y="0">
+            <name x="560" y="-34">ALARM_OVERFLOW</name>
+        </location>
+        <location id="MAINTENANCE" x="-200" y="-200">
+            <name x="-240" y="-234">MAINTENANCE</name>
+            <label kind="invariant" x="-240" y="-217">t_monitor &lt;= 60</label>
+        </location>
+        <init ref="MONITORING"/>
+        <!-- MONITORING -> IRRIGATION_ZONE_1: FAO-56 deficit reached, ISO 11783-7 sensor fresh -->
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="IRRIGATION_ZONE_1"/>
+            <label kind="guard" x="50" y="-117">t_dry &gt;= 24 &amp;&amp; t_sensor &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="-100">irrigation_start_z1!</label>
+            <label kind="assignment" x="50" y="-83">t_zone := 0, t_irrigate := 0</label>
+        </transition>
+        <!-- IRRIGATION_ZONE_1 -> MONITORING: prescription window [10,60] met -->
+        <transition>
+            <source ref="IRRIGATION_ZONE_1"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="340" y="-100">t_zone &gt;= 10 &amp;&amp; t_zone &lt;= 60</label>
+            <label kind="synchronisation" x="340" y="-83">irrigation_complete!</label>
+            <label kind="assignment" x="340" y="-66">t_dry := 0, t_sensor := 0</label>
+        </transition>
+        <!-- MONITORING -> IRRIGATION_ZONE_2 -->
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="IRRIGATION_ZONE_2"/>
+            <label kind="guard" x="50" y="-17">t_dry &gt;= 24 &amp;&amp; t_sensor &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="0">irrigation_start_z2!</label>
+            <label kind="assignment" x="50" y="17">t_zone := 0, t_irrigate := 0</label>
+        </transition>
+        <!-- IRRIGATION_ZONE_2 -> MONITORING: prescription window [8,45] met -->
+        <transition>
+            <source ref="IRRIGATION_ZONE_2"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="340" y="-17">t_zone &gt;= 8 &amp;&amp; t_zone &lt;= 45</label>
+            <label kind="synchronisation" x="340" y="0">irrigation_complete!</label>
+            <label kind="assignment" x="340" y="17">t_dry := 0, t_sensor := 0</label>
+        </transition>
+        <!-- MONITORING -> IRRIGATION_ZONE_3 -->
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="IRRIGATION_ZONE_3"/>
+            <label kind="guard" x="50" y="117">t_dry &gt;= 24 &amp;&amp; t_sensor &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="134">irrigation_start_z3!</label>
+            <label kind="assignment" x="50" y="151">t_zone := 0, t_irrigate := 0</label>
+        </transition>
+        <!-- IRRIGATION_ZONE_3 -> MONITORING: prescription window [6,30] met -->
+        <transition>
+            <source ref="IRRIGATION_ZONE_3"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="340" y="117">t_zone &gt;= 6 &amp;&amp; t_zone &lt;= 30</label>
+            <label kind="synchronisation" x="340" y="134">irrigation_complete!</label>
+            <label kind="assignment" x="340" y="151">t_dry := 0, t_sensor := 0</label>
+        </transition>
+        <!-- ZONE_x -> DRAINING: drain_start! from any irrigation zone -->
+        <transition>
+            <source ref="IRRIGATION_ZONE_1"/>
+            <target ref="DRAINING"/>
+            <label kind="guard" x="50" y="-34">t_irrigate &gt;= 0</label>
+            <label kind="synchronisation" x="50" y="-17">drain_start!</label>
+            <label kind="assignment" x="50" y="0">t_monitor := 0</label>
+        </transition>
+        <transition>
+            <source ref="IRRIGATION_ZONE_2"/>
+            <target ref="DRAINING"/>
+            <label kind="guard" x="50" y="100">t_irrigate &gt;= 0</label>
+            <label kind="synchronisation" x="50" y="117">drain_start!</label>
+            <label kind="assignment" x="50" y="134">t_monitor := 0</label>
+        </transition>
+        <transition>
+            <source ref="IRRIGATION_ZONE_3"/>
+            <target ref="DRAINING"/>
+            <label kind="guard" x="50" y="200">t_irrigate &gt;= 0</label>
+            <label kind="synchronisation" x="50" y="217">drain_start!</label>
+            <label kind="assignment" x="50" y="234">t_monitor := 0</label>
+        </transition>
+        <!-- DRAINING -> MONITORING: tau, drainage settling [3,15] -->
+        <transition>
+            <source ref="DRAINING"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="-180" y="100">t_monitor &gt;= 3 &amp;&amp; t_monitor &lt;= 15</label>
+            <label kind="assignment" x="-180" y="117">t_sensor := 0</label>
+        </transition>
+        <!-- MONITORING -> ALARM_DEFICIT: FAO-56 critical deficit (48 dry units) -->
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="ALARM_DEFICIT"/>
+            <label kind="guard" x="-200" y="-50">t_dry &gt;= 48</label>
+            <label kind="synchronisation" x="-200" y="-33">deficit_alarm!</label>
+        </transition>
+        <!-- ALARM_DEFICIT -> IRRIGATION_ZONE_1: emergency irrigation -->
+        <transition>
+            <source ref="ALARM_DEFICIT"/>
+            <target ref="IRRIGATION_ZONE_1"/>
+            <label kind="synchronisation" x="50" y="-200">emergency_irrigation!</label>
+            <label kind="assignment" x="50" y="-183">t_zone := 0</label>
+        </transition>
+        <!-- ZONE_x -> ALARM_OVERFLOW: ISO 11783-7 overflow sensor response <=1 unit -->
+        <transition>
+            <source ref="IRRIGATION_ZONE_1"/>
+            <target ref="ALARM_OVERFLOW"/>
+            <label kind="guard" x="450" y="-117">t_sensor &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="-100">overflow_alarm!</label>
+            <label kind="assignment" x="450" y="-83">t_sensor := 0</label>
+        </transition>
+        <transition>
+            <source ref="IRRIGATION_ZONE_2"/>
+            <target ref="ALARM_OVERFLOW"/>
+            <label kind="guard" x="450" y="-17">t_sensor &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="0">overflow_alarm!</label>
+            <label kind="assignment" x="450" y="17">t_sensor := 0</label>
+        </transition>
+        <transition>
+            <source ref="IRRIGATION_ZONE_3"/>
+            <target ref="ALARM_OVERFLOW"/>
+            <label kind="guard" x="450" y="117">t_sensor &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="134">overflow_alarm!</label>
+            <label kind="assignment" x="450" y="151">t_sensor := 0</label>
+        </transition>
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="ALARM_OVERFLOW"/>
+            <label kind="guard" x="200" y="-17">t_sensor &lt;= 1</label>
+            <label kind="synchronisation" x="200" y="0">overflow_alarm!</label>
+            <label kind="assignment" x="200" y="17">t_sensor := 0</label>
+        </transition>
+        <!-- ALARM_OVERFLOW -> MONITORING: sensor confirms normal for >=2 units -->
+        <transition>
+            <source ref="ALARM_OVERFLOW"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="450" y="100">t_sensor &gt;= 2</label>
+            <label kind="synchronisation" x="450" y="117">overflow_cleared!</label>
+            <label kind="assignment" x="450" y="134">t_sensor := 0</label>
+        </transition>
+        <!-- MONITORING -> MAINTENANCE / MAINTENANCE -> MONITORING -->
+        <transition>
+            <source ref="MONITORING"/>
+            <target ref="MAINTENANCE"/>
+            <label kind="synchronisation" x="-150" y="-117">maintenance_start!</label>
+            <label kind="assignment" x="-150" y="-100">t_monitor := 0</label>
+        </transition>
+        <transition>
+            <source ref="MAINTENANCE"/>
+            <target ref="MONITORING"/>
+            <label kind="guard" x="-150" y="-166">t_monitor &gt;= 10 &amp;&amp; t_monitor &lt;= 60</label>
+            <label kind="synchronisation" x="-150" y="-149">maintenance_complete!</label>
+            <label kind="assignment" x="-150" y="-132">t_sensor := 0</label>
+        </transition>
+    </template>
+    <system>
+        IrrigationControllerPT = IrrigationControllerPT();
+        system IrrigationControllerPT;
+    </system>
+</nta>

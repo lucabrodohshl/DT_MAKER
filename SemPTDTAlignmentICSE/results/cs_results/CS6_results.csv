@@ -1,0 +1,5 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS6_aligned,true,35,1,21146,208,22148,183.369,14600
+CS6_missing_warning,false,33,1,0,193,5,9.441,12
+CS6_thresh_drift,false,33,1,0,208,5,10.431,68
+CS6_evo_v2,true,35,1,21146,208,22148,188.789,12536

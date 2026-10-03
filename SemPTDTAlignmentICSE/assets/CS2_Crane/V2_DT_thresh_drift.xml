@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Crane Digital Twin (DT) — Threshold Drift Misalignment Variant
+        // VARIANT A: load_exceedance_event! fires when current_load > 480
+        //            instead of > rated_load (= 500).
+        // This creates a 20 kg gap: loads 480-500 kg trigger alarm in DT but
+        // are within safe operating range; loads > 500 kg may not be caught.
+        // Expected: semantic alignment check returns FALSE (NOT aligned).
+        clock t_cycle, t_motion, t_rest, t_inspect;
+        chan hoist_command,
+             cycle_logged,
+             bridge_motion_start, bridge_motion_end,
+             load_setdown_event,
+             load_exceedance_event,
+             protective_stop_command,
+             duty_cycle_rest_start, duty_cycle_rest_end,
+             inspection_start, inspection_complete;
+    </declaration>
+
+    <template>
+        <name>CraneDT</name>
+
+        <location id="dt_idle" x="0" y="0">
+            <name x="-10" y="-34">DT_IDLE</name>
+        </location>
+
+        <location id="dt_cycle_active" x="300" y="0">
+            <name x="260" y="-34">DT_CYCLE_ACTIVE</name>
+            <label kind="invariant" x="260" y="17">t_cycle &lt;= 123</label>
+        </location>
+
+        <location id="dt_floor_dwell" x="600" y="0">
+            <name x="560" y="-34">DT_FLOOR_DWELL</name>
+        </location>
+
+        <location id="dt_bridge_motion" x="900" y="0">
+            <name x="860" y="-34">DT_BRIDGE_MOTION</name>
+            <label kind="invariant" x="860" y="17">t_motion &lt;= 63</label>
+        </location>
+
+        <location id="dt_load_exceedance" x="600" y="300">
+            <name x="560" y="266">DT_LOAD_EXCEEDANCE</name>
+            <label kind="invariant" x="560" y="317">t_cycle &lt;= 5</label>
+        </location>
+
+        <location id="dt_protective_stop" x="900" y="300">
+            <name x="860" y="266">DT_PROTECTIVE_STOP</name>
+        </location>
+
+        <location id="dt_duty_rest" x="0" y="300">
+            <name x="-10" y="266">DT_DUTY_REST</name>
+            <label kind="invariant" x="-10" y="317">t_rest &lt;= 63</label>
+        </location>
+
+        <location id="dt_inspection" x="0" y="-150">
+            <name x="-10" y="-184">DT_INSPECTION</name>
+            <label kind="invariant" x="-10" y="-133">t_inspect &lt;= 123</label>
+        </location>
+
+        <init ref="dt_idle"/>
+
+        <transition>
+            <source ref="dt_idle"/>
+            <target ref="dt_cycle_active"/>
+            <label kind="synchronisation" x="100" y="-17">hoist_command!</label>
+            <label kind="assignment" x="100" y="0">t_cycle := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_cycle_active"/>
+            <target ref="dt_floor_dwell"/>
+            <label kind="guard" x="370" y="-17">t_cycle &gt;= 5 &amp;&amp; t_cycle &lt;= 123</label>
+            <label kind="synchronisation" x="370" y="0">cycle_logged!</label>
+            <label kind="assignment" x="370" y="17">t_cycle := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_floor_dwell"/>
+            <target ref="dt_bridge_motion"/>
+            <label kind="synchronisation" x="710" y="-17">bridge_motion_start!</label>
+            <label kind="assignment" x="710" y="0">t_motion := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_bridge_motion"/>
+            <target ref="dt_idle"/>
+            <label kind="guard" x="470" y="50">t_motion &gt;= 3 &amp;&amp; t_motion &lt;= 63</label>
+            <label kind="synchronisation" x="470" y="67">bridge_motion_end!</label>
+            <label kind="assignment" x="470" y="84">t_motion := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_floor_dwell"/>
+            <target ref="dt_idle"/>
+            <label kind="synchronisation" x="250" y="-50">load_setdown_event!</label>
+        </transition>
+
+        <!-- THRESHOLD DRIFT: load_exceedance_event fires at > 480 instead of > rated_load (500) -->
+        <transition>
+            <source ref="dt_cycle_active"/>
+            <target ref="dt_load_exceedance"/>
+            <label kind="synchronisation" x="350" y="150">load_exceedance_event!</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_floor_dwell"/>
+            <target ref="dt_load_exceedance"/>
+            <label kind="synchronisation" x="570" y="150">load_exceedance_event!</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_load_exceedance"/>
+            <target ref="dt_protective_stop"/>
+            <label kind="guard" x="710" y="317">t_cycle &lt;= 1</label>
+            <label kind="synchronisation" x="710" y="334">protective_stop_command!</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_protective_stop"/>
+            <target ref="dt_idle"/>
+            <label kind="synchronisation" x="450" y="250">duty_cycle_rest_end!</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_idle"/>
+            <target ref="dt_duty_rest"/>
+            <label kind="synchronisation" x="-180" y="150">duty_cycle_rest_start!</label>
+            <label kind="assignment" x="-180" y="167">t_rest := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_duty_rest"/>
+            <target ref="dt_idle"/>
+            <label kind="guard" x="-180" y="50">t_rest &gt;= 30 &amp;&amp; t_rest &lt;= 63</label>
+            <label kind="synchronisation" x="-180" y="67">duty_cycle_rest_end!</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_idle"/>
+            <target ref="dt_inspection"/>
+            <label kind="synchronisation" x="-180" y="-100">inspection_start!</label>
+            <label kind="assignment" x="-180" y="-83">t_inspect := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="dt_inspection"/>
+            <target ref="dt_idle"/>
+            <label kind="guard" x="-180" y="-50">t_inspect &gt;= 20 &amp;&amp; t_inspect &lt;= 123</label>
+            <label kind="synchronisation" x="-180" y="-33">inspection_complete!</label>
+        </transition>
+
+    </template>
+
+    <system>CraneDT = CraneDT(); system CraneDT;</system>
+
+</nta>

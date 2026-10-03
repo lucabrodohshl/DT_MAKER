@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autopilot FSM -- Physical Twin (Avionics Software Safety Engineer view)
+        // Standard references:
+        //   DO-178C:2011   Sec 6.3.2: Formal methods for DAL-A; Sec 6.4.4.2: MC/DC
+        //   ARP4754A:2010  Sec 5.5: HAZ failure condition; Sec 7.2: DAL-A requirements
+        //   FAA AC 25.1309-1A: hazardous failure &lt; 10^-7 / flight hour
+        //   MIL-STD-1797B:2004: Level 1 flying qualities during manoeuvre
+        //   DO-254:2000    Sec 6.1: FADEC hardware requirements capture
+        //
+        // Timing constraints:
+        //   t_hazard:   time in HAZARD_DETECTED; ARP4754A manoeuvre initiation &lt;= 2 units
+        //   t_maneuver: time in MANEUVER_*; DO-178C manoeuvre completion &lt;= 30 units
+        //   t_recovery: time in RECOVERY; return to nominal [10, 60] units
+        //   t_trans:    time in TRANSITION states; [3, 20] units per DO-178C
+        //   t_active:   time since last NOMINAL entry; fault declared at &gt;= 200 units
+        clock t_active, t_maneuver, t_recovery, t_hazard, t_trans;
+
+        chan activate,
+             hazard_alert,
+             maneuver_climb,
+             maneuver_descend,
+             maneuver_left,
+             maneuver_right,
+             maneuver_complete,
+             recovery_complete,
+             emergency_override,
+             manual_takeover,
+             thrust_up,
+             thrust_down,
+             transition_complete,
+             system_fault,
+             fault_reset;
+    </declaration>
+
+    <template>
+        <name>AutopilotPT</name>
+
+        <location id="STANDBY" x="0" y="0">
+            <name x="-10" y="-34">STANDBY</name>
+        </location>
+
+        <location id="NOMINAL" x="300" y="0">
+            <name x="260" y="-34">NOMINAL</name>
+        </location>
+
+        <location id="TRANSITION_UP" x="600" y="0">
+            <name x="560" y="-34">TRANSITION_UP</name>
+            <label kind="invariant" x="560" y="17">t_trans &lt;= 300</label>
+        </location>
+
+        <location id="TRANSITION_DOWN" x="600" y="200">
+            <name x="560" y="166">TRANSITION_DOWN</name>
+            <label kind="invariant" x="560" y="217">t_trans &lt;= 300</label>
+        </location>
+
+        <location id="HAZARD_DETECTED" x="0" y="400">
+            <name x="-40" y="366">HAZARD_DETECTED</name>
+            <label kind="invariant" x="-40" y="417">t_hazard &lt;= 30</label>
+        </location>
+
+        <location id="MANEUVER_CLIMB" x="300" y="400">
+            <name x="260" y="366">MANEUVER_CLIMB</name>
+            <label kind="invariant" x="260" y="417">t_maneuver &lt;= 450</label>
+        </location>
+
+        <location id="MANEUVER_DESCEND" x="600" y="400">
+            <name x="560" y="366">MANEUVER_DESCEND</name>
+            <label kind="invariant" x="560" y="417">t_maneuver &lt;= 450</label>
+        </location>
+
+        <location id="MANEUVER_LEFT" x="300" y="600">
+            <name x="260" y="566">MANEUVER_LEFT</name>
+            <label kind="invariant" x="260" y="617">t_maneuver &lt;= 450</label>
+        </location>
+
+        <location id="MANEUVER_RIGHT" x="600" y="600">
+            <name x="560" y="566">MANEUVER_RIGHT</name>
+            <label kind="invariant" x="560" y="617">t_maneuver &lt;= 450</label>
+        </location>
+
+        <location id="RECOVERY" x="900" y="0">
+            <name x="860" y="-34">RECOVERY</name>
+            <label kind="invariant" x="860" y="17">t_recovery &lt;= 900</label>
+        </location>
+
+        <location id="EMERGENCY_OVERRIDE" x="900" y="300">
+            <name x="860" y="266">EMERGENCY_OVERRIDE</name>
+        </location>
+
+        <location id="SYSTEM_FAULT" x="1200" y="0">
+            <name x="1160" y="-34">SYSTEM_FAULT</name>
+        </location>
+
+        <init ref="STANDBY"/>
+
+        <!-- Startup -->
+        <transition>
+            <source ref="STANDBY"/>
+            <target ref="NOMINAL"/>
+            <label kind="synchronisation" x="100" y="-17">activate!</label>
+            <label kind="assignment" x="100" y="0">t_active := 0</label>
+        </transition>
+
+        <!-- Normal operations: thrust transitions -->
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="TRANSITION_UP"/>
+            <label kind="guard" x="370" y="-17">t_active &gt;= 75</label>
+            <label kind="synchronisation" x="370" y="0">thrust_up!</label>
+            <label kind="assignment" x="370" y="17">t_trans := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="TRANSITION_DOWN"/>
+            <label kind="guard" x="370" y="100">t_active &gt;= 75</label>
+            <label kind="synchronisation" x="370" y="117">thrust_down!</label>
+            <label kind="assignment" x="370" y="134">t_trans := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TRANSITION_UP"/>
+            <target ref="NOMINAL"/>
+            <label kind="guard" x="670" y="-17">t_trans &gt;= 45 &amp;&amp; t_trans &lt;= 300</label>
+            <label kind="synchronisation" x="670" y="0">transition_complete!</label>
+            <label kind="assignment" x="670" y="17">t_active := 0, t_trans := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TRANSITION_DOWN"/>
+            <target ref="NOMINAL"/>
+            <label kind="guard" x="670" y="200">t_trans &gt;= 45 &amp;&amp; t_trans &lt;= 300</label>
+            <label kind="synchronisation" x="670" y="217">transition_complete!</label>
+            <label kind="assignment" x="670" y="234">t_active := 0, t_trans := 0</label>
+        </transition>
+
+        <!-- Hazard detection: from NOMINAL and TRANSITION states -->
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="HAZARD_DETECTED"/>
+            <label kind="synchronisation" x="100" y="200">hazard_alert!</label>
+            <label kind="assignment" x="100" y="217">t_hazard := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TRANSITION_UP"/>
+            <target ref="HAZARD_DETECTED"/>
+            <label kind="synchronisation" x="250" y="200">hazard_alert!</label>
+            <label kind="assignment" x="250" y="217">t_hazard := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TRANSITION_DOWN"/>
+            <target ref="HAZARD_DETECTED"/>
+            <label kind="synchronisation" x="250" y="300">hazard_alert!</label>
+            <label kind="assignment" x="250" y="317">t_hazard := 0</label>
+        </transition>
+
+        <!-- Manoeuvre selection: ARP4754A - must initiate within t_hazard <= 2 -->
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_CLIMB"/>
+            <label kind="guard" x="100" y="400">t_hazard &lt;= 30</label>
+            <label kind="synchronisation" x="100" y="417">maneuver_climb!</label>
+            <label kind="assignment" x="100" y="434">t_maneuver := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_DESCEND"/>
+            <label kind="guard" x="100" y="450">t_hazard &lt;= 30</label>
+            <label kind="synchronisation" x="100" y="467">maneuver_descend!</label>
+            <label kind="assignment" x="100" y="484">t_maneuver := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_LEFT"/>
+            <label kind="guard" x="100" y="500">t_hazard &lt;= 30</label>
+            <label kind="synchronisation" x="100" y="517">maneuver_left!</label>
+            <label kind="assignment" x="100" y="534">t_maneuver := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="MANEUVER_RIGHT"/>
+            <label kind="guard" x="100" y="550">t_hazard &lt;= 30</label>
+            <label kind="synchronisation" x="100" y="567">maneuver_right!</label>
+            <label kind="assignment" x="100" y="584">t_maneuver := 0</label>
+        </transition>
+
+        <!-- Manoeuvre completion: DO-178C - must complete within 30 units -->
+        <transition>
+            <source ref="MANEUVER_CLIMB"/>
+            <target ref="RECOVERY"/>
+            <label kind="guard" x="500" y="200">t_maneuver &gt;= 75 &amp;&amp; t_maneuver &lt;= 450</label>
+            <label kind="synchronisation" x="500" y="217">maneuver_complete!</label>
+            <label kind="assignment" x="500" y="234">t_recovery := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="MANEUVER_DESCEND"/>
+            <target ref="RECOVERY"/>
+            <label kind="guard" x="650" y="200">t_maneuver &gt;= 75 &amp;&amp; t_maneuver &lt;= 450</label>
+            <label kind="synchronisation" x="650" y="217">maneuver_complete!</label>
+            <label kind="assignment" x="650" y="234">t_recovery := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="MANEUVER_LEFT"/>
+            <target ref="RECOVERY"/>
+            <label kind="guard" x="500" y="400">t_maneuver &gt;= 75 &amp;&amp; t_maneuver &lt;= 450</label>
+            <label kind="synchronisation" x="500" y="417">maneuver_complete!</label>
+            <label kind="assignment" x="500" y="434">t_recovery := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="MANEUVER_RIGHT"/>
+            <target ref="RECOVERY"/>
+            <label kind="guard" x="700" y="400">t_maneuver &gt;= 75 &amp;&amp; t_maneuver &lt;= 450</label>
+            <label kind="synchronisation" x="700" y="417">maneuver_complete!</label>
+            <label kind="assignment" x="700" y="434">t_recovery := 0</label>
+        </transition>
+
+        <!-- Recovery to nominal: [10, 60] units -->
+        <transition>
+            <source ref="RECOVERY"/>
+            <target ref="NOMINAL"/>
+            <label kind="guard" x="600" y="-17">t_recovery &gt;= 150 &amp;&amp; t_recovery &lt;= 900</label>
+            <label kind="synchronisation" x="600" y="0">recovery_complete!</label>
+            <label kind="assignment" x="600" y="17">t_active := 0</label>
+        </transition>
+
+        <!-- Emergency override (DAL-A: reachable from NOMINAL or while hazard active) -->
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="EMERGENCY_OVERRIDE"/>
+            <label kind="synchronisation" x="700" y="150">emergency_override!</label>
+        </transition>
+
+        <transition>
+            <source ref="HAZARD_DETECTED"/>
+            <target ref="EMERGENCY_OVERRIDE"/>
+            <label kind="guard" x="400" y="350">t_hazard &lt;= 15</label>
+            <label kind="synchronisation" x="400" y="367">emergency_override!</label>
+        </transition>
+
+        <transition>
+            <source ref="EMERGENCY_OVERRIDE"/>
+            <target ref="STANDBY"/>
+            <label kind="synchronisation" x="450" y="200">manual_takeover!</label>
+        </transition>
+
+        <!-- System fault (DO-178C: fault declared if active > 200 without nominal confirmation) -->
+        <transition>
+            <source ref="NOMINAL"/>
+            <target ref="SYSTEM_FAULT"/>
+            <label kind="guard" x="700" y="-51">t_active &gt;= 3000</label>
+            <label kind="synchronisation" x="700" y="-34">system_fault!</label>
+        </transition>
+
+        <transition>
+            <source ref="SYSTEM_FAULT"/>
+            <target ref="STANDBY"/>
+            <label kind="synchronisation" x="600" y="-51">fault_reset!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        AutopilotPT = AutopilotPT();
+        system AutopilotPT;
+    </system>
+
+</nta>

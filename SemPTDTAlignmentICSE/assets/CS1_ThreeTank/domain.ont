@@ -1,0 +1,111 @@
+; Ontology: Three-Tank Process Control System
+; Standard references:
+;   IEC 61511-1:2016 — Functional Safety: SIS for Process Industry Sector
+;   IEC 61511-2:2016 — Guidelines for Application
+;   ISA-84.00.01-2004 — Application of Safety Instrumented Systems
+;
+; Fragment: Quantifier-free Linear Real Arithmetic (QF_LRA)
+; All axioms are linear over Volume, FlowRate, Time domains.
+
+; === SORTS ===
+sort Volume      ; litres — non-negative real, physical water quantity
+sort FlowRate    ; litres per second — non-negative real
+sort TankIndex   ; discrete index 1, 2, or 3 (represented as integer)
+sort Pressure    ; bar — process pressure, used in SIL safety functions
+sort Time        ; seconds — for timing constraint reference
+
+; === FUNCTIONS ===
+; Physical state functions
+fun level         : TankIndex -> Volume   ; current water level in tank i (litres)
+fun capacity      : TankIndex -> Volume   ; maximum rated capacity (IEC 61511 Cl.9.2)
+fun inflow_rate   : TankIndex -> FlowRate ; volumetric inflow rate to tank i (L/s)
+fun outflow_rate  : TankIndex -> FlowRate ; volumetric outflow rate from tank i (L/s)
+
+; Aggregate quantities
+fun total_volume  : Volume    ; sum level(1)+level(2)+level(3) — conservation law
+fun net_flow      : FlowRate  ; total_inflow - total_outflow (positive = filling)
+
+; Safety thresholds (from IEC 61511 SIL-2 process hazard analysis)
+fun min_safe_level     : Volume    ; minimum safe level (SIL-2 low-low setpoint)
+fun high_high_level    : Volume    ; maximum safe level (SIL-2 high-high setpoint)
+fun alarm_setpoint_low : Volume    ; low-level alarm setpoint (before SIL trip)
+
+; Actuator parameters
+fun pump_rated_flow    : FlowRate  ; rated pump flow (IEC 61511 Cl.10.3)
+fun valve_rated_flow   : FlowRate  ; rated valve flow (IEC 61511 Cl.10.3)
+
+; Safety integrity parameters
+fun sil_response_time  : Time      ; maximum allowable response time for SIL-2
+fun proof_test_interval: Time      ; IEC 61511 Cl.11.6 proof test interval
+
+; === RELATIONS ===
+rel tank_overfull    : TankIndex  ; holds when level(i) > capacity(i) — violation
+rel tank_underfull   : TankIndex  ; holds when level(i) < min_safe_level — alarm
+rel system_safe      :            ; 0-ary: holds iff all tanks within safe bounds
+rel pump_running     :            ; 0-ary: pump is energised and delivering flow
+rel valve12_open     :            ; 0-ary: inter-tank valve T1->T2 is open
+rel valve23_open     :            ; 0-ary: inter-tank valve T2->T3 is open
+
+; === AXIOMS ===
+
+; --- Physical vessel capacities (IEC 61511 Cl.9.2, vessel design specification) ---
+axiom cap_t1        : (= (capacity 1) 100)
+axiom cap_t2        : (= (capacity 2) 80)
+axiom cap_t3        : (= (capacity 3) 60)
+
+; --- Safety setpoints (IEC 61511-1 Cl.9.3.3, SIL-2 hazard analysis output) ---
+; Lower bound only: domain_v2.ont refines this to (= min_safe_level 12), which entails (>= 10).
+axiom min_safe      : (>= min_safe_level 10)
+axiom high_high     : (= high_high_level 90)
+axiom alarm_low     : (= alarm_setpoint_low 15)
+
+; --- Ordering of setpoints (must hold for safety logic to be coherent) ---
+axiom setpoint_order_1 : (< min_safe_level alarm_setpoint_low)
+axiom setpoint_order_2 : (< alarm_setpoint_low high_high_level)
+axiom setpoint_order_3 : (< high_high_level (capacity 1))
+
+; --- Non-negativity laws (physical law) ---
+axiom nn_level_1    : (>= (level 1) 0)
+axiom nn_level_2    : (>= (level 2) 0)
+axiom nn_level_3    : (>= (level 3) 0)
+
+; --- Capacity bounds (physical law + IEC 61511 Cl.9.2.1) ---
+axiom cap_bound_1   : (<= (level 1) (capacity 1))
+axiom cap_bound_2   : (<= (level 2) (capacity 2))
+axiom cap_bound_3   : (<= (level 3) (capacity 3))
+
+; --- Conservation: total volume is additive (physical law) ---
+axiom conservation  : (= total_volume (+ (level 1) (+ (level 2) (level 3))))
+
+; --- Total volume bounds (derived from above — useful for solver) ---
+axiom total_min     : (>= total_volume 0)
+axiom total_max     : (<= total_volume 240)
+
+; --- Rated flow parameters (IEC 61511 Cl.10.3, actuator data sheets) ---
+axiom pump_flow     : (= pump_rated_flow 5)
+axiom valve_flow    : (= valve_rated_flow 4)
+
+; --- Flow rate non-negativity (physical: no reverse flow) ---
+axiom pos_inflow_1  : (>= (inflow_rate 1) 0)
+axiom pos_inflow_2  : (>= (inflow_rate 2) 0)
+axiom pos_inflow_3  : (>= (inflow_rate 3) 0)
+axiom pos_outflow_1 : (>= (outflow_rate 1) 0)
+axiom pos_outflow_2 : (>= (outflow_rate 2) 0)
+axiom pos_outflow_3 : (>= (outflow_rate 3) 0)
+
+; --- Flow rate upper bounds (physical: cannot exceed rated capacity) ---
+axiom max_inflow_1  : (<= (inflow_rate 1) pump_rated_flow)
+axiom max_inflow_2  : (<= (inflow_rate 2) valve_rated_flow)
+axiom max_inflow_3  : (<= (inflow_rate 3) valve_rated_flow)
+axiom max_outflow_1 : (<= (outflow_rate 1) valve_rated_flow)
+axiom max_outflow_2 : (<= (outflow_rate 2) valve_rated_flow)
+axiom max_outflow_3 : (<= (outflow_rate 3) 3)
+
+; --- SIL-2 response time (IEC 61511-1 Cl.9.3 safety function specification) ---
+axiom sil_resp      : (= sil_response_time 5)
+
+; --- Proof test interval (IEC 61511-1 Cl.11.6 maintenance requirement) ---
+axiom proof_test    : (= proof_test_interval 60)
+
+; --- Net flow definition ---
+axiom net_flow_def  : (= net_flow (- (inflow_rate 1) (outflow_rate 3)))

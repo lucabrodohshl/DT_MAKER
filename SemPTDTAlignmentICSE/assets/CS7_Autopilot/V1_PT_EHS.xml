@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS7 EHS PT -- Emergency Handling Subsystem (Physical Twin)
+        // Subsystem: RECOVERY, EHS_NOMINAL, EMERGENCY_OVERRIDE, SYSTEM_FAULT
+        // Events: recovery_complete!, emergency_override!, manual_takeover!, system_fault!, fault_reset!
+        // RECOVERY is the entry state (entered after manoeuvre execution completes)
+        clock t_recovery, t_active;
+        chan recovery_complete, emergency_override, manual_takeover, system_fault, fault_reset;
+    </declaration>
+    <template>
+        <name>AutopilotPT_EHS</name>
+        <location id="RECOVERY" x="0" y="0">
+            <name x="-10" y="-34">RECOVERY</name>
+            <label kind="invariant" x="-10" y="17">t_recovery &lt;= 60</label>
+        </location>
+        <location id="EHS_NOMINAL" x="300" y="0">
+            <name x="260" y="-34">EHS_NOMINAL</name>
+        </location>
+        <location id="EMERGENCY_OVERRIDE" x="600" y="0">
+            <name x="560" y="-34">EMERGENCY_OVERRIDE</name>
+        </location>
+        <location id="SYSTEM_FAULT" x="300" y="200">
+            <name x="260" y="166">SYSTEM_FAULT</name>
+        </location>
+        <init ref="RECOVERY"/>
+        <transition>
+            <source ref="RECOVERY"/>
+            <target ref="EHS_NOMINAL"/>
+            <label kind="guard" x="100" y="-17">t_recovery &gt;= 10 &amp;&amp; t_recovery &lt;= 60</label>
+            <label kind="synchronisation" x="100" y="0">recovery_complete!</label>
+            <label kind="assignment" x="100" y="17">t_active := 0</label>
+        </transition>
+        <transition>
+            <source ref="EHS_NOMINAL"/>
+            <target ref="EMERGENCY_OVERRIDE"/>
+            <label kind="synchronisation" x="370" y="-17">emergency_override!</label>
+        </transition>
+        <transition>
+            <source ref="EMERGENCY_OVERRIDE"/>
+            <target ref="RECOVERY"/>
+            <label kind="synchronisation" x="300" y="-51">manual_takeover!</label>
+            <label kind="assignment" x="300" y="-34">t_recovery := 0</label>
+        </transition>
+        <transition>
+            <source ref="EHS_NOMINAL"/>
+            <target ref="SYSTEM_FAULT"/>
+            <label kind="guard" x="270" y="100">t_active &gt;= 200</label>
+            <label kind="synchronisation" x="270" y="117">system_fault!</label>
+        </transition>
+        <transition>
+            <source ref="SYSTEM_FAULT"/>
+            <target ref="EHS_NOMINAL"/>
+            <label kind="synchronisation" x="270" y="150">fault_reset!</label>
+            <label kind="assignment" x="270" y="167">t_active := 0</label>
+        </transition>
+    </template>
+    <system>
+        AutopilotPT_EHS = AutopilotPT_EHS();
+        system AutopilotPT_EHS;
+    </system>
+</nta>

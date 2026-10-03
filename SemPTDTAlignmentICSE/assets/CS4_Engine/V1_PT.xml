@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Aircraft Engine Controller -- Physical Twin (Avionics Software Engineer view)
+        // Standard references:
+        //   DO-178C:2011      -- Software Considerations in Airborne Systems (DAL-B)
+        //   ARP4754A:2010     -- Guidelines for Development of Civil Aircraft and Systems
+        //   FAA AC 33.28-3   -- Aircraft Engine Control System Installation and Test
+        //   MIL-STD-882E:2012 -- System Safety
+        //
+        // t_start  : elapsed time since ignition (start sequence)
+        // t_phase  : elapsed time in current thrust phase
+        // t_temp   : elapsed time since thermal excursion detected
+        // t_fuel   : elapsed time since last fuel-metering change
+        // t_fault  : elapsed time since fault event
+        clock t_start, t_phase, t_temp, t_fuel, t_fault;
+
+        chan engine_start,
+             idle_reached,
+             takeoff_thrust, climb_thrust,
+             descent_initiated, landing_thrust,
+             shutdown_normal,
+             overheat_detected, emergency_shutdown,
+             flameout_detected, relight_initiated;
+    </declaration>
+
+    <template>
+        <name>EngineControllerPT</name>
+
+        <location id="ENGINE_OFF" x="0" y="0">
+            <name x="-20" y="-34">ENGINE_OFF</name>
+        </location>
+
+        <location id="STARTING" x="300" y="0">
+            <name x="260" y="-34">STARTING</name>
+            <label kind="invariant" x="260" y="17">t_start &lt;= 225</label>
+        </location>
+
+        <location id="IDLE" x="600" y="0">
+            <name x="560" y="-34">IDLE</name>
+        </location>
+
+        <location id="TAKEOFF" x="900" y="0">
+            <name x="860" y="-34">TAKEOFF</name>
+            <label kind="invariant" x="860" y="17">t_phase &lt;= 3000</label>
+        </location>
+
+        <location id="CLIMB" x="1200" y="0">
+            <name x="1160" y="-34">CLIMB</name>
+        </location>
+
+        <location id="CRUISE" x="1500" y="0">
+            <name x="1460" y="-34">CRUISE</name>
+        </location>
+
+        <location id="DESCENT" x="1500" y="300">
+            <name x="1460" y="266">DESCENT</name>
+            <label kind="invariant" x="1460" y="317">t_phase &lt;= 1500</label>
+        </location>
+
+        <location id="APPROACH" x="1200" y="300">
+            <name x="1160" y="266">APPROACH</name>
+            <label kind="invariant" x="1160" y="317">t_phase &lt;= 300</label>
+        </location>
+
+        <location id="LANDING" x="900" y="300">
+            <name x="860" y="266">LANDING</name>
+        </location>
+
+        <location id="OVERHEAT" x="1200" y="-300">
+            <name x="1160" y="-334">OVERHEAT</name>
+            <label kind="invariant" x="1160" y="-283">t_fault &lt;= 25</label>
+        </location>
+
+        <location id="FLAME_OUT" x="1500" y="-300">
+            <name x="1460" y="-334">FLAME_OUT</name>
+            <label kind="invariant" x="1460" y="-283">t_fault &lt;= 15</label>
+        </location>
+
+        <location id="EMERGENCY_SHUTDOWN" x="0" y="-300">
+            <name x="-40" y="-334">EMERGENCY_SHUTDOWN</name>
+        </location>
+
+        <init ref="ENGINE_OFF"/>
+
+        <!-- Normal start sequence -->
+        <transition>
+            <source ref="ENGINE_OFF"/>
+            <target ref="STARTING"/>
+            <label kind="synchronisation">engine_start!</label>
+            <label kind="assignment">t_start = 0, t_temp = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="STARTING"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_start &gt;= 50 &amp;&amp; t_start &lt;= 225</label>
+            <label kind="synchronisation">idle_reached!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <!-- Thrust phase transitions -->
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="TAKEOFF"/>
+            <label kind="guard">t_phase &gt;= 15</label>
+            <label kind="synchronisation">takeoff_thrust!</label>
+            <label kind="assignment">t_phase = 0, t_fuel = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="TAKEOFF"/>
+            <target ref="CLIMB"/>
+            <label kind="guard">t_phase &gt;= 250 &amp;&amp; t_phase &lt;= 3000</label>
+            <label kind="synchronisation">climb_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CLIMB"/>
+            <target ref="CRUISE"/>
+            <label kind="guard">t_phase &gt;= 150</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="DESCENT"/>
+            <label kind="guard">t_phase &gt;= 1500</label>
+            <label kind="synchronisation">descent_initiated!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DESCENT"/>
+            <target ref="APPROACH"/>
+            <label kind="guard">t_phase &gt;= 100 &amp;&amp; t_phase &lt;= 1500</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="LANDING"/>
+            <label kind="guard">t_phase &gt;= 25 &amp;&amp; t_phase &lt;= 1500</label>
+            <label kind="synchronisation">landing_thrust!</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="LANDING"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_phase &gt;= 25</label>
+            <label kind="assignment">t_phase = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="ENGINE_OFF"/>
+            <label kind="guard">t_phase &gt;= 25</label>
+            <label kind="synchronisation">shutdown_normal!</label>
+        </transition>
+
+        <!-- Overheat fault paths (reachable from TAKEOFF, CLIMB, CRUISE) -->
+        <transition>
+            <source ref="TAKEOFF"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 15</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CLIMB"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 15</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="OVERHEAT"/>
+            <label kind="guard">t_temp &lt;= 15</label>
+            <label kind="synchronisation">overheat_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="OVERHEAT"/>
+            <target ref="EMERGENCY_SHUTDOWN"/>
+            <label kind="guard">t_fault &lt;= 25</label>
+            <label kind="synchronisation">emergency_shutdown!</label>
+        </transition>
+
+        <!-- Flame-out fault paths (reachable from CRUISE, DESCENT, APPROACH) -->
+        <transition>
+            <source ref="CRUISE"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 10</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="DESCENT"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 10</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="APPROACH"/>
+            <target ref="FLAME_OUT"/>
+            <label kind="guard">t_temp &lt;= 10</label>
+            <label kind="synchronisation">flameout_detected!</label>
+            <label kind="assignment">t_fault = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FLAME_OUT"/>
+            <target ref="STARTING"/>
+            <label kind="guard">t_fault &gt;= 5 &amp;&amp; t_fault &lt;= 15</label>
+            <label kind="synchronisation">relight_initiated!</label>
+            <label kind="assignment">t_start = 0</label>
+        </transition>
+
+        <!-- Emergency recovery -->
+        <transition>
+            <source ref="EMERGENCY_SHUTDOWN"/>
+            <target ref="ENGINE_OFF"/>
+        </transition>
+
+    </template>
+
+    <system>
+        EngineControllerPT = EngineControllerPT();
+        system EngineControllerPT;
+    </system>
+</nta>

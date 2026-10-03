@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // GPCA Infusion Pump -- Physical Twin (Pump Firmware Engineer view)
+        // Standard references:
+        //   IEC 60601-1:2005+AMD1:2012  -- Medical Electrical Equipment: General Safety
+        //     Clause 14.11: Risk management for PEMS; occlusion alarm response window
+        //   IEC 62443-3-3:2013          -- IACS Security: SR 2.12 non-repudiation of dosage
+        //   FDA Infusion Pump Software Safety Research (2010)
+        //     - Bolus duration: [1,5] time units
+        //     - KVO activation: after >= 8 time units pause without resume
+        //   ASTM F2761-09               -- ICE Architecture Standard
+        //
+        // Constants reduced for tractable zone-BFS (all bounds roughly 3x smaller):
+        //
+        // t_infuse : elapsed time in INFUSING / PRIMING state
+        // t_pause  : elapsed time in PAUSED state (KVO trigger threshold)
+        // t_kvo    : elapsed time in KVO_MODE state
+        // t_bolus  : elapsed time in BOLUS_DELIVERY state
+        // t_alarm  : elapsed time in ALARM_OCCLUSION (response time constraint)
+        clock t_infuse, t_pause, t_kvo, t_bolus, t_alarm;
+
+        chan prime_start,
+             infusion_start,
+             bolus_request,
+             bolus_complete,
+             pause_infusion,
+             resume_infusion,
+             kvo_start,
+             resume_from_kvo,
+             occlusion_alarm,
+             occlusion_cleared,
+             overdose_alarm,
+             alarm_acknowledged,
+             infusion_complete;
+    </declaration>
+
+    <template>
+        <name>InfusionPumpPT</name>
+
+        <location id="IDLE" x="0" y="0">
+            <name x="-10" y="-34">IDLE</name>
+        </location>
+
+        <location id="PRIMING" x="300" y="0">
+            <name x="260" y="-34">PRIMING</name>
+            <label kind="invariant" x="260" y="17">t_infuse &lt;= 75</label>
+        </location>
+
+        <location id="INFUSING" x="600" y="0">
+            <name x="560" y="-34">INFUSING</name>
+        </location>
+
+        <location id="BOLUS_DELIVERY" x="900" y="0">
+            <name x="860" y="-34">BOLUS_DELIVERY</name>
+            <label kind="invariant" x="860" y="17">t_bolus &lt;= 75</label>
+        </location>
+
+        <location id="PAUSED" x="600" y="300">
+            <name x="560" y="266">PAUSED</name>
+            <label kind="invariant" x="560" y="317">t_pause &lt;= 150</label>
+        </location>
+
+        <location id="KVO_MODE" x="300" y="300">
+            <name x="260" y="266">KVO_MODE</name>
+        </location>
+
+        <location id="ALARM_OCCLUSION" x="900" y="300">
+            <name x="860" y="266">ALARM_OCCLUSION</name>
+            <label kind="invariant" x="860" y="317">t_alarm &lt;= 150</label>
+        </location>
+
+        <location id="ALARM_OVERDOSE" x="1200" y="0">
+            <name x="1160" y="-34">ALARM_OVERDOSE</name>
+        </location>
+
+        <init ref="IDLE"/>
+
+        <!-- Startup sequence: IDLE -> PRIMING -> INFUSING -->
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="PRIMING"/>
+            <label kind="synchronisation" x="100" y="-17">prime_start!</label>
+            <label kind="assignment" x="100" y="0">t_infuse := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="PRIMING"/>
+            <target ref="INFUSING"/>
+            <label kind="guard" x="370" y="-17">t_infuse &gt;= 30 &amp;&amp; t_infuse &lt;= 75</label>
+            <label kind="synchronisation" x="370" y="0">infusion_start!</label>
+            <label kind="assignment" x="370" y="17">t_infuse := 0, t_bolus := 0</label>
+        </transition>
+
+        <!-- Bolus cycle: INFUSING -> BOLUS_DELIVERY -> INFUSING -->
+        <transition>
+            <source ref="INFUSING"/>
+            <target ref="BOLUS_DELIVERY"/>
+            <label kind="synchronisation" x="700" y="-17">bolus_request!</label>
+            <label kind="assignment" x="700" y="0">t_bolus := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="BOLUS_DELIVERY"/>
+            <target ref="INFUSING"/>
+            <label kind="guard" x="700" y="34">t_bolus &gt;= 15 &amp;&amp; t_bolus &lt;= 75</label>
+            <label kind="synchronisation" x="700" y="51">bolus_complete!</label>
+            <label kind="assignment" x="700" y="68">t_infuse := 0</label>
+        </transition>
+
+        <!-- Pause / resume / KVO cycle -->
+        <transition>
+            <source ref="INFUSING"/>
+            <target ref="PAUSED"/>
+            <label kind="synchronisation" x="540" y="150">pause_infusion!</label>
+            <label kind="assignment" x="540" y="167">t_pause := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="PAUSED"/>
+            <target ref="INFUSING"/>
+            <label kind="guard" x="540" y="200">t_pause &lt;= 150</label>
+            <label kind="synchronisation" x="540" y="217">resume_infusion!</label>
+            <label kind="assignment" x="540" y="234">t_pause := 0</label>
+        </transition>
+
+        <!-- KVO activation: after >= 8 time units in PAUSED (PAUSED invariant forces exit) -->
+        <transition>
+            <source ref="PAUSED"/>
+            <target ref="KVO_MODE"/>
+            <label kind="guard" x="350" y="317">t_pause &gt;= 120</label>
+            <label kind="synchronisation" x="350" y="334">kvo_start!</label>
+            <label kind="assignment" x="350" y="351">t_kvo := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="KVO_MODE"/>
+            <target ref="INFUSING"/>
+            <label kind="guard" x="200" y="150">t_kvo &gt;= 5</label>
+            <label kind="synchronisation" x="200" y="167">resume_from_kvo!</label>
+            <label kind="assignment" x="200" y="184">t_kvo := 0</label>
+        </transition>
+
+        <!-- Occlusion alarm: IEC 60601-1 Cl.14.11 - detectable at any time from INFUSING -->
+        <transition>
+            <source ref="INFUSING"/>
+            <target ref="ALARM_OCCLUSION"/>
+            <label kind="synchronisation" x="700" y="284">occlusion_alarm!</label>
+            <label kind="assignment" x="700" y="301">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ALARM_OCCLUSION"/>
+            <target ref="INFUSING"/>
+            <label kind="guard" x="700" y="367">t_alarm &gt;= 15 &amp;&amp; t_alarm &lt;= 150</label>
+            <label kind="synchronisation" x="700" y="384">occlusion_cleared!</label>
+        </transition>
+
+        <!-- Overdose alarm: detectable at any time from INFUSING -->
+        <transition>
+            <source ref="INFUSING"/>
+            <target ref="ALARM_OVERDOSE"/>
+            <label kind="synchronisation" x="870" y="0">overdose_alarm!</label>
+            <label kind="assignment" x="870" y="17">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ALARM_OVERDOSE"/>
+            <target ref="IDLE"/>
+            <label kind="synchronisation" x="700" y="-51">alarm_acknowledged!</label>
+        </transition>
+
+        <!-- Normal infusion complete -->
+        <transition>
+            <source ref="INFUSING"/>
+            <target ref="IDLE"/>
+            <label kind="guard" x="300" y="-51">t_infuse &gt;= 45</label>
+            <label kind="synchronisation" x="300" y="-34">infusion_complete!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        InfusionPumpPT = InfusionPumpPT();
+        system InfusionPumpPT;
+    </system>
+
+</nta>

@@ -1,0 +1,36 @@
+; DT Interpretation: RoverDT — Threshold Drift Misalignment (Variant B)
+; VARIANT B: anomaly_flag_critical! uses literal 30 instead of battery_reserve (= 25).
+;
+; This creates a 5 Wh gap: the DT raises a critical alarm when
+; battery_level ∈ [25, 30) even though the battery is still above safety reserve.
+; Unnecessary mission aborts occur, eroding operator trust in the DT.
+;
+; Expected: semantic alignment returns FALSE (NOT aligned).
+; Z3 refutes: Delta |= (< battery_level 30) <-> (< battery_level battery_reserve)
+; Counterexample: battery_level = 27 satisfies (< 27 30) but not (< 27 25=battery_reserve).
+;
+; Contrast with timing violation (Variant A):
+;   Variant B: Z3 finds semantic label mismatch → alignment breaks
+;   Variant A: structural timing violation → delay condition fails
+
+; --- Location interpretations (identical to dt.interp) ---
+DT_STANDBY            : (and (>= battery_level battery_reserve) (= mission_progress 0))
+DT_NAV_MONITORING     : (and (> distance_to_waypoint 0) (>= battery_level battery_reserve))
+DT_WAYPOINT_DWELL     : (<= distance_to_waypoint waypoint_accept_radius)
+DT_SENSOR_ACTIVE      : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected 0))
+DT_RETURN_MONITORING  : (and (> distance_to_base 0) (< battery_level battery_capacity))
+DT_RECHARGE_MONITORING: (= distance_to_base 0)
+DT_MINOR_ANOMALY      : (>= battery_level battery_reserve)
+DT_CRITICAL_ANOMALY   : (< battery_level battery_capacity)
+DT_MISSION_COMPLETE   : (= mission_progress 100)
+
+; --- Event interpretations ---
+telemetry_position_update!   : (and (<= distance_to_waypoint waypoint_accept_radius) (>= battery_level battery_reserve))
+data_downlink_event!         : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected data_required_per_wp))
+return_command_uplinked!     : (<= battery_level (+ battery_reserve energy_to_base))
+base_contact_confirmed!      : (= distance_to_base 0)
+; DRIFT: original is (< battery_level battery_reserve) = (< battery_level 25)
+;        drift variant uses literal 30 — 5 Wh gap between DT alarm and actual threshold
+anomaly_flag_critical!       : (< battery_level 30)
+abort_sequence_commanded!    : (< battery_level battery_reserve)
+mission_complete_telemetry!  : (= mission_progress 100)

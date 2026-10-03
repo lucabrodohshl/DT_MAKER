@@ -1,0 +1,73 @@
+; Ontology: Autopilot Flight Safety System
+; Standards: DO-178C:2011, ARP4754A:2010, DO-254:2000,
+;            FAA AC 25.1309-1A, MIL-STD-1797B:2004, RTCA DO-330:2011
+; Fragment: QF_LRA
+
+; === SORTS ===
+sort Angle       ; degrees -- pitch, roll, yaw angles
+sort Altitude    ; feet -- pressure altitude
+sort Speed       ; knots -- indicated airspeed
+sort AngularRate ; deg/s -- pitch/roll/yaw rates
+sort LoadFactor  ; g -- normal acceleration
+sort DALLevel    ; integer 1-5 -- Development Assurance Level (1=A, 5=E)
+
+; === FUNCTIONS ===
+fun pitch_angle  : Angle       ; current pitch (positive = nose up, degrees)
+fun roll_angle   : Angle       ; current roll (positive = right wing down, degrees)
+fun yaw_angle    : Angle       ; current yaw from heading (degrees)
+fun altitude     : Altitude    ; current pressure altitude (ft)
+fun airspeed     : Speed       ; current indicated airspeed (kt)
+fun pitch_rate   : AngularRate ; pitch rate (deg/s)
+fun roll_rate    : AngularRate ; roll rate (deg/s)
+fun load_factor  : LoadFactor  ; current normal acceleration (g)
+
+; Flight envelope limits -- DO-178C verified, FAA AC 25.1309-1A
+fun max_pitch_up   : Angle       ; maximum nose-up pitch: +30 degrees
+fun max_pitch_down : Angle       ; maximum nose-down pitch: 20 (positive representation)
+fun max_roll       : Angle       ; maximum bank angle: 45 degrees
+fun min_airspeed   : Speed       ; stall speed + margin: 120 kt (clean)
+fun max_airspeed   : Speed       ; VMO (max operating): 340 kt
+fun min_altitude   : Altitude    ; minimum safe altitude: 1000 ft AGL
+fun max_pitch_rate : AngularRate ; MIL-STD-1797B Level 1: 3 deg/s
+fun max_roll_rate  : AngularRate ; MIL-STD-1797B Level 1: 7 deg/s
+fun max_load_factor: LoadFactor  ; structural limit: 2 g (positive; neg handled by axiom)
+
+; Safety manoeuvre parameters
+fun maneuver_altitude_gain : Altitude ; minimum altitude gained in climb manoeuvre: 500 ft
+fun maneuver_turn_angle    : Angle    ; heading change in turn manoeuvre: 30 degrees
+
+; Health and assurance parameters
+fun ap_health_index : LoadFactor  ; autopilot health index [0.0, 1.0] (0 = degraded)
+fun system_dal      : DALLevel    ; current system DAL requirement
+
+; === RELATIONS ===
+rel in_flight_envelope   :  ; all params within certified bounds
+rel maneuver_complete_rel:  ; maneuver altitude/turn target achieved
+rel hazard_active        :  ; hazard condition persists
+
+; === AXIOMS ===
+; DO-178C / ARP4754A flight envelope limits
+axiom max_pitch_up_val   : (= max_pitch_up 30)
+axiom max_pitch_down_val : (= max_pitch_down 20)
+axiom max_roll_val       : (= max_roll 45)
+axiom min_airspeed_val   : (= min_airspeed 120)
+axiom max_airspeed_val   : (= max_airspeed 340)
+axiom min_alt_val        : (= min_altitude 1000)
+axiom max_pitch_rate_val : (= max_pitch_rate 3)
+axiom max_roll_rate_val  : (= max_roll_rate 7)
+axiom max_load_val       : (= max_load_factor 2)
+; MIL-STD-1797B: negative load limit (structural) = -1g
+axiom min_load_val       : (>= load_factor -1)
+axiom maneuver_alt_val   : (= maneuver_altitude_gain 500)
+axiom maneuver_turn_val  : (= maneuver_turn_angle 30)
+; Non-negativity and structural bounds
+axiom nn_altitude        : (>= altitude 0)
+axiom nn_airspeed        : (>= airspeed 0)
+axiom pitch_lower        : (>= pitch_angle -90)
+axiom pitch_upper        : (<= pitch_angle 90)
+axiom roll_lower         : (>= roll_angle -180)
+axiom roll_upper         : (<= roll_angle 180)
+axiom airspeed_upper     : (<= airspeed (+ max_airspeed 20))
+axiom load_upper         : (<= load_factor max_load_factor)
+axiom health_lower       : (>= ap_health_index 0)
+axiom health_upper       : (<= ap_health_index 1)

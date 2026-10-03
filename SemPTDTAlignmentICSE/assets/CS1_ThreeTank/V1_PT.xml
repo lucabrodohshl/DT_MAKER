@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Three-Tank Physical Twin (PT) — IEC 61511-1:2016
+        // Field-instrument engineer perspective.
+        // Observable events: pump actuation, valve commands, level alarms.
+        clock t_fill, t_flow12, t_flow23, t_drain, t_alarm;
+        chan pump_on, pump_off,
+             valve12_open, valve12_close,
+             valve23_open, valve23_close,
+             drain,
+             level_critical, emergency_shutdown,
+             proof_test_start, proof_test_complete,
+             system_reset;
+    </declaration>
+
+    <template>
+        <name>ThreeTankPT</name>
+
+        <location id="idle" x="0" y="0">
+            <name x="-10" y="-34">IDLE</name>
+        </location>
+
+        <location id="filling" x="250" y="0">
+            <name x="240" y="-34">FILLING</name>
+            <label kind="invariant" x="240" y="17">t_fill &lt;= 120</label>
+        </location>
+
+        <location id="flowing12" x="500" y="0">
+            <name x="460" y="-34">FLOWING_12</name>
+            <label kind="invariant" x="460" y="17">t_flow12 &lt;= 60</label>
+        </location>
+
+        <location id="flowing23" x="750" y="0">
+            <name x="710" y="-34">FLOWING_23</name>
+            <label kind="invariant" x="710" y="17">t_flow23 &lt;= 45</label>
+        </location>
+
+        <location id="draining" x="1000" y="0">
+            <name x="990" y="-34">DRAINING</name>
+            <label kind="invariant" x="990" y="17">t_drain &lt;= 30</label>
+        </location>
+
+        <location id="proof_test" x="0" y="250">
+            <name x="-10" y="216">PROOF_TEST</name>
+            <label kind="invariant" x="-10" y="267">t_fill &lt;= 60</label>
+        </location>
+
+        <location id="alarm" x="500" y="250">
+            <name x="490" y="216">ALARM</name>
+            <label kind="invariant" x="490" y="267">t_alarm &lt;= 5</label>
+        </location>
+
+        <location id="emergency" x="750" y="250">
+            <name x="720" y="216">EMERGENCY_STOP</name>
+        </location>
+
+        <init ref="idle"/>
+
+        <!-- IDLE -> FILLING : pump_on! -->
+        <transition>
+            <source ref="idle"/>
+            <target ref="filling"/>
+            <label kind="synchronisation" x="100" y="-17">pump_on!</label>
+            <label kind="assignment" x="100" y="0">t_fill := 0</label>
+        </transition>
+
+        <!-- FILLING -> IDLE : pump_off! (IEC 61511 Cl.10.3: max continuous run 120s enforced by invariant) -->
+        <transition>
+            <source ref="filling"/>
+            <target ref="idle"/>
+            <label kind="synchronisation" x="100" y="34">pump_off!</label>
+        </transition>
+
+        <!-- FILLING -> FLOWING_12 : valve12_open! (guard: t_fill >= 10 — min fill before transfer) -->
+        <transition>
+            <source ref="filling"/>
+            <target ref="flowing12"/>
+            <label kind="guard" x="310" y="-17">t_fill &gt;= 10</label>
+            <label kind="synchronisation" x="310" y="0">valve12_open!</label>
+            <label kind="assignment" x="310" y="17">t_flow12 := 0</label>
+        </transition>
+
+        <!-- FLOWING_12 -> IDLE : valve12_close! (IEC 61511 Cl.10.3: rated transfer time) -->
+        <transition>
+            <source ref="flowing12"/>
+            <target ref="idle"/>
+            <label kind="guard" x="250" y="85">t_flow12 &gt;= 5</label>
+            <label kind="synchronisation" x="250" y="102">valve12_close!</label>
+        </transition>
+
+        <!-- FLOWING_12 -> FLOWING_23 : valve23_open! (guard: t_flow12 >= 15 — T2 min fill) -->
+        <transition>
+            <source ref="flowing12"/>
+            <target ref="flowing23"/>
+            <label kind="guard" x="560" y="-17">t_flow12 &gt;= 15</label>
+            <label kind="synchronisation" x="560" y="0">valve23_open!</label>
+            <label kind="assignment" x="560" y="17">t_flow23 := 0</label>
+        </transition>
+
+        <!-- FLOWING_23 -> IDLE : valve23_close! (guard: t_flow23 >= 5) -->
+        <transition>
+            <source ref="flowing23"/>
+            <target ref="idle"/>
+            <label kind="guard" x="375" y="85">t_flow23 &gt;= 5</label>
+            <label kind="synchronisation" x="375" y="102">valve23_close!</label>
+        </transition>
+
+        <!-- FLOWING_23 -> DRAINING : drain! (guard: t_flow23 >= 10, reset t_drain) -->
+        <transition>
+            <source ref="flowing23"/>
+            <target ref="draining"/>
+            <label kind="guard" x="810" y="-17">t_flow23 &gt;= 10</label>
+            <label kind="synchronisation" x="810" y="0">drain!</label>
+            <label kind="assignment" x="810" y="17">t_drain := 0</label>
+        </transition>
+
+        <!-- DRAINING -> IDLE : tau (drain completes, system returns to idle) -->
+        <transition>
+            <source ref="draining"/>
+            <target ref="idle"/>
+            <label kind="guard" x="500" y="68">t_drain &gt;= 5</label>
+        </transition>
+
+        <!-- ANY -> ALARM : level_critical! (IEC 61511 Cl.9.3: SIL-2 safety function) -->
+        <transition>
+            <source ref="idle"/>
+            <target ref="alarm"/>
+            <label kind="synchronisation" x="220" y="130">level_critical!</label>
+            <label kind="assignment" x="220" y="147">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="filling"/>
+            <target ref="alarm"/>
+            <label kind="synchronisation" x="355" y="130">level_critical!</label>
+            <label kind="assignment" x="355" y="147">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="flowing12"/>
+            <target ref="alarm"/>
+            <label kind="synchronisation" x="490" y="130">level_critical!</label>
+            <label kind="assignment" x="490" y="147">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="flowing23"/>
+            <target ref="alarm"/>
+            <label kind="synchronisation" x="625" y="130">level_critical!</label>
+            <label kind="assignment" x="625" y="147">t_alarm := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="draining"/>
+            <target ref="alarm"/>
+            <label kind="synchronisation" x="760" y="130">level_critical!</label>
+            <label kind="assignment" x="760" y="147">t_alarm := 0</label>
+        </transition>
+
+        <!-- ALARM -> EMERGENCY_STOP : emergency_shutdown! (IEC 61511 Cl.9.3: SIL-2 response <= 5s, enforced by invariant) -->
+        <transition>
+            <source ref="alarm"/>
+            <target ref="emergency"/>
+            <label kind="synchronisation" x="600" y="267">emergency_shutdown!</label>
+        </transition>
+
+        <!-- IDLE -> PROOF_TEST : proof_test_start! (IEC 61511 Cl.11.6) -->
+        <transition>
+            <source ref="idle"/>
+            <target ref="proof_test"/>
+            <label kind="synchronisation" x="-40" y="130">proof_test_start!</label>
+            <label kind="assignment" x="-40" y="147">t_fill := 0</label>
+        </transition>
+
+        <!-- PROOF_TEST -> IDLE : proof_test_complete! (IEC 61511 Cl.11.6: window 20-60 time units) -->
+        <transition>
+            <source ref="proof_test"/>
+            <target ref="idle"/>
+            <label kind="guard" x="-30" y="85">t_fill &gt;= 20</label>
+            <label kind="synchronisation" x="-30" y="102">proof_test_complete!</label>
+        </transition>
+
+        <!-- EMERGENCY_STOP -> IDLE : system_reset! (operator-initiated restart) -->
+        <transition>
+            <source ref="emergency"/>
+            <target ref="idle"/>
+            <label kind="synchronisation" x="370" y="330">system_reset!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        PT = ThreeTankPT();
+        system PT;
+    </system>
+</nta>

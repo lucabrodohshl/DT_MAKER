@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 2.9//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // GPCA Infusion Pump -- Digital Twin (Clinical Informatics / ICE view)
+        // Standard references:
+        //   ASTM F2761-14               -- ICE Architecture Standard (label vocabulary)
+        //   IEC 60601-1:2005+AMD1:2012  -- Medical Electrical Equipment safety
+        //   IEC 62443-3-3:2013          -- SR 3.3: Security monitoring of dosage events
+        //   FDA Infusion Pump Guidance
+        //
+        // The DT uses ASTM F2761 ICE vocabulary throughout.
+        // Timing mirrors PT (direct PT-to-ICE interface, no transport delay assumed).
+        // All clock offsets changed from := 1 to := 0 to align with PT clock semantics.
+        //
+        // Constants reduced to match PT (all bounds roughly 3x smaller):
+        //
+        // Alarm entry guards (ice_alarm_occlusion! and ice_safety_limit_breach!) are
+        // unguarded -- the semantic condition is captured in dt.interp; the timing
+        // deadline belongs to the interpretation, not the structural bisimulation guard.
+        //
+        // t_ice_telem  : telemetry frame timer (ICE interface polling)
+        // t_dose_track : elapsed time tracking therapy session duration
+        // t_safety     : safety response timer (alarm response deadlines)
+        // t_kvo_dt     : KVO mode duration tracker
+        clock t_ice_telem, t_dose_track, t_safety, t_kvo_dt;
+
+        chan ice_device_connect,
+             ice_therapy_start,
+             ice_bolus_request,
+             ice_bolus_confirmed,
+             ice_therapy_pause,
+             ice_therapy_resume,
+             ice_kvo_mode_event,
+             ice_kvo_resume,
+             ice_alarm_occlusion,
+             ice_alarm_cleared,
+             ice_safety_limit_breach,
+             ice_alarm_ack,
+             ice_therapy_complete;
+    </declaration>
+
+    <template>
+        <name>DosageMonitorDT</name>
+
+        <location id="ICE_DISCONNECTED" x="1" y="1">
+            <name x="-15" y="-51">ICE_DISCONNECTED</name>
+        </location>
+
+        <location id="ICE_PRIMING" x="450" y="1">
+            <name x="390" y="-51">ICE_PRIMING</name>
+            <label kind="invariant" x="390" y="26">t_ice_telem &lt;= 75</label>
+        </location>
+
+        <location id="ICE_THERAPY_ACTIVE" x="900" y="1">
+            <name x="840" y="-51">ICE_THERAPY_ACTIVE</name>
+        </location>
+
+        <location id="ICE_BOLUS_ACTIVE" x="1350" y="1">
+            <name x="1290" y="-51">ICE_BOLUS_ACTIVE</name>
+            <label kind="invariant" x="1290" y="26">t_safety &lt;= 75</label>
+        </location>
+
+        <location id="ICE_THERAPY_PAUSED" x="900" y="450">
+            <name x="840" y="399">ICE_THERAPY_PAUSED</name>
+            <label kind="invariant" x="840" y="476">t_dose_track &lt;= 150</label>
+        </location>
+
+        <location id="ICE_KVO_MODE" x="450" y="450">
+            <name x="390" y="399">ICE_KVO_MODE</name>
+        </location>
+
+        <location id="ICE_ALARM_OCCLUSION" x="1350" y="450">
+            <name x="1290" y="399">ICE_ALARM_OCCLUSION</name>
+            <label kind="invariant" x="1290" y="476">t_safety &lt;= 150</label>
+        </location>
+
+        <location id="ICE_ALARM_OVERDOSE" x="1800" y="1">
+            <name x="1740" y="-51">ICE_ALARM_OVERDOSE</name>
+        </location>
+
+        <init ref="ICE_DISCONNECTED"/>
+
+        <!-- Device connect and priming -->
+        <transition>
+            <source ref="ICE_DISCONNECTED"/>
+            <target ref="ICE_PRIMING"/>
+            <label kind="synchronisation" x="150" y="-26">ice_device_connect!</label>
+            <label kind="assignment" x="150" y="1">t_ice_telem := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_PRIMING"/>
+            <target ref="ICE_THERAPY_ACTIVE"/>
+            <label kind="guard" x="555" y="-26">t_ice_telem &gt;= 30 &amp;&amp; t_ice_telem &lt;= 75</label>
+            <label kind="synchronisation" x="555" y="1">ice_therapy_start!</label>
+            <label kind="assignment" x="555" y="26">t_ice_telem := 0, t_dose_track := 0, t_safety := 0</label>
+        </transition>
+
+        <!-- Bolus cycle -->
+        <transition>
+            <source ref="ICE_THERAPY_ACTIVE"/>
+            <target ref="ICE_BOLUS_ACTIVE"/>
+            <label kind="synchronisation" x="1050" y="-26">ice_bolus_request!</label>
+            <label kind="assignment" x="1050" y="1">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_BOLUS_ACTIVE"/>
+            <target ref="ICE_THERAPY_ACTIVE"/>
+            <label kind="guard" x="1050" y="51">t_safety &gt;= 15 &amp;&amp; t_safety &lt;= 75</label>
+            <label kind="synchronisation" x="1050" y="76">ice_bolus_confirmed!</label>
+            <label kind="assignment" x="1050" y="102">t_ice_telem := 0, t_safety := 0</label>
+        </transition>
+
+        <!-- Pause / resume / KVO cycle -->
+        <transition>
+            <source ref="ICE_THERAPY_ACTIVE"/>
+            <target ref="ICE_THERAPY_PAUSED"/>
+            <label kind="synchronisation" x="810" y="225">ice_therapy_pause!</label>
+            <label kind="assignment" x="810" y="250">t_dose_track := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_THERAPY_PAUSED"/>
+            <target ref="ICE_THERAPY_ACTIVE"/>
+            <label kind="guard" x="810" y="300">t_dose_track &lt;= 150</label>
+            <label kind="synchronisation" x="810" y="326">ice_therapy_resume!</label>
+            <label kind="assignment" x="810" y="351">t_dose_track := 0, t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_THERAPY_PAUSED"/>
+            <target ref="ICE_KVO_MODE"/>
+            <label kind="guard" x="525" y="476">t_dose_track &gt;= 120</label>
+            <label kind="synchronisation" x="525" y="501">ice_kvo_mode_event!</label>
+            <label kind="assignment" x="525" y="526">t_kvo_dt := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_KVO_MODE"/>
+            <target ref="ICE_THERAPY_ACTIVE"/>
+            <label kind="guard" x="300" y="225">t_kvo_dt &gt;= 15</label>
+            <label kind="synchronisation" x="300" y="250">ice_kvo_resume!</label>
+            <label kind="assignment" x="300" y="276">t_kvo_dt := 0, t_safety := 0</label>
+        </transition>
+
+        <!-- Occlusion alarm: detectable at any time from ICE_THERAPY_ACTIVE -->
+        <transition>
+            <source ref="ICE_THERAPY_ACTIVE"/>
+            <target ref="ICE_ALARM_OCCLUSION"/>
+            <label kind="synchronisation" x="1050" y="426">ice_alarm_occlusion!</label>
+            <label kind="assignment" x="1050" y="452">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_ALARM_OCCLUSION"/>
+            <target ref="ICE_THERAPY_ACTIVE"/>
+            <label kind="guard" x="1050" y="550">t_safety &gt;= 15 &amp;&amp; t_safety &lt;= 150</label>
+            <label kind="synchronisation" x="1050" y="576">ice_alarm_cleared!</label>
+            <label kind="assignment" x="1050" y="602">t_safety := 0</label>
+        </transition>
+
+        <!-- Safety limit breach (overdose alarm): detectable at any time from ICE_THERAPY_ACTIVE -->
+        <transition>
+            <source ref="ICE_THERAPY_ACTIVE"/>
+            <target ref="ICE_ALARM_OVERDOSE"/>
+            <label kind="synchronisation" x="1305" y="1">ice_safety_limit_breach!</label>
+            <label kind="assignment" x="1305" y="26">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="ICE_ALARM_OVERDOSE"/>
+            <target ref="ICE_DISCONNECTED"/>
+            <label kind="synchronisation" x="1050" y="-76">ice_alarm_ack!</label>
+        </transition>
+
+        <!-- Therapy complete -->
+        <transition>
+            <source ref="ICE_THERAPY_ACTIVE"/>
+            <target ref="ICE_DISCONNECTED"/>
+            <label kind="guard" x="450" y="-76">t_ice_telem &gt;= 45</label>
+            <label kind="synchronisation" x="450" y="-51">ice_therapy_complete!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        DosageMonitorDT = DosageMonitorDT();
+        system DosageMonitorDT;
+    </system>
+
+</nta>

@@ -1,0 +1,94 @@
+; Ontology v2: Aircraft Turbofan Engine Controller (Evolved)
+; Standard references:
+;   DO-178C:2011, ARP4754A:2010, FAA AC 33.28-3, ICAO Annex 16 Vol.II:2017
+;
+; Changes from domain.ont:
+;   Condition I:  Add sort Emissions; fun nox_emissions, co2_emissions, max_nox
+;                 (ICAO Annex 16 environmental standard -- regulatory evolution)
+;   Condition II: Tighten takeoff_egt_limit from 935 to 925
+;                 (10C margin erosion after 3000 cycles -- ARP4754A periodic re-assessment)
+;   Condition III: Updated interpretations in pt_v2.interp / dt_v2.interp reference tighter limit
+
+; === SORTS ===
+sort Temperature
+sort Speed
+sort FuelFlow
+sort Pressure
+sort ThrustLevel
+sort HealthIndex
+sort Vibration
+sort Emissions
+
+; === FUNCTIONS ===
+fun egt               : Temperature
+fun max_egt           : Temperature
+fun takeoff_egt_limit : Temperature
+fun n1_speed          : Speed
+fun n2_speed          : Speed
+fun n1_redline        : Speed
+fun n1_takeoff_limit  : Speed
+fun fuel_flow         : FuelFlow
+fun max_fuel_flow     : FuelFlow
+fun min_fuel_flow     : FuelFlow
+fun fan_inlet_pressure: Pressure
+fun egt_margin        : Temperature
+fun n1_margin         : Speed
+fun fuel_flow_deviation: FuelFlow
+fun health_index_egt  : HealthIndex
+fun health_index_n1   : HealthIndex
+fun vibration_level   : Vibration
+fun max_vibration     : Vibration
+fun emergency_egt_threshold : Temperature
+fun flameout_n1_threshold   : Speed
+fun nox_emissions     : Emissions
+fun co2_emissions     : Emissions
+fun max_nox           : Emissions
+
+; === RELATIONS ===
+rel engine_running        :
+rel thermally_exceeded    :
+rel n1_redlined           :
+rel health_degraded       :
+rel fuel_flow_nominal     :
+
+; === AXIOMS ===
+
+axiom max_egt_val         : (= max_egt 950)
+; Condition II: tightened from 935 to 925
+axiom takeoff_egt_lim_v2  : (= takeoff_egt_limit 925)
+axiom n1_redline_val      : (= n1_redline 104)
+axiom n1_takeoff_val      : (= n1_takeoff_limit 100)
+axiom max_fuel_val        : (= max_fuel_flow 3000)
+axiom min_fuel_val        : (= min_fuel_flow 200)
+axiom emergency_egt_val   : (= emergency_egt_threshold 970)
+axiom flameout_n1_val     : (= flameout_n1_threshold 20)
+
+axiom nn_egt              : (>= egt 0)
+axiom nn_n1               : (>= n1_speed 0)
+axiom nn_n2               : (>= n2_speed 0)
+axiom nn_fuel             : (>= fuel_flow 0)
+axiom nn_fan_press        : (>= fan_inlet_pressure 0)
+axiom nn_vib              : (>= vibration_level 0)
+axiom nn_nox              : (>= nox_emissions 0)
+axiom nn_co2              : (>= co2_emissions 0)
+
+axiom egt_upper           : (<= egt (+ emergency_egt_threshold 20))
+axiom n1_upper            : (<= n1_speed (+ n1_redline 2))
+axiom fuel_upper          : (<= fuel_flow (+ max_fuel_flow 100))
+axiom vib_upper           : (<= vibration_level (+ max_vibration 1))
+
+axiom egt_margin_def      : (= egt_margin (- max_egt egt))
+axiom n1_margin_def       : (= n1_margin (- n1_redline n1_speed))
+
+axiom hi_egt_lower        : (>= health_index_egt 0)
+axiom hi_egt_upper        : (<= health_index_egt 1)
+axiom hi_n1_lower         : (>= health_index_n1 0)
+axiom hi_n1_upper         : (<= health_index_n1 1)
+
+axiom egt_health_relation : (=> (< egt_margin 30) (< health_index_egt 0))
+axiom idle_fuel_lower     : (>= fuel_flow (- min_fuel_flow 10))
+axiom max_vib_val         : (= max_vibration 1)
+
+; Condition I: ICAO Annex 16 NOx limit
+axiom max_nox_val         : (= max_nox 100)
+axiom nox_bound           : (<= nox_emissions (+ max_nox 10))

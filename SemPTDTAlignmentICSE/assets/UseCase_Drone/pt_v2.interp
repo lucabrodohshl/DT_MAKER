@@ -1,0 +1,37 @@
+; Interpretation: SprayingDronePT v2 -- PT for domain_v2.ont (battery degradation)
+; Ontology: domain_v2.ont
+; Standards: EPPO PP 1/213(3):2012, EU 2009/128/EC, EASA 2019/947, ISO 16119-4:2014
+;
+; This interpretation is used with domain_v2.ont (battery_capacity = 450).
+; Condition III (Definition 7): shutoff! updated to use the concrete value 450.
+; Under domain_v2.ont, (= battery_capacity 450) is an axiom, so:
+;   (and (<= total_consumption 450) (covered 1))
+;   is semantically equivalent to
+;   (and (<= total_consumption battery_capacity) (covered 1))
+; Theorem 1 therefore holds: alignment is preserved under the ontology evolution.
+
+; === LOCATION INTERPRETATIONS ===
+GROUNDED       : (= total_consumption 0)
+NAVIGATING     : (and (>= total_consumption 0) (<= total_consumption battery_capacity))
+ENTERING_ZONE  : (and (>= total_consumption 0) (<= total_consumption (- battery_capacity battery_reserve)))
+SPRAYING       : (and (<= (consumption 1) max_per_hectare_dose) (<= total_consumption battery_capacity))
+EXITING_ZONE   : (covered 1)
+RETURNING      : (<= total_consumption battery_capacity)
+RECHARGING     : (= total_consumption 0)
+FAULT          : (>= total_consumption 0)
+
+; === EVENT INTERPRETATIONS ===
+spray!         : (<= (consumption 1) 50)
+
+; Condition III: shutoff! updated to concrete battery_capacity value 450
+; (was: (and (<= total_consumption battery_capacity) (covered 1)))
+; Under domain_v2.ont: battery_capacity = 450, so this is equivalent.
+shutoff!       : (and (<= total_consumption 450) (covered 1))
+
+exit_zone!     : (covered 1)
+enter_zone!    : (<= total_consumption (- battery_capacity battery_reserve))
+takeoff!       : (= total_consumption 0)
+return_base!   : (<= total_consumption battery_capacity)
+land!          : (<= total_consumption battery_capacity)
+fault_detected!: (>= total_consumption 0)
+fault_return!  : (>= total_consumption 0)

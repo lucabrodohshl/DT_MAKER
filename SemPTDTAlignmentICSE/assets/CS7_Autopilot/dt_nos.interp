@@ -1,0 +1,14 @@
+; Interpretation: dt_nos -- Normal Operations Subsystem (DT)
+; Covers: FSD_DISENGAGED, FSD_NOMINAL, FSD_POWER_TRANSITION
+; Events: ap_engage_telemetry!, power_increase_event!, power_decrease_event!, power_mode_stable!
+
+; === LOCATION INTERPRETATIONS ===
+FSD_DISENGAGED      : (and (>= ap_health_index 0) (= pitch_rate 0))
+FSD_NOMINAL         : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+FSD_POWER_TRANSITION: (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))
+
+; === EVENT INTERPRETATIONS ===
+ap_engage_telemetry!  : (>= airspeed min_airspeed)
+power_increase_event! : (and (>= airspeed min_airspeed) (<= airspeed max_airspeed))
+power_decrease_event! : (>= airspeed min_airspeed)
+power_mode_stable!    : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))

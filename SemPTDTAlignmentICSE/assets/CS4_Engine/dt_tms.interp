@@ -1,0 +1,21 @@
+; DT Interpretation: ThrustMgmtDT (TMS subsystem)
+; Subset of dt.interp covering TMS DT event alphabet.
+
+; --- Location interpretations ---
+HM_GROUND_OPS       : (and (>= n1_speed 25) (<= n1_speed 35) (>= health_index_egt 0))
+HM_HIGH_POWER       : (and (>= n1_speed 88) (>= egt_margin 0) (>= health_index_egt 0))
+HM_CRUISE_OPS       : (and (>= n1_speed 82) (<= n1_speed 92) (>= egt_margin 50))
+HM_LOW_POWER        : (and (<= n1_speed 65) (<= fuel_flow 1000))
+HM_THERMAL_EVENT    : (> egt max_egt)
+HM_COMBUSTION_LOSS  : (< n1_speed flameout_n1_threshold)
+
+; --- Event interpretations ---
+takeoff_power_mode!          : (and (>= n1_speed 95) (>= egt_margin 0) (<= egt takeoff_egt_limit))
+climb_power_mode!            : (and (>= n1_speed 88) (>= egt_margin 0))
+cruise_power_mode!           : (and (>= n1_speed 82) (>= egt_margin 50))
+descent_power_mode!          : (and (<= n1_speed 60) (<= fuel_flow 1000))
+approach_power_mode!         : (and (>= n1_speed 70) (>= egt_margin 0))
+landing_power_mode!          : (<= n1_speed 40)
+thermal_exceedance_event!    : (> egt max_egt)
+combustion_loss_event!       : (< n1_speed flameout_n1_threshold)
+relight_command_telemetry!   : (and (< n1_speed flameout_n1_threshold) (>= fuel_flow min_fuel_flow))

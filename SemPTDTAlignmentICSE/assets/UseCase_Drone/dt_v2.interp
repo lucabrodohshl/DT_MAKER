@@ -1,0 +1,38 @@
+; Interpretation: EnergyBudgetDT v2 -- DT for domain_v2.ont (battery degradation)
+; Ontology: domain_v2.ont
+; Standards: EASA Reg.(EU) 2019/947, EPPO PP 1/213(3):2012
+;
+; This interpretation is used with domain_v2.ont (battery_capacity = 450).
+; Condition III (Definition 7): power_down! updated to use concrete value 450.
+; Under domain_v2.ont, (= battery_capacity 450) is an axiom, so:
+;   (and (>= (- 450 total_consumption) 0) (covered 1))
+;   is semantically equivalent to
+;   (and (>= (- battery_capacity total_consumption) 0) (covered 1))
+; Theorem 1 holds: alignment preserved under battery degradation ontology evolution.
+;
+; Benchmark RUN 4 verifies:
+;   1. domain_v2.ont |= domain.ont  (Condition II: axiom bat_cap_v2 strengthens bat_cap)
+;   2. Alignment preserved under domain_v2.ont  (Theorem 1)
+;   3. total_consumption = 460 is valid under domain.ont but REJECTED under domain_v2.ont
+
+; === LOCATION INTERPRETATIONS ===
+EM_GROUNDED    : (= total_consumption 0)
+EM_TRANSIT     : (<= total_consumption battery_capacity)
+EM_ZONE_ENTRY  : (<= total_consumption (- battery_capacity battery_reserve))
+EM_APPLYING    : (<= (consumption 1) max_per_hectare_dose)
+EM_ZONE_EXIT   : (covered 1)
+EM_RETURNING   : (<= total_consumption battery_capacity)
+EM_RECHARGING  : (= total_consumption 0)
+
+; === EVENT INTERPRETATIONS ===
+apply!         : (<= (consumption 1) max_per_hectare_dose)
+
+; Condition III: power_down! updated to concrete battery_capacity value 450
+; (was: (and (>= (- battery_capacity total_consumption) 0) (covered 1)))
+; Under domain_v2.ont: battery_capacity = 450, so this is equivalent.
+power_down!    : (and (>= (- 450 total_consumption) 0) (covered 1))
+
+coverage_confirmed!   : (covered 1)
+zone_entry_logged!    : (<= total_consumption (- battery_capacity battery_reserve))
+mission_start_logged! : (= total_consumption 0)
+base_return_logged!   : (<= total_consumption battery_capacity)

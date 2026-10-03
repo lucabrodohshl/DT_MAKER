@@ -1,0 +1,8 @@
+Third-party components built from source by scripts/bootstrap-deps.sh
+(pinned for reproducibility; not redistributed in this repository).
+
+UDBM     https://github.com/UPPAALModelChecker/UDBM     85ff047c0640577030d59d80cbe2c750b369cf26  GPL-3.0
+UTAP     https://github.com/UPPAALModelChecker/utap     b5fe3b2d71f07f10c3dbd41a13d95ea179a4f0c0  LGPL-2.1-or-later
+UUtils   https://github.com/UPPAALModelChecker/UUtils   v2.0.7 (38f1f4a8056e19cf3126e80df98b90afa1c2775b)
+libxml2  https://github.com/GNOME/libxml2              v2.13.9 (fetched by UTAP's CMake)
+boost    1.88.0, xxHash 0.8.3 (fetched by UDBM getlibs.sh)

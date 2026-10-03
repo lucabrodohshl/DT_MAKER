@@ -1,0 +1,16 @@
+; Interpretation: pt_ehs -- Emergency Handling Subsystem (PT)
+; Covers: RECOVERY, EHS_NOMINAL, EMERGENCY_OVERRIDE, SYSTEM_FAULT
+; Events: recovery_complete!, emergency_override!, manual_takeover!, system_fault!, fault_reset!
+
+; === LOCATION INTERPRETATIONS ===
+RECOVERY          : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll))
+EHS_NOMINAL       : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+EMERGENCY_OVERRIDE: (>= ap_health_index 0)
+SYSTEM_FAULT      : (< ap_health_index 0)
+
+; === EVENT INTERPRETATIONS ===
+recovery_complete!  : (and (<= pitch_angle 5) (<= roll_angle 10) (>= airspeed min_airspeed))
+emergency_override! : (< ap_health_index 1)
+manual_takeover!    : (> ap_health_index 0)
+system_fault!       : (< ap_health_index 0)
+fault_reset!        : (> ap_health_index 0)

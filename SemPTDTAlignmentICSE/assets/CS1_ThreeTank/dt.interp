@@ -1,0 +1,33 @@
+; DT Interpretation: ThreeTankDT
+; Maps each DT monitoring label to its IEC 61511 domain-level meaning.
+; The DT uses a water-budget / process safety vocabulary distinct from
+; the field instrument vocabulary used by the PT, but semantically
+; equivalent under the shared IEC 61511 ontology.
+
+; --- Location interpretations ---
+; Formulas mirror the PT interpretations under the shared IEC 61511 ontology.
+; Strict / active-flow conditions ensure they are non-tautological and
+; discriminate incompatible DT locations during the seeding step.
+MONITOR_IDLE           : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+MONITOR_INFLOW_ACTIVE  : (>= (inflow_rate 1) 2)
+MONITOR_TRANSFER_T1T2  : (and (>= (level 1) min_safe_level) (>= (inflow_rate 2) 2))
+MONITOR_TRANSFER_T2T3  : (and (>= (level 2) min_safe_level) (>= (inflow_rate 3) 2))
+MONITOR_OUTFLOW        : (> (outflow_rate 3) 0)
+MONITOR_DIAGNOSTIC     : (>= total_volume min_safe_level)
+MONITOR_SAFETY_ALERT   : (< (level 3) min_safe_level)
+MONITOR_TRIP           : (< (level 3) min_safe_level)
+
+; --- Event interpretations ---
+; Semantically equivalent to their PT counterparts under Delta.
+pump_activate_monitor!    : (and (>= (inflow_rate 1) 2) (<= (level 1) (capacity 1)))
+pump_deactivate_monitor!  : (<= (inflow_rate 1) 0)
+inflow_t2_start!          : (and (>= (level 1) 5) (>= (outflow_rate 1) 2))
+inflow_t2_stop!           : (<= (outflow_rate 1) 0)
+inflow_t3_start!          : (and (>= (level 2) 5) (>= (outflow_rate 2) 2))
+inflow_t3_stop!           : (<= (outflow_rate 2) 0)
+outflow_start!            : (> (outflow_rate 3) 0)
+safety_margin_breach!     : (< (level 3) min_safe_level)
+diagnostic_cycle_start!   : (>= total_volume min_safe_level)
+diagnostic_cycle_complete! : (and (>= total_volume min_safe_level) (<= total_volume high_high_level))
+protective_trip_command!  : (< (level 3) min_safe_level)
+system_reset!             : (>= total_volume min_safe_level)

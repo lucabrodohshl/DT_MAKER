@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Fuel Management Subsystem -- Digital Twin (FMS health monitoring subsystem)
+        // Locations: HM_OFFLINE, HM_SPOOLING, HM_GROUND_OPS, HM_PROTECTIVE_STOP, HM_SHUTDOWN
+        clock t_spool, t_egt;
+
+        chan engine_spool_telemetry,
+             idle_confirmation_event,
+             ground_ops_mode, shutdown_telemetry,
+             protective_shutdown_command;
+    </declaration>
+
+    <template>
+        <name>FuelMgmtDT</name>
+
+        <location id="HM_OFFLINE" x="0" y="0">
+            <name x="-20" y="-34">HM_OFFLINE</name>
+        </location>
+
+        <location id="HM_SPOOLING" x="300" y="0">
+            <name x="260" y="-34">HM_SPOOLING</name>
+            <label kind="invariant" x="260" y="17">t_spool &lt;= 47</label>
+        </location>
+
+        <location id="HM_GROUND_OPS" x="600" y="0">
+            <name x="560" y="-34">HM_GROUND_OPS</name>
+        </location>
+
+        <location id="HM_PROTECTIVE_STOP" x="0" y="-300">
+            <name x="-40" y="-334">HM_PROTECTIVE_STOP</name>
+        </location>
+
+        <location id="HM_SHUTDOWN" x="600" y="300">
+            <name x="560" y="266">HM_SHUTDOWN</name>
+        </location>
+
+        <init ref="HM_OFFLINE"/>
+
+        <transition>
+            <source ref="HM_OFFLINE"/>
+            <target ref="HM_SPOOLING"/>
+            <label kind="synchronisation">engine_spool_telemetry!</label>
+            <label kind="assignment">t_spool = 0, t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_SPOOLING"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_spool &gt;= 10 &amp;&amp; t_spool &lt;= 47</label>
+            <label kind="synchronisation">idle_confirmation_event!</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_spool &gt;= 5</label>
+            <label kind="synchronisation">ground_ops_mode!</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_SHUTDOWN"/>
+            <label kind="guard">t_spool &gt;= 5</label>
+            <label kind="synchronisation">shutdown_telemetry!</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_PROTECTIVE_STOP"/>
+            <label kind="guard">t_egt &lt;= 5</label>
+            <label kind="synchronisation">protective_shutdown_command!</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_PROTECTIVE_STOP"/>
+            <target ref="HM_OFFLINE"/>
+            <label kind="guard">t_egt &gt;= 1</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_SHUTDOWN"/>
+            <target ref="HM_OFFLINE"/>
+            <label kind="guard">t_spool &gt;= 1</label>
+            <label kind="synchronisation">ground_ops_mode!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        FuelMgmtDT = FuelMgmtDT();
+        system FuelMgmtDT;
+    </system>
+</nta>

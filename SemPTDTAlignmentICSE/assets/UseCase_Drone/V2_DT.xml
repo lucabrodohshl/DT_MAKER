@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS10 DT -- Energy Budget Twin for Autonomous Pesticide Spraying Drone
+        // Standard: EASA Reg.(EU) 2019/947 (energy envelope management)
+        //           EPPO PP 1/213(3):2012     (application rate accounting)
+        //
+        // Perspective: energy budget monitor (DT vocabulary from Example 4 of the paper)
+        // This model is the Digital Twin (DT) -- exactly as described in Example 4 of the paper.
+        //
+        // Label mapping (Example 4):
+        //   PT label            DT label
+        //   spray!          --&gt; apply!
+        //   shutoff!        --&gt; power_down!
+        //   exit_zone!      --&gt; coverage_confirmed!
+        //   enter_zone!     --&gt; zone_entry_logged!
+        //   takeoff!        --&gt; mission_start_logged!
+        //   land!           --&gt; base_return_logged!
+        //   (return_base!)  --&gt; tau (energy budget view: transparent return trigger)
+        //   (recharge_complete!) --&gt; tau (energy budget view: recharge is implicit)
+        //   (fault_detected!, fault_return!) --&gt; not modelled (DT abstraction: no fault)
+        //
+        // Z3 paper equivalences (Section VII):
+        //   Δ |= I_PT(spray!) ↔ I_DT(apply!)
+        //   Δ |= I_PT(shutoff!) ↔ I_DT(power_down!)
+        //
+        // The DT has 7 locations (no FAULT state -- energy budget abstraction).
+        // The DT omits fault handling: in the energy budget view, faults are
+        // captured by consumption anomalies rather than explicit fault states.
+        //
+        // Clocks:
+        //   t_dt_budget   : battery budget clock (accumulates; resets at mission start/land)
+        //   t_dt_coverage : zone coverage clock (resets at zone entry; tracks spray time)
+        //   t_dt_flight   : in-flight segment clock (resets at zone boundaries)
+        clock t_dt_budget, t_dt_coverage, t_dt_flight;
+        chan mission_start_logged, zone_entry_logged, apply, coverage_confirmed,
+             power_down, base_return_logged;
+    </declaration>
+    <template>
+        <name>EnergyBudgetDT</name>
+        <!-- Locations -->
+        <location id="EM_GROUNDED" x="0" y="0">
+            <name x="-10" y="-34">EM_GROUNDED</name>
+        </location>
+        <location id="EM_TRANSIT" x="300" y="0">
+            <name x="260" y="-34">EM_TRANSIT</name>
+            <label kind="invariant" x="260" y="17">t_dt_flight &lt;= 30</label>
+        </location>
+        <location id="EM_ZONE_ENTRY" x="600" y="0">
+            <name x="560" y="-34">EM_ZONE_ENTRY</name>
+        </location>
+        <location id="EM_APPLYING" x="600" y="-200">
+            <name x="560" y="-234">EM_APPLYING</name>
+            <label kind="invariant" x="560" y="-217">t_dt_coverage &lt;= 20</label>
+        </location>
+        <location id="EM_ZONE_EXIT" x="300" y="-200">
+            <name x="260" y="-234">EM_ZONE_EXIT</name>
+        </location>
+        <location id="EM_RETURNING" x="0" y="-200">
+            <name x="-50" y="-234">EM_RETURNING</name>
+        </location>
+        <location id="EM_RECHARGING" x="-300" y="0">
+            <name x="-360" y="-34">EM_RECHARGING</name>
+            <label kind="invariant" x="-360" y="17">t_dt_budget &lt;= 120</label>
+        </location>
+        <init ref="EM_GROUNDED"/>
+
+        <!-- EM_GROUNDED -> EM_TRANSIT: mission start (DT: mission_start_logged!) -->
+        <!-- Corresponds to PT takeoff!; guard: t_dt_budget <= 0 (full battery) -->
+        <transition>
+            <source ref="EM_GROUNDED"/>
+            <target ref="EM_TRANSIT"/>
+            <label kind="guard" x="50" y="-17">t_dt_budget &lt;= 0</label>
+            <label kind="synchronisation" x="50" y="0">mission_start_logged!</label>
+            <label kind="assignment" x="50" y="17">t_dt_flight := 0, t_dt_budget := 0</label>
+        </transition>
+
+        <!-- EM_TRANSIT -> EM_ZONE_ENTRY: zone approach logged [2,30] TU -->
+        <!-- Corresponds to PT enter_zone!; DT label: zone_entry_logged! -->
+        <transition>
+            <source ref="EM_TRANSIT"/>
+            <target ref="EM_ZONE_ENTRY"/>
+            <label kind="guard" x="350" y="-17">t_dt_flight &gt;= 2 &amp;&amp; t_dt_flight &lt;= 30</label>
+            <label kind="synchronisation" x="350" y="0">zone_entry_logged!</label>
+            <label kind="assignment" x="350" y="17">t_dt_coverage := 0</label>
+        </transition>
+
+        <!-- EM_ZONE_ENTRY -> EM_APPLYING: energy application starts (DT: apply!) -->
+        <!-- Corresponds to PT spray!; guard: t_dt_coverage >= 1 (zone verification) -->
+        <!-- Example 4: apply! interpreted as energy budget feasibility check -->
+        <transition>
+            <source ref="EM_ZONE_ENTRY"/>
+            <target ref="EM_APPLYING"/>
+            <label kind="guard" x="610" y="-117">t_dt_coverage &gt;= 1</label>
+            <label kind="synchronisation" x="610" y="-100">apply!</label>
+            <label kind="assignment" x="610" y="-83">t_dt_coverage := 0</label>
+        </transition>
+
+        <!-- EM_APPLYING -> EM_ZONE_EXIT: coverage confirmed [5,20] TU -->
+        <!-- Corresponds to PT exit_zone!; DT label: coverage_confirmed! -->
+        <transition>
+            <source ref="EM_APPLYING"/>
+            <target ref="EM_ZONE_EXIT"/>
+            <label kind="guard" x="340" y="-217">t_dt_coverage &gt;= 5 &amp;&amp; t_dt_coverage &lt;= 20</label>
+            <label kind="synchronisation" x="340" y="-200">coverage_confirmed!</label>
+            <label kind="assignment" x="340" y="-183">t_dt_coverage := 0</label>
+        </transition>
+
+        <!-- EM_ZONE_EXIT -> EM_TRANSIT: next zone (tau; DT abstraction of return_base! logic) -->
+        <transition>
+            <source ref="EM_ZONE_EXIT"/>
+            <target ref="EM_TRANSIT"/>
+            <label kind="guard" x="260" y="-117">t_dt_coverage &gt;= 1</label>
+            <label kind="assignment" x="260" y="-100">t_dt_flight := 0</label>
+        </transition>
+
+        <!-- EM_ZONE_EXIT -> EM_RETURNING: budget approaching limit (tau; DT of return_base!) -->
+        <transition>
+            <source ref="EM_ZONE_EXIT"/>
+            <target ref="EM_RETURNING"/>
+            <label kind="guard" x="100" y="-217">t_dt_budget &gt;= 450</label>
+        </transition>
+
+        <!-- EM_TRANSIT -> EM_RETURNING: power down (DT: power_down!) -->
+        <!-- Corresponds to PT shutoff!; energy budget depleted -->
+        <transition>
+            <source ref="EM_TRANSIT"/>
+            <target ref="EM_RETURNING"/>
+            <label kind="guard" x="50" y="-117">t_dt_budget &gt;= 450</label>
+            <label kind="synchronisation" x="50" y="-100">power_down!</label>
+            <label kind="assignment" x="50" y="-83">t_dt_flight := 0</label>
+        </transition>
+
+        <!-- EM_RETURNING -> EM_RECHARGING: base return logged (DT: base_return_logged!) -->
+        <!-- Corresponds to PT land!; guard: t_dt_flight >= 2 (landing approach) -->
+        <transition>
+            <source ref="EM_RETURNING"/>
+            <target ref="EM_RECHARGING"/>
+            <label kind="guard" x="-200" y="-117">t_dt_flight &gt;= 2</label>
+            <label kind="synchronisation" x="-200" y="-100">base_return_logged!</label>
+            <label kind="assignment" x="-200" y="-83">t_dt_budget := 0</label>
+        </transition>
+
+        <!-- EM_RECHARGING -> EM_GROUNDED: energy restored [60,120] TU (tau) -->
+        <!-- DT abstraction: recharge_complete! is transparent in energy budget view -->
+        <transition>
+            <source ref="EM_RECHARGING"/>
+            <target ref="EM_GROUNDED"/>
+            <label kind="guard" x="-260" y="-17">t_dt_budget &gt;= 60</label>
+        </transition>
+
+    </template>
+    <system>
+        process DT = EnergyBudgetDT();
+        system DT;
+    </system>
+</nta>

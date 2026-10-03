@@ -1,0 +1,15 @@
+; Interpretation: pt_nos -- Normal Operations Subsystem (PT)
+; Covers: STANDBY, NOMINAL, TRANSITION_UP, TRANSITION_DOWN
+; Events: activate!, thrust_up!, thrust_down!, transition_complete!
+
+; === LOCATION INTERPRETATIONS ===
+STANDBY        : (and (>= ap_health_index 0) (= pitch_rate 0))
+NOMINAL        : (and (>= airspeed min_airspeed) (<= pitch_angle max_pitch_up) (<= roll_angle max_roll) (<= load_factor max_load_factor))
+TRANSITION_UP  : (and (>= airspeed min_airspeed) (>= pitch_rate 0))
+TRANSITION_DOWN: (and (>= airspeed min_airspeed) (<= pitch_rate 0))
+
+; === EVENT INTERPRETATIONS ===
+activate!            : (>= airspeed min_airspeed)
+thrust_up!           : (and (>= airspeed min_airspeed) (<= airspeed max_airspeed))
+thrust_down!         : (>= airspeed min_airspeed)
+transition_complete! : (and (>= airspeed min_airspeed) (<= load_factor max_load_factor))

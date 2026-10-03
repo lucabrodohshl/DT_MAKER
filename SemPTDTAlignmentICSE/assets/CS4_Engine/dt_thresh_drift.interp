@@ -1,0 +1,35 @@
+; DT Interpretation: EGT Threshold Drift Variant (Variant A)
+; MISALIGNMENT: thermal_exceedance_event uses literal 980 instead of max_egt=950.
+; 30C gap: EGT in [950, 980) triggers overheat_detected on PT but NOT thermal_exceedance_event on DT.
+; ARP4754A FHA consequence: undetected overheat can progress to in-flight shutdown within 50 cycles.
+; Z3 refutes: Delta |= (> egt 980) <-> (> egt max_egt=950)
+; Counterexample: egt=960 satisfies (> 960 950) but not (> 960 980).
+
+; --- Location interpretations (same as dt.interp) ---
+HM_OFFLINE          : (and (= n1_speed 0) (= fuel_flow 0))
+HM_SPOOLING         : (and (> n1_speed 0) (< n1_speed 30) (> health_index_n1 0))
+HM_GROUND_OPS       : (and (>= n1_speed 25) (<= n1_speed 35) (>= health_index_egt 0))
+HM_HIGH_POWER       : (and (>= n1_speed 88) (>= egt_margin 0) (>= health_index_egt 0))
+HM_CRUISE_OPS       : (and (>= n1_speed 82) (<= n1_speed 92) (>= egt_margin 50))
+HM_LOW_POWER        : (and (<= n1_speed 65) (<= fuel_flow 1000))
+HM_THERMAL_EVENT    : (> egt 980)
+HM_COMBUSTION_LOSS  : (< n1_speed flameout_n1_threshold)
+HM_PROTECTIVE_STOP  : (and (= fuel_flow 0) (= n1_speed 0))
+HM_SHUTDOWN         : (and (<= n1_speed 10) (<= fuel_flow min_fuel_flow))
+
+; --- Event interpretations ---
+engine_spool_telemetry!      : (and (= n1_speed 0) (>= fuel_flow min_fuel_flow))
+idle_confirmation_event!     : (and (>= n1_speed 25) (<= n1_speed 35) (>= health_index_n1 0))
+takeoff_power_mode!          : (and (>= n1_speed 95) (>= egt_margin 0) (<= egt takeoff_egt_limit))
+climb_power_mode!            : (and (>= n1_speed 88) (>= egt_margin 0))
+cruise_power_mode!           : (and (>= n1_speed 82) (>= egt_margin 50))
+descent_power_mode!          : (and (<= n1_speed 60) (<= fuel_flow 1000))
+approach_power_mode!         : (and (>= n1_speed 70) (>= egt_margin 0))
+landing_power_mode!          : (<= n1_speed 40)
+ground_ops_mode!             : (and (<= n1_speed 35) (>= health_index_egt 0))
+shutdown_telemetry!          : (and (<= n1_speed 10) (<= fuel_flow min_fuel_flow))
+; DRIFT: fires at egt > 980, not > max_egt (=950)
+thermal_exceedance_event!    : (> egt 980)
+protective_shutdown_command! : (and (> egt emergency_egt_threshold) (= fuel_flow 0))
+combustion_loss_event!       : (< n1_speed flameout_n1_threshold)
+relight_command_telemetry!   : (and (< n1_speed flameout_n1_threshold) (>= fuel_flow min_fuel_flow))

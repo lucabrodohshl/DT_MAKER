@@ -1,0 +1,31 @@
+; DT Interpretation: CraneDT — Missing Emergency Stop Variant (Variant B)
+; VARIANT B: protective_stop_command! entry is ABSENT.
+; This simulates the DT engineer omitting the interpretation for the emergency
+; stop event — the ontological bridge for the most safety-critical event is broken.
+;
+; Expected: semantic alignment checker reports unmatched PT label emergency_stop!
+; because no DT event formula can be paired with it via E (protective_stop_command!
+; has no formula, so the iff entailment cannot be established).
+
+; --- Location interpretations (identical to dt.interp) ---
+DT_IDLE             : (and (= hoist_speed 0) (= travel_speed 0) (>= brake_force min_brake_force))
+DT_CYCLE_ACTIVE     : (and (> hoist_speed 0) (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded))
+DT_FLOOR_DWELL      : (and (= hoist_speed 0) (<= current_load rated_load))
+DT_BRIDGE_MOTION    : (and (> travel_speed 0) (<= travel_speed max_travel_speed) (= hoist_speed 0))
+DT_LOAD_EXCEEDANCE  : (> current_load rated_load)
+DT_PROTECTIVE_STOP  : (and (= hoist_speed 0) (= travel_speed 0))
+DT_DUTY_REST        : (and (= hoist_speed 0) (>= cycles_since_rest thermal_rest_limit))
+DT_INSPECTION       : (= hoist_speed 0)
+
+; --- Event interpretations (protective_stop_command! intentionally OMITTED) ---
+hoist_command!           : (and (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded) (>= brake_force 0))
+cycle_logged!            : (and (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded))
+bridge_motion_start!     : (and (= hoist_speed 0) (<= travel_speed max_travel_speed))
+bridge_motion_end!       : (and (= hoist_speed 0) (= travel_speed 0))
+load_setdown_event!      : (= current_load 0)
+load_exceedance_event!   : (> current_load rated_load)
+; protective_stop_command! — MISSING (no entry here)
+duty_cycle_rest_start!   : (>= cycles_since_rest thermal_rest_limit)
+duty_cycle_rest_end!     : (= cycles_since_rest 0)
+inspection_start!        : (= hoist_speed 0)
+inspection_complete!     : (= hoist_speed 0)

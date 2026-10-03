@@ -1,0 +1,74 @@
+; Interpretation: EnergyBudgetDT -- DT (energy budget monitor)
+; Ontology: domain.ont
+; Standards: EASA Reg.(EU) 2019/947, EPPO PP 1/213(3):2012
+;
+; Perspective: energy budget monitoring system (energy envelope vocabulary)
+; This interpretation EXACTLY MATCHES Example 4 of the paper.
+;
+; Z3 paper equivalences (Section VII of the paper):
+;   Δ |= I_PT(spray!) ↔ I_DT(apply!)
+;   Δ |= I_PT(shutoff!) ↔ I_DT(power_down!)
+;
+; These equivalences are the ground-truth validation for the SemAlign framework.
+; Under the ontology (domain.ont), Z3 confirms both biconditionals hold.
+;
+; All function applications use SMT-LIB2 prefix notation: (f x) for f(x).
+; Arithmetic: (- a b) for a-b, (>= a b) for a>=b, etc.
+; Relations:  (covered 1) for covered(hectare_1).
+
+; === LOCATION INTERPRETATIONS ===
+; EM_GROUNDED: energy budget at zero (mission start / recharge complete)
+EM_GROUNDED    : (= total_consumption 0)
+
+; EM_TRANSIT: in-transit; energy within capacity
+EM_TRANSIT     : (<= total_consumption battery_capacity)
+
+; EM_ZONE_ENTRY: approaching zone; must retain battery_reserve
+; Equivalent to PT ENTERING_ZONE: total_consumption <= battery_capacity - battery_reserve
+EM_ZONE_ENTRY  : (<= total_consumption (- battery_capacity battery_reserve))
+
+; EM_APPLYING: active energy application; per-hectare consumption within EPPO limit
+; Equivalent to PT SPRAYING: consumption(1) <= max_per_hectare_dose (EPPO PP 1/213(3))
+EM_APPLYING    : (<= (consumption 1) max_per_hectare_dose)
+
+; EM_ZONE_EXIT: coverage confirmed for current hectare
+EM_ZONE_EXIT   : (covered 1)
+
+; EM_RETURNING: returning to base; energy within capacity
+EM_RETURNING   : (<= total_consumption battery_capacity)
+
+; EM_RECHARGING: at base recharging; energy budget reset to zero
+EM_RECHARGING  : (= total_consumption 0)
+
+; === EVENT INTERPRETATIONS === (EXACTLY as in Example 4 of the paper)
+
+; apply! -- energy application to current hectare
+; Z3 CONFIRMS: Δ |= I_PT(spray!) ↔ I_DT(apply!)  (Section VII of paper)
+; spray!  = (<= (consumption 1) 50)       [PT uses EPPO numeric literal]
+; apply!  = (<= (consumption 1) max_per_hectare_dose)  [DT uses named EPPO constant]
+; Equivalence: Δ axiom max_dose_val: max_per_hectare_dose = 50
+;   => Z3 confirms LHS ↔ RHS via substitution of max_per_hectare_dose = 50
+apply!         : (<= (consumption 1) max_per_hectare_dose)
+
+; power_down! -- energy budget depleted, power down
+; Z3 CONFIRMS: Δ |= I_PT(shutoff!) ↔ I_DT(power_down!)  (Section VII of paper)
+; shutoff!    = (and (<= total_consumption battery_capacity) (covered 1))
+; power_down! = (and (>= (- battery_capacity total_consumption) 0) (covered 1))
+;             = (and (<= total_consumption battery_capacity) (covered 1))  [algebraically equal]
+power_down!    : (and (>= (- battery_capacity total_consumption) 0) (covered 1))
+
+; coverage_confirmed! -- zone coverage confirmed
+; Corresponds to PT exit_zone!: (covered 1)
+coverage_confirmed!   : (covered 1)
+
+; zone_entry_logged! -- zone approach logged in energy budget model
+; Corresponds to PT enter_zone!: total_consumption <= battery_capacity - battery_reserve
+zone_entry_logged!    : (<= total_consumption (- battery_capacity battery_reserve))
+
+; mission_start_logged! -- mission start logged (fresh energy budget)
+; Corresponds to PT takeoff!: total_consumption = 0
+mission_start_logged! : (= total_consumption 0)
+
+; base_return_logged! -- base return logged
+; Corresponds to PT land!: total_consumption <= battery_capacity
+base_return_logged!   : (<= total_consumption battery_capacity)

@@ -1,0 +1,102 @@
+; Ontology v2: Autonomous Inspection Rover (Refined)
+; Ontology evolution per Definition 7 — Three conditions satisfied:
+;
+; Condition I   — Vocabulary extension (sort Radiation + two functions)
+; Condition II  — Axiom strengthening (battery_reserve refined from 25 to 30)
+; Condition III — Interpretation tightening (updated in pt_v2.interp, dt_v2.interp)
+;
+; Field mission data: energy_to_base underestimated by 5 Wh on rough terrain.
+; NASA NPR 7150.2 risk re-assessment increases battery reserve margin from 25 to 30 Wh.
+; Return threshold changes: battery_reserve + energy_to_base = 30 + 20 = 50 Wh.
+
+; === SORTS (all from v1 + Condition I extension) ===
+sort Distance
+sort Energy
+sort Percentage
+sort WaypointIndex
+sort DataVolume
+sort SignalStrength
+sort Radiation     ; mSv/h — radiation dose rate (nuclear facility / planetary surface inspection)
+
+; === FUNCTIONS (all from v1 + Condition I extensions) ===
+fun distance_to_waypoint   : Distance
+fun waypoint_accept_radius : Distance
+fun distance_to_base       : Distance
+fun waypoints_completed    : WaypointIndex
+fun total_waypoints        : WaypointIndex
+fun mission_progress       : Percentage
+fun battery_level          : Energy
+fun battery_capacity       : Energy
+fun battery_reserve        : Energy
+fun energy_to_base         : Energy
+fun data_collected         : DataVolume
+fun data_required_per_wp   : DataVolume
+fun signal_strength        : SignalStrength
+fun min_signal_threshold   : SignalStrength
+fun comms_latency          : Distance
+fun max_segment_time       : Distance
+fun inspection_time_min    : Distance
+fun inspection_time_max    : Distance
+fun fault_response_critical   : Distance
+fun fault_response_noncritical: Distance
+fun radiation_level        : Radiation  ; current dose rate at rover position (mSv/h)
+fun max_radiation          : Radiation  ; NASA-STD-8739.8A mission abort threshold (mSv/h)
+
+; === RELATIONS ===
+rel waypoint_reached     :
+rel battery_critical     :
+rel mission_complete     :
+rel comms_nominal        :
+rel data_sufficient      :
+
+; === AXIOMS ===
+
+; --- Mission parameters (unchanged) ---
+axiom total_wp         : (= total_waypoints 5)
+axiom accept_radius    : (= waypoint_accept_radius 2)
+axiom data_per_wp      : (= data_required_per_wp 10)
+
+; --- Energy budget (CONDITION II: battery_reserve tightened from 25 to 30) ---
+axiom bat_capacity     : (= battery_capacity 100)
+axiom bat_reserve_v2   : (= battery_reserve 30)
+axiom nn_battery       : (>= battery_level 0)
+axiom bat_upper        : (<= battery_level battery_capacity)
+axiom energy_base_val  : (= energy_to_base 20)
+axiom reserve_ordering : (> battery_reserve energy_to_base)
+
+; Updated combined threshold: 30 + 20 = 50 Wh
+axiom bat_critical_thresh_v2 : (= (+ battery_reserve energy_to_base) 50)
+
+; --- Mission progress (unchanged) ---
+axiom progress_lower   : (>= mission_progress 0)
+axiom progress_upper   : (<= mission_progress 100)
+axiom progress_monotone: (>= waypoints_completed 0)
+axiom wp_upper_bound   : (<= waypoints_completed total_waypoints)
+axiom progress_complete_fwd : (=> (= waypoints_completed total_waypoints) (>= mission_progress 100))
+axiom progress_complete_bwd : (=> (>= mission_progress 100) (= waypoints_completed total_waypoints))
+axiom progress_zero_fwd     : (=> (= waypoints_completed 0) (<= mission_progress 0))
+axiom progress_zero_bwd     : (=> (<= mission_progress 0) (= waypoints_completed 0))
+
+; --- Timing requirements (unchanged) ---
+axiom max_seg_time     : (= max_segment_time 120)
+axiom inspect_min      : (= inspection_time_min 10)
+axiom inspect_max      : (= inspection_time_max 60)
+axiom fault_crit_resp  : (= fault_response_critical 3)
+axiom fault_ncrit_resp : (= fault_response_noncritical 5)
+
+; --- Communication parameters (unchanged) ---
+axiom min_signal_val   : (= min_signal_threshold -85)
+axiom comms_lat_bound  : (>= comms_latency 0)
+axiom signal_upper     : (<= signal_strength 0)
+
+; --- Distance non-negativity ---
+axiom nn_dist_wp       : (>= distance_to_waypoint 0)
+axiom nn_dist_base     : (>= distance_to_base 0)
+axiom nn_data          : (>= data_collected 0)
+axiom radius_positive  : (> waypoint_accept_radius 0)
+axiom return_thresh_def: (>= battery_reserve 0)
+
+; --- Radiation monitoring (CONDITION I: new in v2, NASA-STD-8739.8A) ---
+axiom max_rad_val      : (= max_radiation 2)
+axiom nn_radiation     : (>= radiation_level 0)
+axiom rad_bound        : (<= radiation_level (+ max_radiation 1))

@@ -1,0 +1,50 @@
+; Interpretation: EnergyBudgetDT -- Variant A: Consumption Limit Drift
+; Ontology: domain.ont
+; Variant: apply! fires at consumption(1) > 60 instead of <= 50
+;
+; This variant introduces a MISALIGNMENT:
+;   - DT permits spray applications where consumption(1) is in (50, 60]
+;   - PT forbids consumption(1) > 50 (EPPO PP 1/213(3) regulatory limit)
+;   - The DT's apply! formula now EXCEEDS the EU 2009/128 threshold
+;
+; Z3 counterexample: consumption(1) = 55
+;   PT spray!:  (consumption 1) <= 50 = false  (spray not permitted)
+;   DT apply!:  (consumption 1) > 60  = false  (apply also false)
+; Z3 counterexample: consumption(1) = 45
+;   PT spray!:  45 <= 50 = true
+;   DT apply!:  45 > 60  = false
+; The biconditional Δ |= I_PT(spray!) ↔ I_DT(apply!) is NOT ENTAILED.
+;
+; Expected verdict: NOT ALIGNED
+; (Condition I event semantic mismatch: apply! and spray! are not equivalent under Δ)
+
+; === LOCATION INTERPRETATIONS === (unchanged from dt.interp)
+EM_GROUNDED    : (= total_consumption 0)
+EM_TRANSIT     : (<= total_consumption battery_capacity)
+EM_ZONE_ENTRY  : (<= total_consumption (- battery_capacity battery_reserve))
+EM_APPLYING    : (> (consumption 1) 60)
+EM_ZONE_EXIT   : (covered 1)
+EM_RETURNING   : (<= total_consumption battery_capacity)
+EM_RECHARGING  : (= total_consumption 0)
+
+; === EVENT INTERPRETATIONS ===
+; VARIANT A: apply! fires at consumption(1) > 60 instead of <= 50
+; This violates EPPO PP 1/213(3) Sec.4.2 (max 50 AU/ha) and
+; EU 2009/128/EC Art.12 (precision application constraints).
+; Result: DT permits over-application that PT correctly inhibits.
+apply!         : (> (consumption 1) 60)
+
+; power_down! -- unchanged
+power_down!    : (and (>= (- battery_capacity total_consumption) 0) (covered 1))
+
+; coverage_confirmed! -- unchanged
+coverage_confirmed!   : (covered 1)
+
+; zone_entry_logged! -- unchanged
+zone_entry_logged!    : (<= total_consumption (- battery_capacity battery_reserve))
+
+; mission_start_logged! -- unchanged
+mission_start_logged! : (= total_consumption 0)
+
+; base_return_logged! -- unchanged
+base_return_logged!   : (<= total_consumption battery_capacity)

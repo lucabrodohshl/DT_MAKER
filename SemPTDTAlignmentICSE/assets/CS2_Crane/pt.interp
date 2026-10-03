@@ -1,0 +1,29 @@
+; PT Interpretation: CranePT
+; Maps PT locations and events to IEC 60204-1 / EN 13001 domain meaning.
+; Standard: IEC 60204-1:2016, EN 13001-1:2015, EN 15011:2011+A1
+
+; --- Location interpretations (Condition I: state consistency) ---
+PARKED          : (and (= hoist_speed 0) (= travel_speed 0) (>= brake_force min_brake_force))
+HOIST_UP        : (and (> hoist_speed 0) (<= hoist_speed max_hoist_speed_loaded) (<= current_load rated_load))
+HOIST_DOWN      : (and (> hoist_speed 0) (<= hoist_speed max_hoist_speed_loaded) (<= current_load rated_load))
+AT_FLOOR        : (and (= hoist_speed 0) (<= current_load rated_load))
+TRAVELLING      : (and (> travel_speed 0) (<= travel_speed max_travel_speed) (= hoist_speed 0))
+OVERLOAD        : (> current_load rated_load)
+EMERGENCY_STOP  : (and (= hoist_speed 0) (= travel_speed 0))
+THERMAL_REST    : (and (= hoist_speed 0) (>= cycles_since_rest thermal_rest_limit))
+MAINTENANCE     : (= hoist_speed 0)
+
+; --- Event interpretations (Conditions II-III: transition matching) ---
+hoist_up!            : (and (<= current_load rated_load) (>= brake_force 0))
+hoist_down!          : (and (<= current_load rated_load) (>= brake_force 0))
+hoist_complete!      : (and (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded))
+travel_start!        : (and (= hoist_speed 0) (<= travel_speed max_travel_speed))
+travel_complete!     : (and (= hoist_speed 0) (= travel_speed 0))
+load_released!       : (= current_load 0)
+overload_detected!   : (> current_load rated_load)
+emergency_stop!      : (and (> current_load rated_load) (= hoist_speed 0))
+; reset_crane! is internal (tau): recovery from emergency stop is unobservable, matching DT's tau self-recovery from DT_PROTECTIVE_STOP to DT_IDLE.
+thermal_rest_start!  : (>= cycles_since_rest thermal_rest_limit)
+thermal_rest_complete! : (= cycles_since_rest 0)
+maintenance_start!   : (= hoist_speed 0)
+maintenance_complete! : (= hoist_speed 0)

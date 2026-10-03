@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Success rates (SR), depletion rates (DR) and abort rates (AR) for each scenario across all battery stress probability levels.}
+\label{tab:sweep_battery_outcomes}
+  \setlength{\tabcolsep}{1pt}
+\begin{tabular}{@{}p{1.4cm}|ccc|ccc|ccc|ccc|ccc|ccc|@{}}
+\toprule
+\multirow{4}{*}{Scenario}    & \multicolumn{18}{c}{Battery stress probability} \\
+\cmidrule(lr){2-19}
+&\multicolumn{3}{c}{0\%}& \multicolumn{3}{c}{10\%}& \multicolumn{3}{c}{20\%}& \multicolumn{3}{c}{30\%}& \multicolumn{3}{c}{40\%}& \multicolumn{3}{c}{50\%}\\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13} \cmidrule(lr){14-16} \cmidrule(lr){17-19}
+&\scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}& \scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}& \scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}& \scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}& \scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}& \scriptsize {SR}& \scriptsize {DR} & \scriptsize {AR}\\
+\midrule
+\ref{scenario:a} & 100 & 0 & 0 & 94 & 2 & 0 & 89 & 3 & 0 & 83 & 5 & 0 & 77 & 7 & 0 & 71 & 9 & 0\\
+\ref{scenario:b} & 100 & 0 & 0 & 90 & 0 & 10 & 80 & 0 & 20 & 70 & 0 & 30 & 60 & 0 & 40 & 49 & 0 & 51\\
+\ref{scenario:c} & 100 & 0 & 0 & 94 & 0 & 0 & 89 & 0 & 0 & 83 & 0 & 0 & 77 & 0 & 0 & 71 & 0 & 0\\
+
+\bottomrule
+\end{tabular}
+
+\end{table}

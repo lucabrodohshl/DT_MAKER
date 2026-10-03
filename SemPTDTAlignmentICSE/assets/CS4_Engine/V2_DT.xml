@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Aircraft Engine Health Monitoring -- Digital Twin (Propulsion Health Management view)
+        // Standard references:
+        //   DO-178C:2011      -- Software Considerations in Airborne Systems (DAL-B)
+        //   ARP4754A:2010     -- Guidelines for Development of Civil Aircraft and Systems
+        //   FAA AC 33.28-3   -- Aircraft Engine Control System Installation and Test
+        //
+        // DT tracks EGT margin, N1 margin, fuel flow deviation from fleet baseline.
+        // All timing bounds = PT bounds + 2 (telemetry latency tolerance).
+        //
+        // t_spool  : elapsed time in engine spool-up monitoring window
+        // t_health : elapsed time in current health monitoring phase
+        // t_egt    : elapsed time since thermal event detected
+        // t_n1     : elapsed time since N1 anomaly
+        clock t_spool, t_health, t_egt, t_n1;
+
+        chan engine_spool_telemetry,
+             idle_confirmation_event,
+             takeoff_power_mode, climb_power_mode,
+             descent_power_mode, landing_power_mode,
+             shutdown_telemetry,
+             thermal_exceedance_event, protective_shutdown_command,
+             combustion_loss_event, relight_command_telemetry;
+    </declaration>
+
+    <template>
+        <name>EngineHealthDT</name>
+
+        <location id="HM_OFFLINE" x="0" y="0">
+            <name x="-20" y="-34">HM_OFFLINE</name>
+        </location>
+
+        <location id="HM_SPOOLING" x="300" y="0">
+            <name x="260" y="-34">HM_SPOOLING</name>
+            <label kind="invariant" x="260" y="17">t_spool &lt;= 235</label>
+        </location>
+
+        <location id="HM_GROUND_OPS" x="600" y="0">
+            <name x="560" y="-34">HM_GROUND_OPS</name>
+        </location>
+
+        <location id="HM_HIGH_POWER" x="900" y="0">
+            <name x="860" y="-34">HM_HIGH_POWER</name>
+            <label kind="invariant" x="860" y="17">t_health &lt;= 610</label>
+        </location>
+
+        <location id="HM_CRUISE_OPS" x="1200" y="0">
+            <name x="1160" y="-34">HM_CRUISE_OPS</name>
+        </location>
+
+        <location id="HM_LOW_POWER" x="1200" y="300">
+            <name x="1160" y="266">HM_LOW_POWER</name>
+            <label kind="invariant" x="1160" y="317">t_health &lt;= 1510</label>
+        </location>
+
+        <location id="HM_THERMAL_EVENT" x="900" y="-300">
+            <name x="860" y="-334">HM_THERMAL_EVENT</name>
+            <label kind="invariant" x="860" y="-283">t_egt &lt;= 155</label>
+        </location>
+
+        <location id="HM_COMBUSTION_LOSS" x="1200" y="-300">
+            <name x="1160" y="-334">HM_COMBUSTION_LOSS</name>
+            <label kind="invariant" x="1160" y="-283">t_n1 &lt;= 105</label>
+        </location>
+
+        <location id="HM_PROTECTIVE_STOP" x="0" y="-300">
+            <name x="-40" y="-334">HM_PROTECTIVE_STOP</name>
+        </location>
+
+        <location id="HM_SHUTDOWN" x="600" y="300">
+            <name x="560" y="266">HM_SHUTDOWN</name>
+        </location>
+
+        <init ref="HM_OFFLINE"/>
+
+        <!-- Spool-up sequence -->
+        <transition>
+            <source ref="HM_OFFLINE"/>
+            <target ref="HM_SPOOLING"/>
+            <label kind="synchronisation">engine_spool_telemetry!</label>
+            <label kind="assignment">t_spool = 0, t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_SPOOLING"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_spool &gt;= 50 &amp;&amp; t_spool &lt;= 235</label>
+            <label kind="synchronisation">idle_confirmation_event!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <!-- Thrust monitoring transitions -->
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_HIGH_POWER"/>
+            <label kind="guard">t_health &gt;= 55</label>
+            <label kind="synchronisation">takeoff_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_HIGH_POWER"/>
+            <target ref="HM_CRUISE_OPS"/>
+            <label kind="guard">t_health &gt;= 250 &amp;&amp; t_health &lt;= 610</label>
+            <label kind="synchronisation">climb_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_CRUISE_OPS"/>
+            <label kind="guard">t_health &gt;= 550</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_LOW_POWER"/>
+            <label kind="guard">t_health &gt;= 5500</label>
+            <label kind="synchronisation">descent_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_LOW_POWER"/>
+            <label kind="guard">t_health &gt;= 500 &amp;&amp; t_health &lt;= 1510</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_health &gt;= 25 &amp;&amp; t_health &lt;= 310</label>
+            <label kind="synchronisation">landing_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_health &gt;= 25</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_SHUTDOWN"/>
+            <label kind="guard">t_health &gt;= 25</label>
+            <label kind="synchronisation">shutdown_telemetry!</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_SHUTDOWN"/>
+            <target ref="HM_OFFLINE"/>
+            <label kind="guard">t_health &gt;= 5</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <!-- Thermal exceedance fault paths -->
+        <transition>
+            <source ref="HM_HIGH_POWER"/>
+            <target ref="HM_THERMAL_EVENT"/>
+            <label kind="guard">t_egt &lt;= 15</label>
+            <label kind="synchronisation">thermal_exceedance_event!</label>
+            <label kind="assignment">t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_THERMAL_EVENT"/>
+            <label kind="guard">t_egt &lt;= 15</label>
+            <label kind="synchronisation">thermal_exceedance_event!</label>
+            <label kind="assignment">t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_THERMAL_EVENT"/>
+            <target ref="HM_PROTECTIVE_STOP"/>
+            <label kind="guard">t_egt &lt;= 155</label>
+            <label kind="synchronisation">protective_shutdown_command!</label>
+        </transition>
+
+        <!-- Combustion loss fault paths -->
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_COMBUSTION_LOSS"/>
+            <label kind="guard">t_n1 &lt;= 10</label>
+            <label kind="synchronisation">combustion_loss_event!</label>
+            <label kind="assignment">t_n1 = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_COMBUSTION_LOSS"/>
+            <label kind="guard">t_n1 &lt;= 10</label>
+            <label kind="synchronisation">combustion_loss_event!</label>
+            <label kind="assignment">t_n1 = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_COMBUSTION_LOSS"/>
+            <target ref="HM_SPOOLING"/>
+            <label kind="guard">t_n1 &gt;= 5 &amp;&amp; t_n1 &lt;= 105</label>
+            <label kind="synchronisation">relight_command_telemetry!</label>
+            <label kind="assignment">t_spool = 0</label>
+        </transition>
+
+        <!-- Protective stop recovery (DT tau, no PT counterpart) -->
+        <transition>
+            <source ref="HM_PROTECTIVE_STOP"/>
+            <target ref="HM_OFFLINE"/>
+            <label kind="guard">t_egt &gt;= 5</label>
+        </transition>
+
+    </template>
+
+    <system>
+        EngineHealthDT = EngineHealthDT();
+        system EngineHealthDT;
+    </system>
+</nta>

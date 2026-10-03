@@ -1,0 +1,100 @@
+; Ontology: Precision Irrigation System -- Crop Water Budget Domain (v2)
+;
+; Changes from domain.ont (RQ1 Theorem 1 validation):
+;
+;   Condition I (vocabulary extension):
+;     Add fun rainfall_forecast : Volume_mm
+;     Add axiom rainfall_nonneg : (>= rainfall_forecast 0)
+;     Source: FAO-56 irrigation scheduling under climate uncertainty;
+;             forecast rainfall is used to defer irrigation and reduce over-application.
+;             EN 13101 Clause 5.3: reservoir refill estimation requires forecast input.
+;
+;   Condition II (axiom strengthening -- drought management):
+;     depletion_fraction: 50 -> 45 percent
+;     Source: FAO-56 Sec.8.2 (tighter water management for drought conditions);
+;             EU 2009/128/EC Art.12 (reduced application rates under water scarcity).
+;     Updated RAW values (raw(i) = p * taw(i) at p = 0.45):
+;       raw(1) = floor(0.45 * 30) = 13 mm (was 15)
+;       raw(2) = floor(0.45 * 27) = 12 mm (was 13)
+;       raw(3) = floor(0.45 * 23) = 10 mm (was 11)
+;
+; Theorem 1 preservation:
+;   pt_v2.interp and dt_v2.interp reference (raw 1), (raw 2), (raw 3), depletion_fraction
+;   symbolically. When domain_v2.ont updates raw(1) from 15 to 13, Z3 sees the new
+;   concrete value through the symbolic reference -- all label equivalence conditions
+;   are re-evaluated under the updated axioms. Since both interps make the same
+;   symbolic references, the tightening is symmetric and alignment is preserved.
+;
+; Fragment: QF_LRA
+
+; === SORTS ===
+sort Volume_mm  ; mm water depth
+sort ZoneIndex  ; 1..3
+sort CropCoeff  ; dimensionless Kc
+sort Percentage ; 0-100
+
+; === FUNCTIONS ===
+fun soil_moisture           : ZoneIndex -> Volume_mm
+fun field_capacity          : ZoneIndex -> Volume_mm
+fun wilting_point           : ZoneIndex -> Volume_mm
+fun taw                     : ZoneIndex -> Volume_mm
+fun raw                     : ZoneIndex -> Volume_mm
+fun depletion_fraction      : Percentage
+fun irrigation_applied      : ZoneIndex -> Volume_mm
+fun et_reference            : Volume_mm
+fun kc_initial              : CropCoeff
+fun kc_mid                  : CropCoeff
+fun kc_end                  : CropCoeff
+fun kc_current              : CropCoeff
+fun et_crop                 : Volume_mm
+fun irrigation_deficit      : Volume_mm
+fun effective_rainfall      : Volume_mm
+fun irrigation_applied_total: Volume_mm
+fun max_application_rate    : Volume_mm
+fun min_application_per_zone: Volume_mm
+; Condition I: NEW -- FAO-56 forecast-based irrigation scheduling
+fun rainfall_forecast       : Volume_mm  ; P_fcst: expected rainfall next 24h (mm)
+
+; === RELATIONS ===
+rel soil_stress     : ZoneIndex
+rel field_saturated : ZoneIndex
+rel deficit_critical :
+
+; === AXIOMS ===
+axiom fc_z1         : (= (field_capacity 1) 40)
+axiom fc_z2         : (= (field_capacity 2) 35)
+axiom fc_z3         : (= (field_capacity 3) 30)
+axiom wp_z1         : (= (wilting_point 1) 10)
+axiom wp_z2         : (= (wilting_point 2) 8)
+axiom wp_z3         : (= (wilting_point 3) 7)
+axiom taw_z1        : (= (taw 1) 30)
+axiom taw_z2        : (= (taw 2) 27)
+axiom taw_z3        : (= (taw 3) 23)
+; Condition II: tightened from 50 to 45 percent (FAO-56 drought management)
+axiom depletion_val : (= depletion_fraction 45)
+; Updated RAW axioms at p = 0.45
+axiom raw_z1        : (= (raw 1) 13)
+axiom raw_z2        : (= (raw 2) 12)
+axiom raw_z3        : (= (raw 3) 10)
+axiom kc_init_val   : (= kc_initial 0)
+axiom kc_mid_val    : (= kc_mid 1)
+axiom kc_end_val    : (= kc_end 0)
+axiom kc_lb         : (>= kc_current kc_initial)
+axiom kc_ub         : (<= kc_current kc_mid)
+axiom nn_sm_1       : (>= (soil_moisture 1) 0)
+axiom nn_sm_2       : (>= (soil_moisture 2) 0)
+axiom nn_sm_3       : (>= (soil_moisture 3) 0)
+axiom nn_et         : (>= et_reference 0)
+axiom nn_etc        : (>= et_crop 0)
+axiom nn_deficit    : (>= irrigation_deficit -10)
+axiom nn_rain       : (>= effective_rainfall 0)
+axiom sm_upper_1    : (<= (soil_moisture 1) (field_capacity 1))
+axiom sm_upper_2    : (<= (soil_moisture 2) (field_capacity 2))
+axiom sm_upper_3    : (<= (soil_moisture 3) (field_capacity 3))
+axiom etc_def       : (= et_crop et_reference)
+axiom deficit_def   : (= irrigation_deficit (- et_crop (+ effective_rainfall irrigation_applied_total)))
+axiom appl_total_nn : (>= irrigation_applied_total 0)
+axiom max_app_rate  : (= max_application_rate 20)
+axiom min_app_zone  : (= min_application_per_zone 5)
+; Condition I: forecast rainfall non-negativity
+axiom rainfall_nonneg: (>= rainfall_forecast 0)

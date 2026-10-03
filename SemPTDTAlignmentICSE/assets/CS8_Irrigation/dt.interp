@@ -1,0 +1,43 @@
+; Interpretation: CropWaterBudgetDT -- DT (agronomist / FAO-56 water budget perspective)
+; Ontology: domain.ont
+; Standards: FAO-56:1998 (Penman-Monteith ET, soil water balance),
+;            ISO 11783-10:2015 (zone-specific water application parameters)
+;
+; Perspective: agronomist -- crop water demand and soil water budget monitoring
+; All function applications use SMT-LIB2 prefix notation: (f x) for f(x)
+;
+; Label mapping table (FAO-56 agronomist vocabulary):
+;   irrigation_start_z1!  <--> water_application_zone1!
+;   irrigation_start_z2!  <--> water_application_zone2!
+;   irrigation_start_z3!  <--> water_application_zone3!
+;   irrigation_complete!  <--> water_application_event!
+;   drain_start!          <--> drainage_cycle_start!
+;   deficit_alarm!        <--> deficit_threshold_breach!
+;   emergency_irrigation! <--> emergency_water_application!
+;   overflow_alarm!       <--> field_capacity_exceeded!
+;   overflow_cleared!     <--> soil_moisture_nominal!
+;   maintenance_start!    <--> system_check_start!
+;   maintenance_complete! <--> system_check_complete!
+
+; === LOCATION INTERPRETATIONS ===
+DT_MONITORING           : (and (>= (soil_moisture 1) (wilting_point 1)) (>= (soil_moisture 2) (wilting_point 2)) (>= (soil_moisture 3) (wilting_point 3)))
+DT_MAINTENANCE          : (>= (soil_moisture 1) 0)
+DT_WATER_APPLICATION_Z1 : (and (< (soil_moisture 1) (raw 1)) (>= (irrigation_applied 1) 0))
+DT_WATER_APPLICATION_Z2 : (and (< (soil_moisture 2) (raw 2)) (>= (irrigation_applied 2) 0))
+DT_WATER_APPLICATION_Z3 : (and (< (soil_moisture 3) (raw 3)) (>= (irrigation_applied 3) 0))
+DT_DRAINAGE             : (>= (soil_moisture 1) 0)
+DT_DEFICIT_ALERT        : (> irrigation_deficit (raw 1))
+DT_OVERFLOW_ALERT       : (>= (soil_moisture 1) (field_capacity 1))
+
+; === EVENT INTERPRETATIONS ===
+water_application_zone1!    : (and (< (soil_moisture 1) (raw 1)) (<= et_crop max_application_rate))
+water_application_zone2!    : (and (< (soil_moisture 2) (raw 2)) (<= et_crop max_application_rate))
+water_application_zone3!    : (and (< (soil_moisture 3) (raw 3)) (<= et_crop max_application_rate))
+water_application_event!    : (and (>= (irrigation_applied 1) min_application_per_zone) (<= (soil_moisture 1) (field_capacity 1)))
+drainage_cycle_start!       : (> (soil_moisture 1) (raw 1))
+deficit_threshold_breach!   : (> irrigation_deficit (raw 1))
+emergency_water_application!: (> irrigation_deficit (raw 1))
+field_capacity_exceeded!    : (>= (soil_moisture 1) (field_capacity 1))
+soil_moisture_nominal!      : (< (soil_moisture 1) (field_capacity 1))
+system_check_start!         : (<= irrigation_deficit 0)
+system_check_complete!      : (>= (soil_moisture 1) (wilting_point 1))

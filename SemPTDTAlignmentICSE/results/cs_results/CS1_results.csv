@@ -1,0 +1,4 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS1_aligned,true,16,1,3803,180,3803,36.822,4188
+CS1_thresh_drift,false,14,1,0,180,1,13.213,116
+CS1_evo_v2,true,16,1,3803,180,3803,34.697,2012

@@ -1,0 +1,28 @@
+; Interpretation: GPCA Infusion Pump -- PT v2 (Ontology evolution, domain_v2.ont)
+; All formulas reference dose_tolerance symbolically.
+; Theorem 1: alignment preserved when dose_tolerance changes from 5 to 3 (Condition II).
+
+; === LOCATION INTERPRETATIONS ===
+IDLE              : (= dose_delivered 0)
+PRIMING           : (= dose_delivered 0)
+INFUSING          : (and (> primary_rate 0) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+BOLUS_DELIVERY    : (and (> bolus_volume 0) (<= bolus_volume max_bolus_volume))
+PAUSED            : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+KVO_MODE          : (and (= primary_rate kvo_rate) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+ALARM_OCCLUSION   : (> line_pressure occlusion_threshold)
+ALARM_OVERDOSE    : (> dose_delivered (+ prescribed_dose dose_tolerance))
+
+; === EVENT INTERPRETATIONS ===
+prime_start!        : (= dose_delivered 0)
+infusion_start!     : (and (> primary_rate 0) (<= primary_rate max_primary_rate))
+bolus_request!      : (and (< bolus_count max_bolus_per_hour) (<= dose_delivered prescribed_dose))
+bolus_complete!     : (and (<= bolus_volume max_bolus_volume) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+pause_infusion!     : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+resume_infusion!    : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+kvo_start!          : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+resume_from_kvo!    : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+occlusion_alarm!    : (> line_pressure occlusion_threshold)
+occlusion_cleared!  : (<= line_pressure occlusion_threshold)
+overdose_alarm!     : (> dose_delivered (+ prescribed_dose dose_tolerance))
+alarm_acknowledged! : (> dose_delivered (+ prescribed_dose dose_tolerance))
+infusion_complete!  : (>= dose_delivered prescribed_dose)

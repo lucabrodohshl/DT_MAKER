@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Fuel Management Subsystem -- Physical Twin (FMS subsystem for compositional verification)
+        // Locations: ENGINE_OFF, STARTING, IDLE, LANDING (ground ops), EMERGENCY_SHUTDOWN
+        // Events: engine_start!, idle_reached!, ground_idle!, shutdown_normal!,
+        //         emergency_shutdown!, system_reset!
+        clock t_start, t_fault;
+
+        chan engine_start,
+             idle_reached,
+             ground_idle, shutdown_normal,
+             emergency_shutdown, system_reset;
+    </declaration>
+
+    <template>
+        <name>FuelMgmtPT</name>
+
+        <location id="ENGINE_OFF" x="0" y="0">
+            <name x="-20" y="-34">ENGINE_OFF</name>
+        </location>
+
+        <location id="STARTING" x="300" y="0">
+            <name x="260" y="-34">STARTING</name>
+            <label kind="invariant" x="260" y="17">t_start &lt;= 45</label>
+        </location>
+
+        <location id="IDLE" x="600" y="0">
+            <name x="560" y="-34">IDLE</name>
+        </location>
+
+        <location id="LANDING" x="900" y="0">
+            <name x="860" y="-34">LANDING</name>
+        </location>
+
+        <location id="EMERGENCY_SHUTDOWN" x="0" y="-300">
+            <name x="-40" y="-334">EMERGENCY_SHUTDOWN</name>
+        </location>
+
+        <init ref="ENGINE_OFF"/>
+
+        <transition>
+            <source ref="ENGINE_OFF"/>
+            <target ref="STARTING"/>
+            <label kind="synchronisation">engine_start!</label>
+            <label kind="assignment">t_start = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="STARTING"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_start &gt;= 10 &amp;&amp; t_start &lt;= 45</label>
+            <label kind="synchronisation">idle_reached!</label>
+        </transition>
+
+        <transition>
+            <source ref="LANDING"/>
+            <target ref="IDLE"/>
+            <label kind="guard">t_start &gt;= 5</label>
+            <label kind="synchronisation">ground_idle!</label>
+        </transition>
+
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="ENGINE_OFF"/>
+            <label kind="guard">t_start &gt;= 5</label>
+            <label kind="synchronisation">shutdown_normal!</label>
+        </transition>
+
+        <transition>
+            <source ref="IDLE"/>
+            <target ref="EMERGENCY_SHUTDOWN"/>
+            <label kind="guard">t_fault &lt;= 5</label>
+            <label kind="synchronisation">emergency_shutdown!</label>
+        </transition>
+
+        <transition>
+            <source ref="EMERGENCY_SHUTDOWN"/>
+            <target ref="ENGINE_OFF"/>
+            <label kind="synchronisation">system_reset!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        FuelMgmtPT = FuelMgmtPT();
+        system FuelMgmtPT;
+    </system>
+</nta>

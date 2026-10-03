@@ -1,0 +1,104 @@
+; Ontology v2: Three-Tank Process Control System (Refined)
+; Ontology evolution per Definition 7 — Three conditions satisfied:
+;
+; Condition I   — Vocabulary extension (new sort + functions)
+; Condition II  — Axiom strengthening (min_safe_level refined from 10 to 12)
+; Condition III — Interpretation tightening (updated in pt_v2.interp, dt_v2.interp)
+;
+; Field calibration revealed the original 10L setpoint was insufficiently
+; conservative; IEC 61511 Cl.9.3.3 requires setpoints confirmed by HAZOPs.
+
+; === SORTS (all from v1 + extension) ===
+sort Volume
+sort FlowRate
+sort TankIndex
+sort Pressure
+sort Time
+sort Conductivity  ; mS/cm — water quality parameter (IEC 61511 environmental monitoring)
+
+; === FUNCTIONS (all from v1 + extension) ===
+fun level         : TankIndex -> Volume
+fun capacity      : TankIndex -> Volume
+fun inflow_rate   : TankIndex -> FlowRate
+fun outflow_rate  : TankIndex -> FlowRate
+fun total_volume  : Volume
+fun net_flow      : FlowRate
+fun min_safe_level     : Volume
+fun high_high_level    : Volume
+fun alarm_setpoint_low : Volume
+fun pump_rated_flow    : FlowRate
+fun valve_rated_flow   : FlowRate
+fun sil_response_time  : Time
+fun proof_test_interval: Time
+fun conductivity       : TankIndex -> Conductivity  ; water conductivity in tank i
+fun max_conductivity   : Conductivity               ; IEC 61511 process quality limit
+
+; === RELATIONS ===
+rel tank_overfull  : TankIndex
+rel tank_underfull : TankIndex
+rel system_safe    :
+rel pump_running   :
+rel valve12_open   :
+rel valve23_open   :
+
+; === AXIOMS ===
+
+; --- Physical vessel capacities (unchanged from v1) ---
+axiom cap_t1        : (= (capacity 1) 100)
+axiom cap_t2        : (= (capacity 2) 80)
+axiom cap_t3        : (= (capacity 3) 60)
+
+; --- Safety setpoints (CONDITION II: min_safe_level tightened from 10 to 12) ---
+; REPLACES: axiom min_safe : min_safe_level = 10
+axiom min_safe_v2   : (= min_safe_level 12)
+axiom high_high     : (= high_high_level 90)
+axiom alarm_low     : (= alarm_setpoint_low 15)
+
+; --- Setpoint ordering (still coherent under new min_safe_level = 12) ---
+axiom setpoint_order_1 : (< min_safe_level alarm_setpoint_low)
+axiom setpoint_order_2 : (< alarm_setpoint_low high_high_level)
+axiom setpoint_order_3 : (< high_high_level (capacity 1))
+
+; --- Non-negativity laws ---
+axiom nn_level_1    : (>= (level 1) 0)
+axiom nn_level_2    : (>= (level 2) 0)
+axiom nn_level_3    : (>= (level 3) 0)
+
+; --- Capacity bounds ---
+axiom cap_bound_1   : (<= (level 1) (capacity 1))
+axiom cap_bound_2   : (<= (level 2) (capacity 2))
+axiom cap_bound_3   : (<= (level 3) (capacity 3))
+
+; --- Conservation ---
+axiom conservation  : (= total_volume (+ (level 1) (+ (level 2) (level 3))))
+axiom total_min     : (>= total_volume 0)
+axiom total_max     : (<= total_volume 240)
+
+; --- Rated flow parameters ---
+axiom pump_flow     : (= pump_rated_flow 5)
+axiom valve_flow    : (= valve_rated_flow 4)
+
+; --- Flow rate non-negativity ---
+axiom pos_inflow_1  : (>= (inflow_rate 1) 0)
+axiom pos_inflow_2  : (>= (inflow_rate 2) 0)
+axiom pos_inflow_3  : (>= (inflow_rate 3) 0)
+axiom pos_outflow_1 : (>= (outflow_rate 1) 0)
+axiom pos_outflow_2 : (>= (outflow_rate 2) 0)
+axiom pos_outflow_3 : (>= (outflow_rate 3) 0)
+
+; --- Flow rate upper bounds ---
+axiom max_inflow_1  : (<= (inflow_rate 1) pump_rated_flow)
+axiom max_inflow_2  : (<= (inflow_rate 2) valve_rated_flow)
+axiom max_inflow_3  : (<= (inflow_rate 3) valve_rated_flow)
+axiom max_outflow_1 : (<= (outflow_rate 1) valve_rated_flow)
+axiom max_outflow_2 : (<= (outflow_rate 2) valve_rated_flow)
+axiom max_outflow_3 : (<= (outflow_rate 3) 3)
+
+; --- SIL-2 response time ---
+axiom sil_resp      : (= sil_response_time 5)
+
+; --- Proof test interval ---
+axiom proof_test    : (= proof_test_interval 60)
+
+; --- Net flow definition ---
+axiom net_flow_def  : (= net_flow (- (inflow_rate 1) (outflow_rate 3)))

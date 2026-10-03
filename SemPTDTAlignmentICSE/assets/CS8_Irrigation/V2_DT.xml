@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // CS9 DT -- Crop Water Budget Monitoring Twin (FAO-56 agronomist vocabulary)
+        // Standard: FAO-56:1998 (Penman-Monteith ET, depletion threshold, water budget)
+        //           ISO 11783-10:2015 (task controller prescription maps)
+        //
+        // Perspective: agronomist (FAO-56 evapotranspiration vocabulary)
+        //
+        // Label mapping (FAO-56 agronomist vocabulary mirrors ISOBUS commands):
+        //   irrigation_start_z1!  --&gt; water_application_zone1!
+        //   irrigation_start_z2!  --&gt; water_application_zone2!
+        //   irrigation_start_z3!  --&gt; water_application_zone3!
+        //   irrigation_complete!  --&gt; water_application_event!
+        //   drain_start!          --&gt; drainage_cycle_start!
+        //   deficit_alarm!        --&gt; deficit_threshold_breach!
+        //   emergency_irrigation! --&gt; emergency_water_application!
+        //   overflow_alarm!       --&gt; field_capacity_exceeded!
+        //   overflow_cleared!     --&gt; soil_moisture_nominal!
+        //   maintenance_start!    --&gt; system_check_start!    (self-loop in DT_MONITORING)
+        //   maintenance_complete! --&gt; system_check_complete! (self-loop in DT_MONITORING)
+        //
+        // The DT has 7 locations (no dedicated MAINTENANCE state).
+        // system_check_start! and system_check_complete! are modelled as self-loops on
+        // DT_MONITORING, consistent with the agronomist view where maintenance is
+        // transparent to the water budget model.
+        //
+        // Clocks:
+        //   t_et       : ET reference cycle timer / sensor data freshness
+        //   t_budget   : drainage settling timer / system check duration
+        //   t_deficit  : time since last water application (mirrors t_dry in PT)
+        //   t_dt_zone  : time in current water application zone
+        clock t_et, t_budget, t_deficit, t_dt_zone;
+        chan water_application_zone1, water_application_zone2, water_application_zone3,
+             water_application_event, drainage_cycle_start, deficit_threshold_breach,
+             emergency_water_application, field_capacity_exceeded, soil_moisture_nominal,
+             system_check_start, system_check_complete;
+    </declaration>
+    <template>
+        <name>CropWaterBudgetDT</name>
+        <location id="DT_MONITORING" x="0" y="0">
+            <name x="-10" y="-34">DT_MONITORING</name>
+        </location>
+        <location id="DT_MAINTENANCE" x="-200" y="-200">
+            <name x="-240" y="-234">DT_MAINTENANCE</name>
+            <label kind="invariant" x="-240" y="-217">t_budget &lt;= 60</label>
+        </location>
+        <location id="DT_WATER_APPLICATION_Z1" x="300" y="-200">
+            <name x="260" y="-234">DT_WATER_APPLICATION_Z1</name>
+            <label kind="invariant" x="260" y="-217">t_dt_zone &lt;= 60</label>
+        </location>
+        <location id="DT_WATER_APPLICATION_Z2" x="300" y="0">
+            <name x="260" y="-34">DT_WATER_APPLICATION_Z2</name>
+            <label kind="invariant" x="260" y="17">t_dt_zone &lt;= 45</label>
+        </location>
+        <location id="DT_WATER_APPLICATION_Z3" x="300" y="200">
+            <name x="260" y="166">DT_WATER_APPLICATION_Z3</name>
+            <label kind="invariant" x="260" y="217">t_dt_zone &lt;= 30</label>
+        </location>
+        <location id="DT_DRAINAGE" x="-200" y="200">
+            <name x="-240" y="166">DT_DRAINAGE</name>
+            <label kind="invariant" x="-240" y="217">t_budget &lt;= 15</label>
+        </location>
+        <location id="DT_DEFICIT_ALERT" x="-300" y="-100">
+            <name x="-360" y="-134">DT_DEFICIT_ALERT</name>
+        </location>
+        <location id="DT_OVERFLOW_ALERT" x="600" y="0">
+            <name x="560" y="-34">DT_OVERFLOW_ALERT</name>
+        </location>
+        <init ref="DT_MONITORING"/>
+        <!-- DT_MONITORING -> DT_WATER_APPLICATION_Z1 -->
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_WATER_APPLICATION_Z1"/>
+            <label kind="guard" x="50" y="-117">t_deficit &gt;= 24 &amp;&amp; t_et &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="-100">water_application_zone1!</label>
+            <label kind="assignment" x="50" y="-83">t_dt_zone := 0, t_et := 0</label>
+        </transition>
+        <!-- DT_WATER_APPLICATION_Z1 -> DT_MONITORING: FAO-56 Zone 1 window [10,60] -->
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z1"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="340" y="-100">t_dt_zone &gt;= 10 &amp;&amp; t_dt_zone &lt;= 60</label>
+            <label kind="synchronisation" x="340" y="-83">water_application_event!</label>
+            <label kind="assignment" x="340" y="-66">t_deficit := 0, t_et := 0</label>
+        </transition>
+        <!-- DT_MONITORING -> DT_WATER_APPLICATION_Z2 -->
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_WATER_APPLICATION_Z2"/>
+            <label kind="guard" x="50" y="-17">t_deficit &gt;= 24 &amp;&amp; t_et &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="0">water_application_zone2!</label>
+            <label kind="assignment" x="50" y="17">t_dt_zone := 0, t_et := 0</label>
+        </transition>
+        <!-- DT_WATER_APPLICATION_Z2 -> DT_MONITORING: FAO-56 Zone 2 window [8,45] -->
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z2"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="340" y="-17">t_dt_zone &gt;= 8 &amp;&amp; t_dt_zone &lt;= 45</label>
+            <label kind="synchronisation" x="340" y="0">water_application_event!</label>
+            <label kind="assignment" x="340" y="17">t_deficit := 0, t_et := 0</label>
+        </transition>
+        <!-- DT_MONITORING -> DT_WATER_APPLICATION_Z3 -->
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_WATER_APPLICATION_Z3"/>
+            <label kind="guard" x="50" y="117">t_deficit &gt;= 24 &amp;&amp; t_et &lt;= 3</label>
+            <label kind="synchronisation" x="50" y="134">water_application_zone3!</label>
+            <label kind="assignment" x="50" y="151">t_dt_zone := 0, t_et := 0</label>
+        </transition>
+        <!-- DT_WATER_APPLICATION_Z3 -> DT_MONITORING: FAO-56 Zone 3 window [6,30] -->
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z3"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="340" y="117">t_dt_zone &gt;= 6 &amp;&amp; t_dt_zone &lt;= 30</label>
+            <label kind="synchronisation" x="340" y="134">water_application_event!</label>
+            <label kind="assignment" x="340" y="151">t_deficit := 0, t_et := 0</label>
+        </transition>
+        <!-- ZONE_x -> DT_DRAINAGE: drainage_cycle_start! -->
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z1"/>
+            <target ref="DT_DRAINAGE"/>
+            <label kind="synchronisation" x="50" y="-34">drainage_cycle_start!</label>
+            <label kind="assignment" x="50" y="-17">t_budget := 0</label>
+        </transition>
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z2"/>
+            <target ref="DT_DRAINAGE"/>
+            <label kind="synchronisation" x="50" y="100">drainage_cycle_start!</label>
+            <label kind="assignment" x="50" y="117">t_budget := 0</label>
+        </transition>
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z3"/>
+            <target ref="DT_DRAINAGE"/>
+            <label kind="synchronisation" x="50" y="200">drainage_cycle_start!</label>
+            <label kind="assignment" x="50" y="217">t_budget := 0</label>
+        </transition>
+        <!-- DT_DRAINAGE -> DT_MONITORING: tau, FAO-56 drainage settling [3,15] -->
+        <transition>
+            <source ref="DT_DRAINAGE"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="-180" y="100">t_budget &gt;= 3 &amp;&amp; t_budget &lt;= 15</label>
+            <label kind="assignment" x="-180" y="117">t_et := 0</label>
+        </transition>
+        <!-- DT_MONITORING -> DT_DEFICIT_ALERT: FAO-56 critical deficit -->
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_DEFICIT_ALERT"/>
+            <label kind="guard" x="-200" y="-50">t_deficit &gt;= 48</label>
+            <label kind="synchronisation" x="-200" y="-33">deficit_threshold_breach!</label>
+        </transition>
+        <!-- DT_DEFICIT_ALERT -> DT_WATER_APPLICATION_Z1: emergency water application -->
+        <transition>
+            <source ref="DT_DEFICIT_ALERT"/>
+            <target ref="DT_WATER_APPLICATION_Z1"/>
+            <label kind="synchronisation" x="50" y="-200">emergency_water_application!</label>
+            <label kind="assignment" x="50" y="-183">t_dt_zone := 0</label>
+        </transition>
+        <!-- ZONE_x -> DT_OVERFLOW_ALERT: field_capacity_exceeded! -->
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z1"/>
+            <target ref="DT_OVERFLOW_ALERT"/>
+            <label kind="guard" x="450" y="-117">t_et &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="-100">field_capacity_exceeded!</label>
+            <label kind="assignment" x="450" y="-83">t_et := 0</label>
+        </transition>
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z2"/>
+            <target ref="DT_OVERFLOW_ALERT"/>
+            <label kind="guard" x="450" y="-17">t_et &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="0">field_capacity_exceeded!</label>
+            <label kind="assignment" x="450" y="17">t_et := 0</label>
+        </transition>
+        <transition>
+            <source ref="DT_WATER_APPLICATION_Z3"/>
+            <target ref="DT_OVERFLOW_ALERT"/>
+            <label kind="guard" x="450" y="117">t_et &lt;= 1</label>
+            <label kind="synchronisation" x="450" y="134">field_capacity_exceeded!</label>
+            <label kind="assignment" x="450" y="151">t_et := 0</label>
+        </transition>
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_OVERFLOW_ALERT"/>
+            <label kind="guard" x="200" y="-17">t_et &lt;= 1</label>
+            <label kind="synchronisation" x="200" y="0">field_capacity_exceeded!</label>
+            <label kind="assignment" x="200" y="17">t_et := 0</label>
+        </transition>
+        <!-- DT_OVERFLOW_ALERT -> DT_MONITORING: soil moisture nominal (t_et >= 2) -->
+        <transition>
+            <source ref="DT_OVERFLOW_ALERT"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="450" y="100">t_et &gt;= 2</label>
+            <label kind="synchronisation" x="450" y="117">soil_moisture_nominal!</label>
+            <label kind="assignment" x="450" y="134">t_et := 0</label>
+        </transition>
+        <!-- DT_MONITORING -> DT_MAINTENANCE: mirrors PT MONITORING -> MAINTENANCE via maintenance_start! -->
+        <transition>
+            <source ref="DT_MONITORING"/>
+            <target ref="DT_MAINTENANCE"/>
+            <label kind="synchronisation" x="-160" y="-80">system_check_start!</label>
+            <label kind="assignment" x="-160" y="-63">t_budget := 0</label>
+        </transition>
+        <!-- DT_MAINTENANCE -> DT_MONITORING: mirrors PT MAINTENANCE -> MONITORING via maintenance_complete! -->
+        <transition>
+            <source ref="DT_MAINTENANCE"/>
+            <target ref="DT_MONITORING"/>
+            <label kind="guard" x="-160" y="-130">t_budget &gt;= 10 &amp;&amp; t_budget &lt;= 60</label>
+            <label kind="synchronisation" x="-160" y="-113">system_check_complete!</label>
+            <label kind="assignment" x="-160" y="-96">t_et := 0</label>
+        </transition>
+    </template>
+    <system>
+        CropWaterBudgetDT = CropWaterBudgetDT();
+        system CropWaterBudgetDT;
+    </system>
+</nta>

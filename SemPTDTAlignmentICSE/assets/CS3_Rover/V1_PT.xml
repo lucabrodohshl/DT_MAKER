@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Autonomous Inspection Rover — Physical Twin (Flight Software Engineer view)
+        // Standard references:
+        //   NASA NPR 7150.2D:2022  — NASA Software Engineering Requirements
+        //   NASA-STD-8739.8A:2017  — Software Assurance Standard
+        //   ECSS-E-ST-10-06C:2017  — Technical Requirements Specification
+        //   NASA-HDBK-2203         — DO-178C guidance for safety-critical rover software (DAL-B)
+        //
+        // t_mission  : elapsed mission time (never reset — mission-level budget)
+        // t_segment  : elapsed time in current navigation segment
+        // t_inspect  : elapsed time in current inspection window
+        // t_battery  : elapsed time since last full charge (proxy for energy depletion)
+        // t_fault    : elapsed time since last fault event
+        clock t_mission, t_segment, t_inspect, t_battery, t_fault;
+
+        chan mission_start,
+             waypoint_reached,
+             inspection_start, inspection_complete,
+             return_initiated, base_reached, charge_complete,
+             fault_noncritical, fault_cleared,
+             fault_critical, emergency_return,
+             comms_timeout, comms_restored,
+             mission_end;
+    </declaration>
+
+    <template>
+        <name>RoverPT</name>
+
+        <location id="STANDBY" x="0" y="0">
+            <name x="-10" y="-34">STANDBY</name>
+        </location>
+
+        <location id="NAVIGATING" x="300" y="0">
+            <name x="260" y="-34">NAVIGATING</name>
+            <label kind="invariant" x="260" y="17">t_segment &lt;= 36</label>
+        </location>
+
+        <location id="AT_WAYPOINT" x="600" y="0">
+            <name x="560" y="-34">AT_WAYPOINT</name>
+        </location>
+
+        <location id="INSPECTING" x="900" y="0">
+            <name x="860" y="-34">INSPECTING</name>
+            <label kind="invariant" x="860" y="17">t_inspect &lt;= 24</label>
+        </location>
+
+        <location id="MISSION_COMPLETE" x="1200" y="0">
+            <name x="1160" y="-34">MISSION_COMPLETE</name>
+        </location>
+
+        <location id="RETURNING" x="300" y="300">
+            <name x="260" y="266">RETURNING</name>
+            <label kind="invariant" x="260" y="317">t_segment &lt;= 30</label>
+        </location>
+
+        <location id="CHARGING" x="0" y="300">
+            <name x="-10" y="266">CHARGING</name>
+            <label kind="invariant" x="-10" y="317">t_battery &lt;= 60</label>
+        </location>
+
+        <location id="SAFE_MODE" x="600" y="300">
+            <name x="560" y="266">SAFE_MODE</name>
+            <label kind="invariant" x="560" y="317">t_fault &lt;= 30</label>
+        </location>
+
+        <location id="FAULT_CRITICAL" x="900" y="300">
+            <name x="860" y="266">FAULT_CRITICAL</name>
+            <label kind="invariant" x="860" y="317">t_fault &lt;= 15</label>
+        </location>
+
+        <location id="COMMS_LOST" x="300" y="-200">
+            <name x="260" y="-234">COMMS_LOST</name>
+        </location>
+
+        <init ref="STANDBY"/>
+
+        <!-- Normal mission flow -->
+        <transition>
+            <source ref="STANDBY"/>
+            <target ref="NAVIGATING"/>
+            <label kind="synchronisation" x="100" y="-17">mission_start!</label>
+            <label kind="assignment" x="100" y="0">t_mission := 0, t_segment := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="AT_WAYPOINT"/>
+            <label kind="guard" x="370" y="-17">t_segment &gt;= 9 &amp;&amp; t_segment &lt;= 36</label>
+            <label kind="synchronisation" x="370" y="0">waypoint_reached!</label>
+            <label kind="assignment" x="370" y="17">t_segment := 0, t_inspect := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="AT_WAYPOINT"/>
+            <target ref="INSPECTING"/>
+            <label kind="synchronisation" x="710" y="-17">inspection_start!</label>
+            <label kind="assignment" x="710" y="0">t_inspect := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="INSPECTING"/>
+            <target ref="NAVIGATING"/>
+            <label kind="guard" x="600" y="50">t_inspect &gt;= 6 &amp;&amp; t_inspect &lt;= 24</label>
+            <label kind="synchronisation" x="600" y="67">inspection_complete!</label>
+            <label kind="assignment" x="600" y="84">t_segment := 0</label>
+        </transition>
+
+        <!-- Last waypoint: mission end -->
+        <transition>
+            <source ref="INSPECTING"/>
+            <target ref="MISSION_COMPLETE"/>
+            <label kind="guard" x="1010" y="-17">t_inspect &gt;= 6 &amp;&amp; t_inspect &lt;= 24</label>
+            <label kind="synchronisation" x="1010" y="0">mission_end!</label>
+        </transition>
+
+        <!-- Battery / return flow -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="RETURNING"/>
+            <label kind="guard" x="100" y="150">t_battery &gt;= 45</label>
+            <label kind="synchronisation" x="100" y="167">return_initiated!</label>
+            <label kind="assignment" x="100" y="184">t_segment := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="RETURNING"/>
+            <target ref="CHARGING"/>
+            <label kind="guard" x="50" y="317">t_segment &gt;= 9 &amp;&amp; t_segment &lt;= 30</label>
+            <label kind="synchronisation" x="50" y="334">base_reached!</label>
+            <label kind="assignment" x="50" y="351">t_battery := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="CHARGING"/>
+            <target ref="STANDBY"/>
+            <label kind="guard" x="-200" y="150">t_battery &gt;= 24</label>
+            <label kind="synchronisation" x="-200" y="167">charge_complete!</label>
+        </transition>
+
+        <!-- Non-critical fault: from NAVIGATING, INSPECTING, RETURNING -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="SAFE_MODE"/>
+            <label kind="guard" x="350" y="150">t_fault &lt;= 15</label>
+            <label kind="synchronisation" x="350" y="167">fault_noncritical!</label>
+            <label kind="assignment" x="350" y="184">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="INSPECTING"/>
+            <target ref="SAFE_MODE"/>
+            <label kind="guard" x="700" y="150">t_fault &lt;= 15</label>
+            <label kind="synchronisation" x="700" y="167">fault_noncritical!</label>
+            <label kind="assignment" x="700" y="184">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="RETURNING"/>
+            <target ref="SAFE_MODE"/>
+            <label kind="guard" x="450" y="300">t_fault &lt;= 15</label>
+            <label kind="synchronisation" x="450" y="317">fault_noncritical!</label>
+            <label kind="assignment" x="450" y="334">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="SAFE_MODE"/>
+            <target ref="NAVIGATING"/>
+            <label kind="guard" x="400" y="200">t_fault &gt;= 6 &amp;&amp; t_fault &lt;= 30</label>
+            <label kind="synchronisation" x="400" y="217">fault_cleared!</label>
+            <label kind="assignment" x="400" y="234">t_fault := 0</label>
+        </transition>
+
+        <!-- Critical fault: from any active mission state -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="FAULT_CRITICAL"/>
+            <label kind="guard" x="550" y="150">t_fault &lt;= 6</label>
+            <label kind="synchronisation" x="550" y="167">fault_critical!</label>
+            <label kind="assignment" x="550" y="184">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="AT_WAYPOINT"/>
+            <target ref="FAULT_CRITICAL"/>
+            <label kind="guard" x="750" y="150">t_fault &lt;= 6</label>
+            <label kind="synchronisation" x="750" y="167">fault_critical!</label>
+            <label kind="assignment" x="750" y="184">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="INSPECTING"/>
+            <target ref="FAULT_CRITICAL"/>
+            <label kind="guard" x="900" y="150">t_fault &lt;= 6</label>
+            <label kind="synchronisation" x="900" y="167">fault_critical!</label>
+            <label kind="assignment" x="900" y="184">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="RETURNING"/>
+            <target ref="FAULT_CRITICAL"/>
+            <label kind="guard" x="600" y="300">t_fault &lt;= 6</label>
+            <label kind="synchronisation" x="600" y="317">fault_critical!</label>
+            <label kind="assignment" x="600" y="334">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FAULT_CRITICAL"/>
+            <target ref="RETURNING"/>
+            <label kind="guard" x="650" y="350">t_fault &lt;= 15</label>
+            <label kind="synchronisation" x="650" y="367">emergency_return!</label>
+            <label kind="assignment" x="650" y="384">t_segment := 0</label>
+        </transition>
+
+        <!-- Communication loss (ECSS-E-ST-10-06C Cl.5.2.3) -->
+        <transition>
+            <source ref="NAVIGATING"/>
+            <target ref="COMMS_LOST"/>
+            <label kind="guard" x="150" y="-100">t_segment &gt;= 24</label>
+            <label kind="synchronisation" x="150" y="-83">comms_timeout!</label>
+            <label kind="assignment" x="150" y="-66">t_fault := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="COMMS_LOST"/>
+            <target ref="NAVIGATING"/>
+            <label kind="guard" x="350" y="-100">t_fault &gt;= 3</label>
+            <label kind="synchronisation" x="350" y="-83">comms_restored!</label>
+        </transition>
+
+    </template>
+
+    <system>RoverPT = RoverPT(); system RoverPT;</system>
+
+</nta>

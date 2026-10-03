@@ -1,0 +1,33 @@
+; DT Interpretation: CraneDT — Threshold Drift Misalignment Variant (Variant A)
+; VARIANT A: load_exceedance_event! uses threshold 480 instead of rated_load (=500).
+; This creates a 20 kg gap: loads 480-500 kg trigger alarm in DT but are within
+; safe operating range; actual overloads (>500 kg) reach the DT via a path where
+; the alarm has already fired at 480, masking the true rated-load breach.
+;
+; Expected: semantic alignment check returns FALSE (NOT aligned).
+; Z3 will refute: Delta |= (> current_load 480) <-> (> current_load rated_load)
+; because rated_load = 500 and 480 ≠ 500.
+
+; --- Location interpretations (identical to dt.interp) ---
+DT_IDLE             : (and (= hoist_speed 0) (= travel_speed 0) (>= brake_force min_brake_force))
+DT_CYCLE_ACTIVE     : (and (> hoist_speed 0) (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded))
+DT_FLOOR_DWELL      : (and (= hoist_speed 0) (<= current_load rated_load))
+DT_BRIDGE_MOTION    : (and (> travel_speed 0) (<= travel_speed max_travel_speed) (= hoist_speed 0))
+DT_LOAD_EXCEEDANCE  : (> current_load rated_load)
+DT_PROTECTIVE_STOP  : (and (= hoist_speed 0) (= travel_speed 0))
+DT_DUTY_REST        : (and (= hoist_speed 0) (>= cycles_since_rest thermal_rest_limit))
+DT_INSPECTION       : (= hoist_speed 0)
+
+; --- Event interpretations ---
+hoist_command!           : (and (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded) (>= brake_force 0))
+cycle_logged!            : (and (<= current_load rated_load) (<= hoist_speed max_hoist_speed_loaded))
+bridge_motion_start!     : (and (= hoist_speed 0) (<= travel_speed max_travel_speed))
+bridge_motion_end!       : (and (= hoist_speed 0) (= travel_speed 0))
+load_setdown_event!      : (= current_load 0)
+; DRIFT: original is (> current_load rated_load), drift variant uses literal 480
+load_exceedance_event!   : (> current_load 480)
+protective_stop_command! : (and (> current_load rated_load) (= hoist_speed 0))
+duty_cycle_rest_start!   : (>= cycles_since_rest thermal_rest_limit)
+duty_cycle_rest_end!     : (= cycles_since_rest 0)
+inspection_start!        : (= hoist_speed 0)
+inspection_complete!     : (= hoist_speed 0)

@@ -1,0 +1,27 @@
+; DT Interpretation v2: GraspingMissionDT (under domain_v2.ont)
+; max_alignment_error is now 1 degree (tightened from 2, ISO 9283 high-value target variant).
+; All formulas reference max_alignment_error symbolically -- Theorem 1 preserved.
+
+; --- Location interpretations ---
+DT_IDLE              : (and (= grasp_force 0) (> approach_distance contact_threshold))
+DT_PROXIMITY_OPS     : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+DT_ATTITUDE_SYNC     : (and (<= approach_distance 5) (<= alignment_error (+ max_alignment_error 1)))
+DT_CAPTURE_SEQUENCE  : (and (<= approach_distance contact_threshold) (> grasp_force 0))
+DT_CAPTURE_CONFIRMED : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+DT_RELEASE_OPS       : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+DT_RELEASE_IN_PROGRESS : (and (>= grasp_force 0) (<= approach_distance contact_threshold))
+DT_ABORT_SEQUENCE    : (= grasp_force 0)
+DT_ANOMALY           : (> target_torque max_target_torque)
+
+; --- Event interpretations (symbolic -- unchanged from dt.interp) ---
+mission_phase_start!         : (and (> approach_distance contact_threshold) (<= target_tumble_rate max_tumble_rate))
+proximity_ops_confirmed!     : (and (<= approach_distance 5) (<= target_tumble_rate max_tumble_rate))
+attitude_sync_telemetry!     : (and (<= alignment_error max_alignment_error) (<= approach_distance (+ contact_threshold 1)))
+capture_sequence_start!      : (and (<= alignment_error max_alignment_error) (<= approach_distance contact_threshold))
+capture_confirmed_telemetry! : (and (>= grasp_force min_grasp_force) (<= grasp_force max_grasp_force))
+release_sequence_start!      : (>= grasp_force min_grasp_force)
+release_confirmed!           : (= grasp_force 0)
+abort_uplink!                : (>= target_tumble_rate (- max_tumble_rate 1))
+safe_config_confirmed!       : (and (= grasp_force 0) (> approach_distance contact_threshold))
+anomaly_detected_telemetry!  : (> target_torque max_target_torque)
+emergency_abort_command!     : (and (> target_torque max_target_torque) (= grasp_force 0))

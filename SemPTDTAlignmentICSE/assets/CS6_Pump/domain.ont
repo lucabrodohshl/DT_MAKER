@@ -1,0 +1,51 @@
+; Ontology: GPCA Infusion Pump -- Clinical Dosage Domain
+; Standards: IEC 60601-1:2005+AMD1:2012, IEC 62443-3-3:2013,
+;            FDA Infusion Pump Software Safety Research 2010, ASTM F2761-09
+; Fragment: QF_LRA
+
+; === SORTS ===
+sort Volume      ; ml -- medication volume, non-negative
+sort Rate        ; ml_per_hr -- infusion rate
+sort DoseIndex   ; integer -- bolus event counter
+sort Pressure    ; mmHg -- line pressure for occlusion detection
+
+; === FUNCTIONS ===
+fun dose_delivered       : Volume    ; cumulative volume infused (ml)
+fun prescribed_dose      : Volume    ; clinician-ordered total dose (ml)
+fun dose_tolerance       : Volume    ; FDA allowable over-infusion tolerance (ml)
+fun bolus_volume         : Volume    ; volume per bolus event (ml)
+fun max_bolus_volume     : Volume    ; FDA hard limit per bolus: 5 ml
+fun primary_rate         : Rate      ; current primary infusion rate (ml/hr)
+fun max_primary_rate     : Rate      ; FDA safety limit: 300 ml/hr
+fun kvo_rate             : Rate      ; KVO minimum rate: 1 ml/hr
+fun bolus_count          : DoseIndex ; total bolus events delivered
+fun max_bolus_per_hour   : DoseIndex ; PCA lockout limit: max 4 per hour
+fun line_pressure        : Pressure  ; downstream line pressure (mmHg)
+fun occlusion_threshold  : Pressure  ; pressure triggering occlusion alarm (mmHg)
+
+; === RELATIONS ===
+rel over_infused     :  ; dose_delivered > prescribed_dose + dose_tolerance
+rel occluded         :  ; line_pressure > occlusion_threshold
+rel bolus_locked_out :  ; bolus_count >= max_bolus_per_hour
+
+; === AXIOMS ===
+; IEC 60601-1 / FDA: concrete infusion parameters
+axiom prescribed_val   : (= prescribed_dose 100)
+axiom tolerance_val    : (= dose_tolerance 5)
+axiom max_bolus_vol    : (= max_bolus_volume 5)
+axiom max_rate_val     : (= max_primary_rate 300)
+axiom kvo_rate_val     : (= kvo_rate 1)
+axiom max_bolus_hr     : (= max_bolus_per_hour 4)
+axiom occlusion_thresh : (= occlusion_threshold 300)
+; Derived: prescribed + tolerance = 105
+axiom over_infuse_def  : (= (+ prescribed_dose dose_tolerance) 105)
+; Non-negativity constraints
+axiom nn_dose          : (>= dose_delivered 0)
+axiom nn_rate          : (>= primary_rate 0)
+axiom nn_bolus_vol     : (>= bolus_volume 0)
+axiom nn_pressure      : (>= line_pressure 0)
+axiom nn_bolus_count   : (>= bolus_count 0)
+; Safety bounds
+axiom bolus_vol_bound  : (<= bolus_volume max_bolus_volume)
+axiom rate_bound       : (<= primary_rate max_primary_rate)
+axiom kvo_rate_lower   : (>= kvo_rate 0)

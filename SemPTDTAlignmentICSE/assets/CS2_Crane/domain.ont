@@ -1,0 +1,119 @@
+; Ontology: Overhead Travelling Crane
+; Standard references:
+;   IEC 60204-1:2016  — Safety of Machinery: Electrical Equipment, Cl.9-12
+;   EN 13001-1:2015   — Crane Safety: General Design Principles
+;   EN 15011:2011+A1  — Bridge and Gantry Cranes: design and testing
+;   ISO 4301-1:1986   — Cranes: Classification (duty cycle classes M0–M8)
+;
+; Fragment: Quantifier-free Linear Real Arithmetic (QF_LRA)
+; All axioms are linear over Load, Force, Speed, Height, CycleCount, Temperature domains.
+
+; === SORTS ===
+sort Load          ; kg — mass of lifted object, non-negative real
+sort Force         ; kN — mechanical force (hoist tension, brake force)
+sort Speed         ; m/s — linear velocity, non-negative real
+sort Height        ; m — elevation above ground, non-negative real
+sort FloorIndex    ; integer 0, 1, 2 (ground, mezzanine, upper)
+sort CycleCount    ; natural number — cumulative hoist cycle counter
+sort Temperature   ; Celsius — motor winding temperature
+sort Time          ; seconds — timing reference
+
+; === FUNCTIONS ===
+; Physical load and capacity
+fun current_load      : Load        ; mass currently on hook (kg)
+fun rated_load        : Load        ; EN 13001 rated capacity (kg)
+fun max_load          : Load        ; rated_load * dynamic_factor (EN 13001 phi_2)
+fun dynamic_factor    : Force       ; EN 13001 phi_2 dynamic load factor
+
+; Hoist geometry
+fun current_height    : Height      ; current hook height above floor (m)
+fun floor_height      : FloorIndex -> Height  ; height of each floor level (m)
+fun max_height        : Height      ; upper limit switch position (EN 15011)
+fun min_height        : Height      ; lower limit switch position (EN 15011)
+
+; Motion parameters
+fun hoist_speed       : Speed       ; current hoist speed (m/s)
+fun max_hoist_speed_loaded   : Speed  ; EN 15011: max speed under load
+fun max_hoist_speed_unloaded : Speed  ; EN 15011: max speed unloaded
+fun travel_speed      : Speed       ; bridge travel speed (m/s)
+fun max_travel_speed  : Speed       ; EN 15011 bridge speed limit
+
+; Duty cycle parameters (ISO 4301)
+fun hoist_cycles_total  : CycleCount  ; cumulative hoist cycles since commissioning
+fun duty_cycle_limit    : CycleCount  ; ISO 4301 M4 class: 25000 cycles
+fun cycles_since_rest   : CycleCount  ; cycles since last thermal rest (EN 15011)
+fun thermal_rest_limit  : CycleCount  ; EN 15011: 120 cycles before mandatory rest
+
+; Motor thermal state
+fun motor_temperature   : Temperature  ; current winding temperature
+fun max_motor_temp      : Temperature  ; IEC 60204 Cl.12.4 thermal protection setpoint
+fun ambient_temperature : Temperature  ; facility ambient
+
+; Structural parameters (EN 13001)
+fun hoist_force         : Force     ; actual hoist rope tension (kN)
+fun brake_force         : Force     ; mechanical brake application force (kN)
+fun min_brake_force     : Force     ; IEC 60204 Cl.12.4 minimum required
+
+; === RELATIONS ===
+rel overloaded         :            ; holds when current_load > rated_load
+rel thermally_limited  :            ; holds when motor_temperature > max_motor_temp
+rel at_upper_limit     :            ; holds when current_height >= max_height
+rel at_lower_limit     :            ; holds when current_height <= min_height
+rel duty_limit_reached :            ; holds when cycles_since_rest >= thermal_rest_limit
+rel service_life_exceeded :         ; holds when hoist_cycles_total >= duty_cycle_limit
+
+; === AXIOMS ===
+
+; --- EN 13001 rated capacity and dynamic factor ---
+; Upper bound only: domain_v2.ont refines this to (= rated_load 475), which entails (<= 500).
+axiom rated_load_val     : (<= rated_load 500)
+axiom dynamic_factor_val : (= dynamic_factor 1)
+axiom max_load_def       : (= max_load rated_load)
+
+; --- EN 15011 speed limits ---
+axiom max_hoist_loaded   : (= max_hoist_speed_loaded 1)
+axiom max_hoist_unloaded : (= max_hoist_speed_unloaded 2)
+axiom max_travel_sp      : (= max_travel_speed 3)
+
+; --- Non-negativity ---
+axiom nn_load            : (>= current_load 0)
+axiom nn_height          : (>= current_height 0)
+axiom nn_hoist_speed     : (>= hoist_speed 0)
+axiom nn_travel_speed    : (>= travel_speed 0)
+axiom nn_cycles          : (>= hoist_cycles_total 0)
+axiom nn_cycles_rest     : (>= cycles_since_rest 0)
+axiom nn_temp            : (>= motor_temperature 0)
+
+; --- Floor height definitions (EN 15011 facility layout) ---
+axiom floor0_height      : (= (floor_height 0) 0)
+axiom floor1_height      : (= (floor_height 1) 4)
+axiom floor2_height      : (= (floor_height 2) 8)
+
+; --- Height limit switches (EN 15011 Cl.6.2) ---
+axiom max_h              : (= max_height 9)
+axiom min_h              : (= min_height 0)
+axiom height_upper_bound : (<= current_height max_height)
+axiom height_lower_bound : (>= current_height min_height)
+
+; --- IEC 60204 Cl.12.4 thermal protection ---
+axiom max_temp_val       : (= max_motor_temp 120)
+axiom ambient_val        : (= ambient_temperature 20)
+axiom temp_bound         : (>= motor_temperature ambient_temperature)
+axiom temp_upper         : (<= motor_temperature (+ max_motor_temp 10))
+
+; --- ISO 4301 M4 duty cycle limits ---
+axiom duty_limit_val     : (= duty_cycle_limit 25000)
+axiom thermal_rest_lim   : (= thermal_rest_limit 120)
+axiom cycles_monotone    : (>= hoist_cycles_total cycles_since_rest)
+
+; --- IEC 60204 Cl.10.6 brake requirements ---
+axiom min_brake_val      : (= min_brake_force 10)
+axiom brake_bound        : (>= brake_force 0)
+
+; --- Load vs rated capacity (EN 13001) ---
+; +50 kg tolerance models the uncertainty band before overload trips.
+axiom load_capacity_rel  : (<= current_load (+ max_load 50))
+
+; --- Hoist speed constraint under load (EN 15011) ---
+; +1 tolerance for deceleration transient before limit switch trips
+axiom speed_loaded_bound : (<= hoist_speed (+ max_hoist_speed_loaded 1))

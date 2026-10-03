@@ -1,0 +1,30 @@
+; Interpretation: IrrigationControllerPT -- PT (ISOBUS / precision agriculture engineer)
+; Ontology: domain.ont
+; Standards: ISO 11783-7:2015 (ISOBUS), ISO 11783-10:2015 (prescription maps),
+;            FAO-56:1998 (Penman-Monteith ET, depletion threshold)
+;
+; Perspective: precision agriculture engineer -- ISOBUS section control firmware
+; All function applications use SMT-LIB2 prefix notation: (f x) for f(x)
+
+; === LOCATION INTERPRETATIONS ===
+MONITORING        : (and (>= (soil_moisture 1) (wilting_point 1)) (>= (soil_moisture 2) (wilting_point 2)) (>= (soil_moisture 3) (wilting_point 3)))
+IRRIGATION_ZONE_1 : (and (< (soil_moisture 1) (raw 1)) (>= (irrigation_applied 1) 0))
+IRRIGATION_ZONE_2 : (and (< (soil_moisture 2) (raw 2)) (>= (irrigation_applied 2) 0))
+IRRIGATION_ZONE_3 : (and (< (soil_moisture 3) (raw 3)) (>= (irrigation_applied 3) 0))
+DRAINING          : (>= (soil_moisture 1) 0)
+ALARM_DEFICIT     : (> irrigation_deficit (raw 1))
+ALARM_OVERFLOW    : (>= (soil_moisture 1) (field_capacity 1))
+MAINTENANCE       : (>= (soil_moisture 1) 0)
+
+; === EVENT INTERPRETATIONS ===
+irrigation_start_z1!  : (and (< (soil_moisture 1) (raw 1)) (<= et_crop max_application_rate))
+irrigation_start_z2!  : (and (< (soil_moisture 2) (raw 2)) (<= et_crop max_application_rate))
+irrigation_start_z3!  : (and (< (soil_moisture 3) (raw 3)) (<= et_crop max_application_rate))
+irrigation_complete!  : (and (>= (irrigation_applied 1) min_application_per_zone) (<= (soil_moisture 1) (field_capacity 1)))
+drain_start!          : (> (soil_moisture 1) (raw 1))
+deficit_alarm!        : (> irrigation_deficit (raw 1))
+emergency_irrigation! : (> irrigation_deficit (raw 1))
+overflow_alarm!       : (>= (soil_moisture 1) (field_capacity 1))
+overflow_cleared!     : (< (soil_moisture 1) (field_capacity 1))
+maintenance_start!    : (<= irrigation_deficit 0)
+maintenance_complete! : (>= (soil_moisture 1) (wilting_point 1))

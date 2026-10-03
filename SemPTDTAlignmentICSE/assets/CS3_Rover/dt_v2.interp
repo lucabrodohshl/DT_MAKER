@@ -1,0 +1,24 @@
+; DT Interpretation v2: RoverDT — Ontology Evolution (Condition III tightening)
+; Updated to reference tighter battery_reserve = 30 Wh (from domain_v2.ont).
+; Symbolic reference to battery_reserve — formula text unchanged.
+
+; --- Location interpretations ---
+DT_STANDBY            : (and (>= battery_level battery_reserve) (= mission_progress 0))
+DT_NAV_MONITORING     : (and (> distance_to_waypoint 0) (>= battery_level battery_reserve))
+DT_WAYPOINT_DWELL     : (<= distance_to_waypoint waypoint_accept_radius)
+DT_SENSOR_ACTIVE      : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected 0))
+DT_RETURN_MONITORING  : (and (> distance_to_base 0) (< battery_level battery_capacity))
+DT_RECHARGE_MONITORING: (= distance_to_base 0)
+DT_MINOR_ANOMALY      : (>= battery_level battery_reserve)
+DT_CRITICAL_ANOMALY   : (< battery_level battery_capacity)
+DT_MISSION_COMPLETE   : (= mission_progress 100)
+
+; --- Event interpretations (symbolic — tightened via domain_v2.ont) ---
+telemetry_position_update!   : (and (<= distance_to_waypoint waypoint_accept_radius) (>= battery_level battery_reserve))
+data_downlink_event!         : (and (<= distance_to_waypoint waypoint_accept_radius) (>= data_collected data_required_per_wp))
+; return_command_uplinked! now encodes tighter threshold: battery_level <= 50 Wh
+return_command_uplinked!     : (<= battery_level (+ battery_reserve energy_to_base))
+base_contact_confirmed!      : (= distance_to_base 0)
+anomaly_flag_critical!       : (< battery_level battery_reserve)
+abort_sequence_commanded!    : (< battery_level battery_reserve)
+mission_complete_telemetry!  : (= mission_progress 100)

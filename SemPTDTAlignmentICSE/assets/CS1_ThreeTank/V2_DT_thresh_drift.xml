@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Three-Tank Digital Twin (DT) — IEC 61511-1:2016
+        // Process safety engineer perspective (water-budget / volume monitoring).
+        // Labels differ from PT; semantically equivalent under IEC 61511 ontology.
+        // DT observes with up to 2 time-unit telemetry latency (relaxed upper bounds).
+        clock t_inflow, t_safety, t_budget, t_diag;
+        chan pump_activate_monitor, pump_deactivate_monitor,
+             inflow_t2_start, inflow_t2_stop,
+             inflow_t3_start, inflow_t3_stop,
+             outflow_start,
+             safety_margin_breach, protective_trip_command,
+             diagnostic_cycle_start, diagnostic_cycle_complete,
+             system_reset;
+    </declaration>
+
+    <template>
+        <name>ThreeTankDT</name>
+
+        <location id="mon_idle" x="0" y="0">
+            <name x="-10" y="-34">MONITOR_IDLE</name>
+        </location>
+
+        <location id="mon_inflow" x="250" y="0">
+            <name x="210" y="-34">MONITOR_INFLOW_ACTIVE</name>
+            <label kind="invariant" x="210" y="17">t_inflow &lt;= 122</label>
+        </location>
+
+        <location id="mon_t1t2" x="500" y="0">
+            <name x="460" y="-34">MONITOR_TRANSFER_T1T2</name>
+            <label kind="invariant" x="460" y="17">t_budget &lt;= 62</label>
+        </location>
+
+        <location id="mon_t2t3" x="750" y="0">
+            <name x="710" y="-34">MONITOR_TRANSFER_T2T3</name>
+            <label kind="invariant" x="710" y="17">t_safety &lt;= 47</label>
+        </location>
+
+        <location id="mon_outflow" x="1000" y="0">
+            <name x="990" y="-34">MONITOR_OUTFLOW</name>
+            <label kind="invariant" x="990" y="17">t_inflow &lt;= 32</label>
+        </location>
+
+        <location id="mon_diag" x="0" y="250">
+            <name x="-10" y="216">MONITOR_DIAGNOSTIC</name>
+            <label kind="invariant" x="-10" y="267">t_diag &lt;= 62</label>
+        </location>
+
+        <location id="mon_alert" x="500" y="250">
+            <name x="470" y="216">MONITOR_SAFETY_ALERT</name>
+            <label kind="invariant" x="470" y="267">t_safety &lt;= 7</label>
+        </location>
+
+        <location id="mon_trip" x="750" y="250">
+            <name x="740" y="216">MONITOR_TRIP</name>
+        </location>
+
+        <init ref="mon_idle"/>
+
+        <!-- MONITOR_IDLE -> MONITOR_INFLOW_ACTIVE : pump_activate_monitor! -->
+        <transition>
+            <source ref="mon_idle"/>
+            <target ref="mon_inflow"/>
+            <label kind="synchronisation" x="100" y="-17">pump_activate_monitor!</label>
+            <label kind="assignment" x="100" y="0">t_inflow := 0</label>
+        </transition>
+
+        <!-- MONITOR_INFLOW_ACTIVE -> MONITOR_IDLE : pump_deactivate_monitor! (telemetry latency +2 units) -->
+        <transition>
+            <source ref="mon_inflow"/>
+            <target ref="mon_idle"/>
+            <label kind="synchronisation" x="100" y="34">pump_deactivate_monitor!</label>
+        </transition>
+
+        <!-- MONITOR_INFLOW_ACTIVE -> MONITOR_TRANSFER_T1T2 : inflow_t2_start! -->
+        <transition>
+            <source ref="mon_inflow"/>
+            <target ref="mon_t1t2"/>
+            <label kind="guard" x="310" y="-17">t_inflow &gt;= 10</label>
+            <label kind="synchronisation" x="310" y="0">inflow_t2_start!</label>
+            <label kind="assignment" x="310" y="17">t_budget := 0</label>
+        </transition>
+
+        <!-- MONITOR_TRANSFER_T1T2 -> MONITOR_IDLE : inflow_t2_stop! -->
+        <transition>
+            <source ref="mon_t1t2"/>
+            <target ref="mon_idle"/>
+            <label kind="guard" x="250" y="85">t_budget &gt;= 5</label>
+            <label kind="synchronisation" x="250" y="102">inflow_t2_stop!</label>
+        </transition>
+
+        <!-- MONITOR_TRANSFER_T1T2 -> MONITOR_TRANSFER_T2T3 : inflow_t3_start! -->
+        <transition>
+            <source ref="mon_t1t2"/>
+            <target ref="mon_t2t3"/>
+            <label kind="guard" x="560" y="-17">t_budget &gt;= 15</label>
+            <label kind="synchronisation" x="560" y="0">inflow_t3_start!</label>
+            <label kind="assignment" x="560" y="17">t_safety := 0</label>
+        </transition>
+
+        <!-- MONITOR_TRANSFER_T2T3 -> MONITOR_IDLE : inflow_t3_stop! -->
+        <transition>
+            <source ref="mon_t2t3"/>
+            <target ref="mon_idle"/>
+            <label kind="guard" x="375" y="85">t_safety &gt;= 5</label>
+            <label kind="synchronisation" x="375" y="102">inflow_t3_stop!</label>
+        </transition>
+
+        <!-- MONITOR_TRANSFER_T2T3 -> MONITOR_OUTFLOW : outflow_start! -->
+        <transition>
+            <source ref="mon_t2t3"/>
+            <target ref="mon_outflow"/>
+            <label kind="guard" x="810" y="-17">t_safety &gt;= 10</label>
+            <label kind="synchronisation" x="810" y="0">outflow_start!</label>
+            <label kind="assignment" x="810" y="17">t_inflow := 0</label>
+        </transition>
+
+        <!-- MONITOR_OUTFLOW -> MONITOR_IDLE : tau (drain completes) -->
+        <transition>
+            <source ref="mon_outflow"/>
+            <target ref="mon_idle"/>
+            <label kind="guard" x="500" y="68">t_inflow &gt;= 5</label>
+        </transition>
+
+        <!-- ANY -> MONITOR_SAFETY_ALERT : safety_margin_breach! (IEC 61511 Cl.9.3) -->
+        <transition>
+            <source ref="mon_idle"/>
+            <target ref="mon_alert"/>
+            <label kind="synchronisation" x="220" y="130">safety_margin_breach!</label>
+            <label kind="assignment" x="220" y="147">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="mon_inflow"/>
+            <target ref="mon_alert"/>
+            <label kind="synchronisation" x="355" y="130">safety_margin_breach!</label>
+            <label kind="assignment" x="355" y="147">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="mon_t1t2"/>
+            <target ref="mon_alert"/>
+            <label kind="synchronisation" x="490" y="130">safety_margin_breach!</label>
+            <label kind="assignment" x="490" y="147">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="mon_t2t3"/>
+            <target ref="mon_alert"/>
+            <label kind="synchronisation" x="625" y="130">safety_margin_breach!</label>
+            <label kind="assignment" x="625" y="147">t_safety := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="mon_outflow"/>
+            <target ref="mon_alert"/>
+            <label kind="synchronisation" x="760" y="130">safety_margin_breach!</label>
+            <label kind="assignment" x="760" y="147">t_safety := 0</label>
+        </transition>
+
+        <!-- MONITOR_SAFETY_ALERT -> MONITOR_TRIP : protective_trip_command! -->
+        <transition>
+            <source ref="mon_alert"/>
+            <target ref="mon_trip"/>
+            <label kind="synchronisation" x="600" y="267">protective_trip_command!</label>
+        </transition>
+
+        <!-- MONITOR_IDLE -> MONITOR_DIAGNOSTIC : diagnostic_cycle_start! -->
+        <transition>
+            <source ref="mon_idle"/>
+            <target ref="mon_diag"/>
+            <label kind="synchronisation" x="-60" y="130">diagnostic_cycle_start!</label>
+            <label kind="assignment" x="-60" y="147">t_diag := 0</label>
+        </transition>
+
+        <!-- MONITOR_DIAGNOSTIC -> MONITOR_IDLE : diagnostic_cycle_complete! -->
+        <transition>
+            <source ref="mon_diag"/>
+            <target ref="mon_idle"/>
+            <label kind="guard" x="-30" y="85">t_diag &gt;= 20</label>
+            <label kind="synchronisation" x="-30" y="102">diagnostic_cycle_complete!</label>
+        </transition>
+
+        <!-- MONITOR_TRIP -> MONITOR_IDLE : system_reset! (operator restart, same event as PT) -->
+        <transition>
+            <source ref="mon_trip"/>
+            <target ref="mon_idle"/>
+            <label kind="synchronisation" x="370" y="330">system_reset!</label>
+        </transition>
+
+    </template>
+
+    <system>
+        DT = ThreeTankDT();
+        system DT;
+    </system>
+</nta>

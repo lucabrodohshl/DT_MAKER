@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Crane Physical Twin (PT) — IEC 60204-1:2016, EN 13001-1:2015, EN 15011:2011+A1
+        // Electrical safety engineer perspective.
+        // Observable events: motor commands, brake actuation, limit-switch trips, overload alarms.
+        clock t_hoist, t_travel, t_brake, t_thermal, t_test;
+        chan hoist_up, hoist_down,
+             hoist_complete,
+             travel_start, travel_complete,
+             load_released,
+             overload_detected,
+             emergency_stop,
+             thermal_rest_start, thermal_rest_complete,
+             maintenance_start, maintenance_complete;
+    </declaration>
+
+    <template>
+        <name>CranePT</name>
+
+        <location id="parked" x="0" y="0">
+            <name x="-10" y="-34">PARKED</name>
+            <label kind="invariant" x="-10" y="17">t_thermal &lt;= 200</label>
+        </location>
+
+        <location id="hoist_up_loc" x="250" y="-150">
+            <name x="210" y="-184">HOIST_UP</name>
+            <label kind="invariant" x="210" y="-133">t_hoist &lt;= 123</label>
+        </location>
+
+        <location id="hoist_down_loc" x="250" y="150">
+            <name x="210" y="116">HOIST_DOWN</name>
+            <label kind="invariant" x="210" y="167">t_hoist &lt;= 123</label>
+        </location>
+
+        <location id="at_floor" x="500" y="0">
+            <name x="490" y="-34">AT_FLOOR</name>
+        </location>
+
+        <location id="travelling" x="750" y="0">
+            <name x="740" y="-34">TRAVELLING</name>
+            <label kind="invariant" x="740" y="17">t_travel &lt;= 63</label>
+        </location>
+
+        <location id="overload" x="500" y="300">
+            <name x="490" y="266">OVERLOAD</name>
+            <label kind="invariant" x="490" y="317">t_brake &lt;= 2</label>
+        </location>
+
+        <location id="emergency_stop_loc" x="750" y="300">
+            <name x="710" y="266">EMERGENCY_STOP</name>
+        </location>
+
+        <location id="thermal_rest" x="0" y="300">
+            <name x="-10" y="266">THERMAL_REST</name>
+            <label kind="invariant" x="-10" y="317">t_thermal &lt;= 63</label>
+        </location>
+
+        <location id="maintenance" x="0" y="-150">
+            <name x="-10" y="-184">MAINTENANCE</name>
+            <label kind="invariant" x="-10" y="-133">t_test &lt;= 123</label>
+        </location>
+
+        <init ref="parked"/>
+
+        <!-- PARKED -> HOIST_UP : hoist_up! [thermal guard folded into PARKED invariant] -->
+        <transition>
+            <source ref="parked"/>
+            <target ref="hoist_up_loc"/>
+            <label kind="synchronisation" x="40" y="-83">hoist_up!</label>
+            <label kind="assignment" x="40" y="-66">t_hoist := 0</label>
+        </transition>
+
+        <!-- HOIST_UP -> AT_FLOOR : hoist_complete! [guard: t_hoist >= 5 && t_hoist <= 120] -->
+        <transition>
+            <source ref="hoist_up_loc"/>
+            <target ref="at_floor"/>
+            <label kind="guard" x="310" y="-100">t_hoist &gt;= 5 &amp;&amp; t_hoist &lt;= 123</label>
+            <label kind="synchronisation" x="310" y="-83">hoist_complete!</label>
+            <label kind="assignment" x="310" y="-66">t_hoist := 0</label>
+        </transition>
+
+        <!-- PARKED -> HOIST_DOWN : hoist_down! [thermal guard folded into PARKED invariant] -->
+        <transition>
+            <source ref="parked"/>
+            <target ref="hoist_down_loc"/>
+            <label kind="synchronisation" x="40" y="117">hoist_down!</label>
+            <label kind="assignment" x="40" y="134">t_hoist := 0</label>
+        </transition>
+
+        <!-- HOIST_DOWN -> AT_FLOOR : hoist_complete! [guard: t_hoist >= 5 && t_hoist <= 120] -->
+        <transition>
+            <source ref="hoist_down_loc"/>
+            <target ref="at_floor"/>
+            <label kind="guard" x="310" y="100">t_hoist &gt;= 5 &amp;&amp; t_hoist &lt;= 123</label>
+            <label kind="synchronisation" x="310" y="117">hoist_complete!</label>
+            <label kind="assignment" x="310" y="134">t_hoist := 0</label>
+        </transition>
+
+        <!-- AT_FLOOR -> TRAVELLING : travel_start! -->
+        <transition>
+            <source ref="at_floor"/>
+            <target ref="travelling"/>
+            <label kind="synchronisation" x="560" y="-17">travel_start!</label>
+            <label kind="assignment" x="560" y="0">t_travel := 0</label>
+        </transition>
+
+        <!-- TRAVELLING -> PARKED : travel_complete! [guard: t_travel >= 3 && t_travel <= 60] -->
+        <transition>
+            <source ref="travelling"/>
+            <target ref="parked"/>
+            <label kind="guard" x="400" y="50">t_travel &gt;= 3 &amp;&amp; t_travel &lt;= 63</label>
+            <label kind="synchronisation" x="400" y="67">travel_complete!</label>
+            <label kind="assignment" x="400" y="84">t_travel := 0, t_thermal := 0</label>
+        </transition>
+
+        <!-- AT_FLOOR -> PARKED : load_released! -->
+        <transition>
+            <source ref="at_floor"/>
+            <target ref="parked"/>
+            <label kind="synchronisation" x="180" y="-50">load_released!</label>
+            <label kind="assignment" x="180" y="-33">t_brake := 0, t_thermal := 0</label>
+        </transition>
+
+        <!-- HOIST_UP -> OVERLOAD : overload_detected! [t_brake reset: response window starts here] -->
+        <transition>
+            <source ref="hoist_up_loc"/>
+            <target ref="overload"/>
+            <label kind="synchronisation" x="270" y="117">overload_detected!</label>
+            <label kind="assignment" x="270" y="134">t_brake := 0</label>
+        </transition>
+
+        <!-- HOIST_DOWN -> OVERLOAD : overload_detected! [t_brake reset: response window starts here] -->
+        <transition>
+            <source ref="hoist_down_loc"/>
+            <target ref="overload"/>
+            <label kind="synchronisation" x="270" y="217">overload_detected!</label>
+            <label kind="assignment" x="270" y="234">t_brake := 0</label>
+        </transition>
+
+        <!-- AT_FLOOR -> OVERLOAD : overload_detected! [t_brake reset: response window starts here] -->
+        <transition>
+            <source ref="at_floor"/>
+            <target ref="overload"/>
+            <label kind="synchronisation" x="460" y="167">overload_detected!</label>
+            <label kind="assignment" x="460" y="184">t_brake := 0</label>
+        </transition>
+
+        <!-- OVERLOAD -> EMERGENCY_STOP : emergency_stop! [guard: t_brake <= 1] -->
+        <transition>
+            <source ref="overload"/>
+            <target ref="emergency_stop_loc"/>
+            <label kind="guard" x="560" y="317">t_brake &lt;= 1</label>
+            <label kind="synchronisation" x="560" y="334">emergency_stop!</label>
+        </transition>
+
+        <!-- EMERGENCY_STOP -> PARKED : tau (recovery is internal; matches DT's tau DT_PROTECTIVE_STOP->DT_IDLE) -->
+        <transition>
+            <source ref="emergency_stop_loc"/>
+            <target ref="parked"/>
+            <label kind="assignment" x="400" y="217">t_thermal := 0</label>
+        </transition>
+
+        <!-- PARKED -> THERMAL_REST : thermal_rest_start! [guard: t_thermal >= 180] -->
+        <transition>
+            <source ref="parked"/>
+            <target ref="thermal_rest"/>
+            <label kind="guard" x="-150" y="150">t_thermal &gt;= 180</label>
+            <label kind="synchronisation" x="-150" y="167">thermal_rest_start!</label>
+            <label kind="assignment" x="-150" y="184">t_thermal := 0</label>
+        </transition>
+
+        <!-- THERMAL_REST -> PARKED : thermal_rest_complete! [guard: t_thermal >= 30 && t_thermal <= 60] -->
+        <transition>
+            <source ref="thermal_rest"/>
+            <target ref="parked"/>
+            <label kind="guard" x="-150" y="50">t_thermal &gt;= 30 &amp;&amp; t_thermal &lt;= 63</label>
+            <label kind="synchronisation" x="-150" y="67">thermal_rest_complete!</label>
+        </transition>
+
+        <!-- PARKED -> MAINTENANCE : maintenance_start! -->
+        <transition>
+            <source ref="parked"/>
+            <target ref="maintenance"/>
+            <label kind="synchronisation" x="-150" y="-100">maintenance_start!</label>
+            <label kind="assignment" x="-150" y="-83">t_test := 0</label>
+        </transition>
+
+        <!-- MAINTENANCE -> PARKED : maintenance_complete! [guard: t_test >= 20 && t_test <= 120] -->
+        <transition>
+            <source ref="maintenance"/>
+            <target ref="parked"/>
+            <label kind="guard" x="-150" y="-50">t_test &gt;= 20 &amp;&amp; t_test &lt;= 123</label>
+            <label kind="synchronisation" x="-150" y="-33">maintenance_complete!</label>
+            <label kind="assignment" x="-150" y="-16">t_thermal := 0</label>
+        </transition>
+
+    </template>
+
+    <system>CranePT = CranePT(); system CranePT;</system>
+
+</nta>

@@ -1,0 +1,22 @@
+# Code style for first-party C++ (include/, src/, apps/, tests/).
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++20
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Attach
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"twin/'
+    Priority: 3
+  - Regex: '^<(nlohmann|httplib|gtest|z3|utap|dbm)'
+    Priority: 2
+  - Regex: '^<'
+    Priority: 1
+SortIncludes: CaseSensitive

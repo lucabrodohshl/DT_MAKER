@@ -1,0 +1,36 @@
+; Interpretation: GPCA Infusion Pump -- DT Variant B (Threshold Drift)
+; Ontology: domain.ont
+; Variant: ice_safety_limit_breach! fires at dose_delivered > 110 instead
+;   of > prescribed_dose + dose_tolerance (= 105).
+; Clinical consequence: patient may receive up to 10 ml excess dose (10% of 100 ml)
+;   before the monitoring DT detects the overdose -- clinically significant for
+;   opioid infusions (e.g., morphine PCA where 5 ml excess can cause respiratory depression).
+; Z3 counterexample: dose_delivered = 108 satisfies (> 108 105) in PT
+;   but does NOT satisfy (> 108 110) in DT -- 3 ml unmonitored gap at 108 ml.
+; SemAlign: Z3 refutes semantic alignment via Condition II (label-equiv formula mismatch).
+
+; === LOCATION INTERPRETATIONS ===
+ICE_DISCONNECTED   : (= dose_delivered 0)
+ICE_PRIMING        : (= dose_delivered 0)
+ICE_THERAPY_ACTIVE : (and (> primary_rate 0) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+ICE_BOLUS_ACTIVE   : (and (> bolus_volume 0) (<= bolus_volume max_bolus_volume))
+ICE_THERAPY_PAUSED : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+ICE_KVO_MODE       : (and (= primary_rate kvo_rate) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+ICE_ALARM_OCCLUSION: (> line_pressure occlusion_threshold)
+ICE_ALARM_OVERDOSE : (> dose_delivered (+ prescribed_dose dose_tolerance))
+
+; === EVENT INTERPRETATIONS ===
+; NOTE: ice_safety_limit_breach! uses literal 110 instead of (+ prescribed_dose dose_tolerance)
+ice_device_connect!      : (= dose_delivered 0)
+ice_therapy_start!       : (and (> primary_rate 0) (<= primary_rate max_primary_rate))
+ice_bolus_request!       : (and (< bolus_count max_bolus_per_hour) (<= dose_delivered prescribed_dose))
+ice_bolus_confirmed!     : (and (<= bolus_volume max_bolus_volume) (<= dose_delivered (+ prescribed_dose dose_tolerance)))
+ice_therapy_pause!       : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+ice_therapy_resume!      : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+ice_kvo_mode_event!      : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+ice_kvo_resume!          : (<= dose_delivered (+ prescribed_dose dose_tolerance))
+ice_alarm_occlusion!     : (> line_pressure occlusion_threshold)
+ice_alarm_cleared!       : (<= line_pressure occlusion_threshold)
+ice_safety_limit_breach! : (> dose_delivered 110)
+ice_alarm_ack!           : (> dose_delivered (+ prescribed_dose dose_tolerance))
+ice_therapy_complete!    : (>= dose_delivered prescribed_dose)

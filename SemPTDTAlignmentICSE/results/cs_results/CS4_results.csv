@@ -1,0 +1,5 @@
+model_name,aligned,label_pairs_E,initial_pairs,final_pairs,smt_calls,fixpoint_iters,time_ms,peak_memory_kb
+CS4_aligned,true,13,1,1857,154,1857,20.542,2624
+CS4_egt_drift,false,11,1,0,193,3,16.343,136
+CS4_missing_flameout,false,10,1,0,180,3,15.208,184
+CS4_evo_v2,false,16,1,0,253,3,20.550,136

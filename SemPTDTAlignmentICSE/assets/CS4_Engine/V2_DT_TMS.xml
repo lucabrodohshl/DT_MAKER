@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<nta>
+    <declaration>
+        // Thrust Management Subsystem -- Digital Twin (TMS health monitoring subsystem)
+        // Locations: HM_GROUND_OPS, HM_HIGH_POWER, HM_CRUISE_OPS, HM_LOW_POWER,
+        //            HM_THERMAL_EVENT, HM_COMBUSTION_LOSS
+        clock t_health, t_egt, t_n1;
+
+        chan takeoff_power_mode, climb_power_mode, cruise_power_mode,
+             descent_power_mode, approach_power_mode, landing_power_mode,
+             thermal_exceedance_event, combustion_loss_event, relight_command_telemetry;
+    </declaration>
+
+    <template>
+        <name>ThrustMgmtDT</name>
+
+        <location id="HM_GROUND_OPS" x="0" y="0">
+            <name x="-20" y="-34">HM_GROUND_OPS</name>
+        </location>
+
+        <location id="HM_HIGH_POWER" x="300" y="0">
+            <name x="260" y="-34">HM_HIGH_POWER</name>
+            <label kind="invariant" x="260" y="17">t_health &lt;= 122</label>
+        </location>
+
+        <location id="HM_CRUISE_OPS" x="600" y="0">
+            <name x="560" y="-34">HM_CRUISE_OPS</name>
+        </location>
+
+        <location id="HM_LOW_POWER" x="600" y="300">
+            <name x="560" y="266">HM_LOW_POWER</name>
+            <label kind="invariant" x="560" y="317">t_health &lt;= 302</label>
+        </location>
+
+        <location id="HM_THERMAL_EVENT" x="300" y="-300">
+            <name x="260" y="-334">HM_THERMAL_EVENT</name>
+            <label kind="invariant" x="260" y="-283">t_egt &lt;= 7</label>
+        </location>
+
+        <location id="HM_COMBUSTION_LOSS" x="600" y="-300">
+            <name x="560" y="-334">HM_COMBUSTION_LOSS</name>
+            <label kind="invariant" x="560" y="-283">t_n1 &lt;= 5</label>
+        </location>
+
+        <init ref="HM_GROUND_OPS"/>
+
+        <transition>
+            <source ref="HM_GROUND_OPS"/>
+            <target ref="HM_HIGH_POWER"/>
+            <label kind="guard">t_health &gt;= 3</label>
+            <label kind="synchronisation">takeoff_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_HIGH_POWER"/>
+            <target ref="HM_CRUISE_OPS"/>
+            <label kind="guard">t_health &gt;= 10 &amp;&amp; t_health &lt;= 122</label>
+            <label kind="synchronisation">climb_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_CRUISE_OPS"/>
+            <label kind="guard">t_health &gt;= 30</label>
+            <label kind="synchronisation">cruise_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_LOW_POWER"/>
+            <label kind="guard">t_health &gt;= 60</label>
+            <label kind="synchronisation">descent_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_LOW_POWER"/>
+            <label kind="guard">t_health &gt;= 20 &amp;&amp; t_health &lt;= 302</label>
+            <label kind="synchronisation">approach_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_health &gt;= 5 &amp;&amp; t_health &lt;= 62</label>
+            <label kind="synchronisation">landing_power_mode!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_HIGH_POWER"/>
+            <target ref="HM_THERMAL_EVENT"/>
+            <label kind="guard">t_egt &lt;= 3</label>
+            <label kind="synchronisation">thermal_exceedance_event!</label>
+            <label kind="assignment">t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_THERMAL_EVENT"/>
+            <label kind="guard">t_egt &lt;= 3</label>
+            <label kind="synchronisation">thermal_exceedance_event!</label>
+            <label kind="assignment">t_egt = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_CRUISE_OPS"/>
+            <target ref="HM_COMBUSTION_LOSS"/>
+            <label kind="guard">t_n1 &lt;= 2</label>
+            <label kind="synchronisation">combustion_loss_event!</label>
+            <label kind="assignment">t_n1 = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_LOW_POWER"/>
+            <target ref="HM_COMBUSTION_LOSS"/>
+            <label kind="guard">t_n1 &lt;= 2</label>
+            <label kind="synchronisation">combustion_loss_event!</label>
+            <label kind="assignment">t_n1 = 0</label>
+        </transition>
+
+        <transition>
+            <source ref="HM_COMBUSTION_LOSS"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_n1 &gt;= 1 &amp;&amp; t_n1 &lt;= 5</label>
+            <label kind="synchronisation">relight_command_telemetry!</label>
+            <label kind="assignment">t_health = 0</label>
+        </transition>
+
+        <!-- Thermal event with no further action: DT absorbs via tau -->
+        <transition>
+            <source ref="HM_THERMAL_EVENT"/>
+            <target ref="HM_GROUND_OPS"/>
+            <label kind="guard">t_egt &gt;= 1 &amp;&amp; t_egt &lt;= 7</label>
+        </transition>
+
+    </template>
+
+    <system>
+        ThrustMgmtDT = ThrustMgmtDT();
+        system ThrustMgmtDT;
+    </system>
+</nta>

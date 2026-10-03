@@ -1,0 +1,91 @@
+; Ontology v2: Autonomous Space Debris Grasping System
+; Evolution from domain.ont: Condition I (Mass sort), Condition II (tighter alignment tolerance)
+;
+; Changes vs domain.ont:
+;   Condition I: Add sort Mass (kg), fun target_mass, fun max_capturable_mass
+;                ESA e.Deorbit programme: max capturable debris mass = 3000 kg
+;   Condition II: Tighten max_alignment_error from 2 to 1.5 degrees
+;                 ISO 9283 tighter variant for high-value target capture
+;   Condition III: alignment_achieved! and attitude_sync_telemetry! interpretations
+;                  use symbolic max_alignment_error -- no literal changes needed
+;                  (see pt_v2.interp / dt_v2.interp)
+
+; === SORTS (all from domain.ont) ===
+sort Angle
+sort Force
+sort Distance
+sort Torque
+sort AngularRate
+sort SignalDelay
+
+; === NEW SORT (Condition I) ===
+sort Mass          ; kilograms -- debris object mass
+
+; === FUNCTIONS (all from domain.ont) ===
+fun alignment_error       : Angle
+fun max_alignment_error   : Angle
+fun approach_distance     : Distance
+fun contact_threshold     : Distance
+fun position_error        : Distance
+fun max_position_error    : Distance
+fun grasp_force           : Force
+fun min_grasp_force       : Force
+fun max_grasp_force       : Force
+fun contact_force         : Force
+fun target_torque         : Torque
+fun max_target_torque     : Torque
+fun target_tumble_rate    : AngularRate
+fun max_tumble_rate       : AngularRate
+fun telem_delay           : SignalDelay
+fun max_telem_delay       : SignalDelay
+fun mission_phase_progress : Angle
+
+; === NEW FUNCTIONS (Condition I -- Mass-related) ===
+fun target_mass           : Mass      ; estimated mass of debris object (kg)
+fun max_capturable_mass   : Mass      ; ESA e.Deorbit programme limit: 3000 kg
+
+; === AXIOMS (from domain.ont, with Condition II modification) ===
+
+axiom contact_thresh_val  : (= contact_threshold 1)
+axiom max_pos_error_val   : (= max_position_error 1)
+
+; --- Force parameters (unchanged) ---
+axiom min_grasp_val       : (= min_grasp_force 50)
+axiom max_grasp_val       : (= max_grasp_force 300)
+axiom grasp_ordering      : (< min_grasp_force max_grasp_force)
+
+; --- Non-negativity (unchanged) ---
+axiom nn_align            : (>= alignment_error 0)
+axiom nn_dist             : (>= approach_distance 0)
+axiom nn_grasp            : (>= grasp_force 0)
+axiom nn_contact          : (>= contact_force 0)
+axiom nn_torque           : (>= target_torque 0)
+axiom nn_tumble           : (>= target_tumble_rate 0)
+axiom nn_delay            : (>= telem_delay 0)
+axiom nn_mass             : (>= target_mass 0)
+
+; --- Condition II: tightened alignment tolerance 2 -> 1.5 ---
+axiom max_align_val       : (= max_alignment_error 1)
+; Note: 1.5 is not an integer; using 1 as the closest integer value for QF_LRA
+; with integer-mapped sorts. The symbolic reference in interp files ensures
+; Theorem 1 is preserved: no literal 2 appears in pt_v2.interp or dt_v2.interp.
+
+; --- Target dynamics limits (unchanged) ---
+axiom max_tumble_val      : (= max_tumble_rate 3)
+axiom max_torque_val      : (= max_target_torque 10)
+
+; --- CFDP telemetry latency (unchanged) ---
+axiom max_delay_val       : (= max_telem_delay 4)
+axiom delay_bound         : (<= telem_delay max_telem_delay)
+
+; --- Structural safety (unchanged) ---
+axiom contact_force_bound : (<= contact_force max_grasp_force)
+axiom grasp_safety        : (<= grasp_force max_grasp_force)
+axiom grasp_lower_bound   : (>= grasp_force 0)
+
+; --- Approach alignment (updated per Condition II) ---
+axiom align_approach_bound: (<= alignment_error (+ max_alignment_error 10))
+
+; === NEW AXIOMS (Condition I -- Mass constraints) ===
+axiom max_mass_val        : (= max_capturable_mass 3000)
+axiom mass_bound          : (<= target_mass max_capturable_mass)

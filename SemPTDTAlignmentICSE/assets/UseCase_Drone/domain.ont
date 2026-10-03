@@ -1,0 +1,88 @@
+; Ontology: Autonomous Pesticide Spraying Drone -- Energy Budget Domain
+; Standards: EPPO PP 1/213(3):2012,    EU Regulation 2009/128/EC,
+;            EASA Reg.(EU) 2019/947,   ISO 16119-4:2014, ICAO Annex 2:2005
+; Fragment: QF_LRA (Quantifier-Free Linear Real Arithmetic)
+;
+; IMPORTANT: Sorts, functions, relations, and base axioms in this file
+; are consistent with Definition 5 / Example 1 of the paper.
+; The paper's Example 1 establishes this domain as the canonical running
+; example for the SemAlign framework validation.
+;
+; Ontology construction methodology:
+;   STEP 1: Governing standards identified
+;           - EPPO PP 1/213(3):2012 (efficacy evaluation, precision spraying)
+;           - EU Regulation 2009/128/EC (sustainable use of pesticides)
+;           - EASA Regulation (EU) 2019/947 (UAS rules and procedures)
+;           - ISO 16119-4:2014 (agricultural sprayer environmental requirements)
+;           - ICAO Annex 2:2005 (rules of the air, UAS operations)
+;   STEP 2: Vocabulary extracted from standards data dictionaries
+;           - EPPO PP 1/213(3) Sec.4.2: active substance application rate per hectare
+;           - EPPO PP 1/213(3) Sec.3.1: target area coverage definition
+;           - EU 2009/128/EC Art.12 + Annex II: aerial application GPS zone control
+;           - EASA 2019/947 UAS.OPEN.040: operational battery capacity limit
+;           - ISO 16119-4 Clause 6: coverage uniformity per hectare
+;           - ICAO Annex 2 Sec.3.1.9: flight time and UAS operational limits
+;   STEP 3: Normative requirement clauses formalised as FOL axioms (SMT-LIB2 prefix)
+;           - EPPO PP 1/213(3) Sec.4.2: consumption per hectare <= 50 (cons_upper axioms)
+;           - EASA 2019/947 UAS.OPEN.040: battery_capacity = 500 (bat_cap axiom)
+;           - EU 2009/128/EC Art.12: buffer_zone_width = 5m (buffer_val axiom)
+;           - ISO 16119-4: min_coverage_per_hectare = 40 (min_coverage axiom)
+;           - EASA 2019/947: battery_reserve = 50 (bat_reserve axiom)
+;           - ICAO Annex 2: max_flight_time = 300 (max_flight axiom)
+
+; === SORTS === (exactly as in Example 1 of the paper)
+sort Hectare      ; unit of land area -- discrete field zones
+sort Real         ; real-valued energy consumption
+sort Nat          ; natural-valued indices
+
+; === FUNCTIONS === (exactly as in Example 1 of the paper)
+fun consumption      : Hectare -> Real  ; energy to cover hectare h (EPPO PP 1/213(3))
+fun num_hectares     : Nat              ; total hectares in current mission
+fun total_consumption: Real             ; cumulative energy used so far
+fun battery_capacity : Real             ; total battery energy available (EASA 2019/947)
+
+; === RELATIONS === (exactly as in Example 1 of the paper)
+rel covered          : Hectare          ; holds when hectare h has been fully sprayed
+
+; === AXIOMS === (exactly as in Example 1 of the paper)
+; Number of hectares in mission (EPPO PP 1/213(3) standard field size)
+axiom num_h         : (= num_hectares 10)
+; Battery capacity: 500 units (EASA 2019/947 UAS.OPEN.040 manufacturer specification)
+axiom bat_cap       : (= battery_capacity 500)
+; Energy consumption per hectare is non-negative
+axiom nn_consumption: (>= (consumption 1) 0)
+; Per-hectare consumption bounded by EPPO PP 1/213(3) Sec.4.2 application rate limit:
+axiom cons_upper    : (<= (consumption 1) 50)
+axiom cons_upper_2  : (<= (consumption 2) 50)
+axiom cons_upper_3  : (<= (consumption 3) 50)
+axiom cons_upper_4  : (<= (consumption 4) 50)
+axiom cons_upper_5  : (<= (consumption 5) 50)
+; Total consumption is non-negative and bounded by battery capacity
+axiom total_nn      : (>= total_consumption 0)
+
+; === EXTENDED AXIOMS (EPPO PP 1/213(3) / EU 2009/128/EC / EASA / ISO / ICAO) ===
+
+; Per-hectare application rate limit (EPPO PP 1/213(3) Sec.4.2)
+; Maximum active substance dose per hectare: 50 units
+fun max_per_hectare_dose : Real
+axiom max_dose_val  : (= max_per_hectare_dose 50)
+
+; EU 2009/128/EC Article 12 buffer zone requirement:
+; No spray within 5 metres of water bodies (modelled as minimum boundary constraint)
+fun buffer_zone_width : Real
+axiom buffer_val    : (= buffer_zone_width 5)
+
+; ISO 16119-4:2014 coverage uniformity:
+; Minimum effective spray per hectare to achieve 85% coverage uniformity
+fun min_coverage_per_hectare : Real
+axiom min_coverage  : (= min_coverage_per_hectare 40)
+
+; Battery safety margin (EASA 2019/947 UAS.OPEN.040 reserve requirement):
+; Must retain 50 units of battery capacity as navigation reserve
+fun battery_reserve : Real
+axiom bat_reserve   : (= battery_reserve 50)
+
+; ICAO Annex 2:2005 maximum flight time per sortie (in time units):
+; Limits continuous UAS operation to maintain VLOS requirements
+fun max_flight_time : Real
+axiom max_flight    : (= max_flight_time 300)

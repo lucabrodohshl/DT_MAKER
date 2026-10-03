@@ -1,0 +1,32 @@
+; Interpretation: dt_v2 -- DT with updated ontology (domain_v2.ont)
+; Identical to dt.interp; all formulas reference (raw 1), (raw 2), (raw 3) symbolically.
+;
+; Theorem 1 (Variant B ontology evolution):
+;   All formulas use symbolic references (raw i), (field_capacity i), min_application_per_zone.
+;   Under domain_v2.ont: raw(1) = 13 (was 15). Both pt_v2.interp and dt_v2.interp
+;   use (raw 1), so the label equivalence between irrigation_start_z1! and
+;   water_application_zone1! (both: (< (soil_moisture 1) (raw 1))) is preserved
+;   with the new threshold. Alignment holds -- Theorem 1 is validated.
+
+; === LOCATION INTERPRETATIONS ===
+DT_MONITORING           : (and (>= (soil_moisture 1) (wilting_point 1)) (>= (soil_moisture 2) (wilting_point 2)) (>= (soil_moisture 3) (wilting_point 3)))
+DT_MAINTENANCE          : (>= (soil_moisture 1) 0)
+DT_WATER_APPLICATION_Z1 : (and (< (soil_moisture 1) (raw 1)) (>= (irrigation_applied 1) 0))
+DT_WATER_APPLICATION_Z2 : (and (< (soil_moisture 2) (raw 2)) (>= (irrigation_applied 2) 0))
+DT_WATER_APPLICATION_Z3 : (and (< (soil_moisture 3) (raw 3)) (>= (irrigation_applied 3) 0))
+DT_DRAINAGE             : (>= (soil_moisture 1) 0)
+DT_DEFICIT_ALERT        : (> irrigation_deficit (raw 1))
+DT_OVERFLOW_ALERT       : (>= (soil_moisture 1) (field_capacity 1))
+
+; === EVENT INTERPRETATIONS ===
+water_application_zone1!    : (and (< (soil_moisture 1) (raw 1)) (<= et_crop max_application_rate))
+water_application_zone2!    : (and (< (soil_moisture 2) (raw 2)) (<= et_crop max_application_rate))
+water_application_zone3!    : (and (< (soil_moisture 3) (raw 3)) (<= et_crop max_application_rate))
+water_application_event!    : (and (>= (irrigation_applied 1) min_application_per_zone) (<= (soil_moisture 1) (field_capacity 1)))
+drainage_cycle_start!       : (> (soil_moisture 1) (raw 1))
+deficit_threshold_breach!   : (> irrigation_deficit (raw 1))
+emergency_water_application!: (> irrigation_deficit (raw 1))
+field_capacity_exceeded!    : (>= (soil_moisture 1) (field_capacity 1))
+soil_moisture_nominal!      : (< (soil_moisture 1) (field_capacity 1))
+system_check_start!         : (<= irrigation_deficit 0)
+system_check_complete!      : (>= (soil_moisture 1) (wilting_point 1))
