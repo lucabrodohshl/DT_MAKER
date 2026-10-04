@@ -1,0 +1,22 @@
+; I_P: interpretation of the pump PT view (PumpControlPT) over process-pump.ont.
+; Vocabulary of the pump's control system (PLC alarm and sequence names).
+
+; --- locations ---
+RUN_NORMAL   : (and motor_running (not (> bearing_temp bearing_temp_limit)) (not (> vibration_rms vibration_limit)))
+RUN_ALARM    : (and motor_running (not (> bearing_temp bearing_temp_trip)) (not (and (<= bearing_temp bearing_temp_limit) (<= vibration_rms vibration_limit))))
+AUX_COOLING  : (and cooling_active motor_running (not (> bearing_temp bearing_temp_trip)))
+RAMP_DOWN    : (and (> shaft_speed 0) stop_requested)
+HALTED       : (and (= shaft_speed 0) (not motor_running))
+TRIPPED      : (and (> bearing_temp bearing_temp_trip) (not motor_running))
+
+; --- events ---
+alarm_raise!      : (not (and (<= bearing_temp bearing_temp_limit) (<= vibration_rms vibration_limit)))
+alarm_clear!      : (and (not cooling_active) (not (> bearing_temp bearing_temp_limit)) (not (> vibration_rms vibration_limit)))
+duty_up!          : (and (> rated_speed shaft_speed) load_increase_requested)
+aux_cooling_on!   : (and (> bearing_temp bearing_temp_limit) cooling_active)
+aux_cooling_done! : (and (not (> bearing_temp bearing_temp_limit)) cooling_active)
+ramp_down_cmd!    : stop_requested
+halted!           : (and (= shaft_speed 0) (not motor_running))
+emergency_trip!   : (< bearing_temp_trip bearing_temp)
+trip_reset!       : (and (not (> bearing_temp bearing_temp_limit)) trip_acknowledged)
+start_cmd!        : start_requested

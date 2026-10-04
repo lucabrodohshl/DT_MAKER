@@ -1,0 +1,152 @@
+% ===========================================================================
+\section{Kernel correctness: $\IR(\VD)\iso\Ksem(\IR(\VD))$}\label{sec:iso}
+% ===========================================================================
+
+\begin{definition}[Abstraction function]\label{def:alpha}
+\[
+  \abs:\W(\hat M)\to\Valid(M),\qquad
+  \abs(l,c,\tau)=\bigl(l,\ i\mapsto c_{i-1}/R,\ \tau/R\bigr).
+\]
+\end{definition}
+
+\begin{lemma}[$\abs$ is a bijection]\label{lem:alpha}
+$\abs$ is well defined and bijective. Its inverse is
+$\abs^{-1}(i,w,\theta)=(i,(R\,w(1),\dots,R\,w(n)),R\,\theta)$.
+\end{lemma}
+\begin{proof}
+Grid values are exactly the numbers $k/R$ with $k\in\Nat$, so division by $R$ is a
+bijection between $\{0,\dots,\Tmax\}$ and $\TR^{\Hz}$. The constraints
+$0\le c_i\le\tau\le\Tmax$ correspond to $0\le w(i)\le\theta\le\Hz$. The location index is
+copied. Validity corresponds by \cref{lem:atom} below.
+\end{proof}
+
+\begin{lemma}[Atom correspondence]\label{lem:atom}
+For $\kappa\in\W(\hat M)$ and every atom $(i,j,\bowtie,c)$ of $M$ with tick atom
+$(i,j,\bowtie,cR)$:
+\[
+  \kappa \text{ satisfies } (i,j,\bowtie,cR) \iff \abs(\kappa)\sat(i,j,\bowtie,c).
+\]
+\end{lemma}
+\begin{proof}
+Write $\abs(\kappa)=(l,w,\theta)$, so $w(i)=\mathit{val}_\kappa(i)/R$ for all $i$, including the
+reference clock with value $0$. Then $\mathit{val}_\kappa(i)-\mathit{val}_\kappa(j)\bowtie cR$ iff
+$R\,(w(i)-w(j))\bowtie R\,c$ iff $w(i)-w(j)\bowtie c$, because multiplication by $R>0$
+preserves $<,\le,=,\ge,>$. The left-hand side is computed exactly by \cref{lem:overflow}.
+\end{proof}
+
+\begin{theorem}[Kernel correctness]\label{thm:kernel}
+Let $M$ be well-formed and initialisable, with $\hat M=\code{Model::create}(M)$.
+Then $(\abs^{-1},\mathrm{id}_T,\mathrm{id}_P)$ is an isomorphism
+$\sem{M}\iso\Ksem(M)$, where an IR delay $d$ corresponds to the kernel delay $dR$.
+In detail, for all $s\in\Valid(M)$ and $\kappa=\abs^{-1}(s)$:
+\begin{enumerate}[label=(\roman*)]
+\item \textbf{Initial state.} \code{initial\_configuration} returns $\ok(\abs^{-1}(s_0))$.
+\item \textbf{Delay soundness and completeness.} $s\trans{d}s'$ in $\sem{M}$ iff
+  $\code{delay}(\hat M,\kappa,dR)=\ok(\abs^{-1}(s'))$.
+\item \textbf{Discrete soundness and completeness.} $s\trans{t_j}s'$ in $\sem{M}$ iff
+  $\code{fire}(\hat M,\kappa,j)=\ok(\abs^{-1}(s'))$.
+\item \textbf{Propositions.} $p\in\lab_M(s)$ iff $p\in\code{propositions}(\hat M,\kappa)$.
+\end{enumerate}
+\emph{Soundness} (the kernel cannot invent behaviour) is the right-to-left direction
+of (ii) and (iii). \emph{Completeness} (the kernel drops no behaviour) is the
+left-to-right direction.
+\end{theorem}
+\begin{proof}
+(i) The kernel returns $(\iota,0^n,0)=\abs^{-1}(\iota,\mathbf{0},0)$ iff that configuration
+satisfies $\hat J_\iota$, which by \cref{lem:atom} holds iff $\mathbf{0}\sat J_\iota$, the
+premise of \textsc{(Init$_M$)}.
+
+(ii) Let $s=(l,w,\theta)$ and $\kappa=(l,c,\tau)$, so $c=Rw$ and $\tau=R\theta$. The kernel
+returns $\ok(\kappa')$ exactly when all of the following hold: $dR\ge0$; $\kappa$
+satisfies $\hat J_l$; $\tau+dR\le\Tmax$ and $c_i+dR\le\Tmax$ for all $i$; and
+$(l,c+dR,\tau+dR)$ satisfies $\hat J_l$. In that case $\kappa'=(l,c+dR,\tau+dR)$. Since
+$c_i\le\tau$, the clock bounds follow from the time bound, which in turn is
+$\theta+d\le\Hz$. By \cref{lem:atom} the two invariant checks are $w\sat J_l$ and
+$w+d\sat J_l$. These are exactly the premises of \textsc{(Delay$_M$)}, and
+$\abs(\kappa')=(l,w+d,\theta+d)$ is its target. If the premises fail, the kernel returns
+an error, and $s$ has no $d$-successor in $\sem{M}$.
+
+(iii) Let $t_j=(\cdot,\mathit{src},\mathit{tgt},\alpha,g,Y)$. The kernel returns $\ok$ iff
+$l=\mathit{src}$, $\kappa$ satisfies $\hat g$, and $(\mathit{tgt},c[Y{:=}0],\tau)$ satisfies
+$\hat J_{\mathit{tgt}}$; the result is that configuration. By \cref{lem:atom}, and
+because $\abs$ commutes with resets ($\abs(l,c[Y{:=}0],\tau)$ has valuation $w[Y{:=}0]$),
+these are the premises of \textsc{(Disc$_M$)} and the targets coincide. The index
+range check never fails for $j<m$.
+
+(iv) Both labellings are $\{p_l\}$.
+
+The maps $\abs^{-1}$, $\mathrm{id}_T$ and $\mathrm{id}_P$ are bijections
+(\cref{lem:alpha}), so (i)--(iv) are the conditions of \cref{def:iso}.
+\end{proof}
+
+\subsection{Derived kernel services}
+
+\begin{lemma}[Enabling windows are exact]\label{lem:window}
+For valid $\kappa$ and transition $t_j$, \code{enabling\_window} returns an interval
+$[a,b]$ (with $b=\infty$ meaning unbounded up to the horizon) or nothing, and
+\[
+  \delta\in[a,b]\cap\Nat \iff \code{fire}(\hat M,\code{delay}(\hat M,\kappa,\delta),j)\text{ is }\ok .
+\]
+\end{lemma}
+\begin{proof}
+Every check made by \code{delay} and \code{fire} after a delay $\delta$ is an atom
+evaluated at a valuation $u+\delta s$, where $u$ is the current (or post-reset)
+valuation and $s_x\in\{0,1\}$ (0 for the reference clock and for reset clocks).
+Each atom becomes $d_0+k\delta\bowtie\hat c$ with $k\in\{-1,0,1\}$. For $k=0$ this is a
+constant truth value. For $k=\pm1$ it is a half-line or a point of integers, which
+\code{restrict\_delay} intersects exactly, translating strict bounds by $\pm1$
+because $\delta$ ranges over the integers. The horizon contributes
+$\delta\le\Tmax-\tau$ and $\delta\le\Tmax-c_i$. The intersection of all these sets is
+exactly the set of $\delta$ for which every check passes.
+\end{proof}
+
+\begin{definition}[Monitoring semantics]\label{def:monitor}
+For a non-empty finite set $S$ of kernel configurations sharing the time $\tau$,
+an observation $(\tau',\sigma)$, where $\sigma$ is an action label or a transition
+index, yields
+\[
+  \mathrm{obs}(S,\tau',\sigma)=\{\kappa'\mid \exists\kappa\in S,\,j\text{ matching }\sigma:\
+    \code{fire}(\code{delay}(\kappa,\tau'-\tau),j)=\ok(\kappa')\},
+\]
+and is rejected if this set is empty or $\tau'<\tau$. This is \code{kernel::observe}.
+\end{definition}
+
+\begin{proposition}[Monitor exactness]\label{prop:monitor}
+After observations $o_1\cdots o_r$ starting from $\{\kappa_0\}$, the monitor's
+set is exactly
+$\{\abs^{-1}(s)\mid s_0\text{ reaches }s\text{ in }\sem{M}\text{ by a run whose discrete
+steps match }o_1,\dots,o_r\text{ at the observed times}\}$, where intermediate
+internal steps are themselves observations, as in \cref{rem:tau}. In particular,
+for event-deterministic models, the set is always a singleton and the monitor
+coincides with $\Ksem$.
+\end{proposition}
+\begin{proof}
+By induction on $r$, using \cref{thm:kernel} for each delay/discrete pair and
+the definition of $\mathrm{obs}$ as the image of the step relation. Pure delay
+observations (\code{advance\_to}) are handled the same way.
+\end{proof}
+
+\begin{remark}[Internal steps]\label{rem:tau}
+$\tauact$-transitions of $\VD$ are internal decisions of the twin itself. The
+runtime fires them explicitly, by transition identifier and at a logical time,
+so the kernel never has to guess when they happened. The monitor therefore
+never computes $\tauact$-closures over unknown delays, which would require
+symbolic zones in the trusted kernel.
+\end{remark}
+
+\begin{proposition}[Prediction does not interfere]\label{prop:nointerf}
+No prediction or query function (\code{enabled\_transitions}, \code{successors},
+\code{enabling\_window}, \code{explore}, \code{simulate}, \code{evaluate\_propositions})
+changes the authoritative state. Snapshot restoration accepts exactly the
+admissible configurations $\W(\hat M)$.
+\end{proposition}
+\begin{proof}
+The free functions take their state arguments by \code{const} reference and
+return fresh values. The corresponding \code{KernelInstance} methods are
+\code{const} member functions, so the C++ type system forbids mutating the
+held state. \code{simulate} copies the start state explicitly. The mutators
+(\code{advance\_*}, \code{apply\_*}, \code{restore\_state}) compute the candidate state
+first and assign it only on success. \code{restore\_state} applies
+\code{check\_configuration} to every member, and that function implements
+membership in $\W(\hat M)$ (\cref{def:kconf}).
+\end{proof}

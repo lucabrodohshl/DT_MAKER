@@ -32,12 +32,26 @@
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
       }
+    },
+    {
+      "name": "studio-debug",
+      "displayName": "Verified Twin Studio (Debug)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "TWIN_BUILD_STUDIO": "ON", "TWIN_BUILD_ALIGNER_BENCHMARKS": "OFF" }
+    },
+    {
+      "name": "studio-release",
+      "displayName": "Verified Twin Studio (Release)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "TWIN_BUILD_STUDIO": "ON", "TWIN_BUILD_ALIGNER_BENCHMARKS": "OFF" }
     }
   ],
   "buildPresets": [
     { "name": "release", "configurePreset": "release", "jobs": 10 },
     { "name": "debug", "configurePreset": "debug", "jobs": 10 },
-    { "name": "asan", "configurePreset": "asan", "jobs": 10 }
+    { "name": "asan", "configurePreset": "asan", "jobs": 10 },
+    { "name": "studio-debug", "configurePreset": "studio-debug", "jobs": 10 },
+    { "name": "studio-release", "configurePreset": "studio-release", "jobs": 10 }
   ],
   "testPresets": [
     {
@@ -55,6 +69,12 @@
       "name": "asan",
       "configurePreset": "asan",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "studio-debug",
+      "configurePreset": "studio-debug",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "studio" } }
     }
   ]
 }

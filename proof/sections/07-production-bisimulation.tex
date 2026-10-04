@@ -1,0 +1,139 @@
+% ===========================================================================
+\section{The production runtime: $\Ksem\wbis\Kprod$}\label{sec:prod}
+% ===========================================================================
+
+The production runtime (\code{twin-runtime}, library \code{twin::runtime}) contains
+the kernel together with package loading, input adapters, an event sequencer,
+the execution ledger, REST/SSE APIs, metrics, snapshots, the mission
+controller and the co-simulation driver. We model it at the level of
+granularity at which it interacts with semantics.
+
+\subsection{Semantic and internal actions}
+
+\begin{definition}[Production LTTS $\Kprod$]\label{def:kprod}
+The states of $\Kprod(M)$ are pairs $(\kappa,b)$ with $\kappa\in\W(\hat M)$, the
+authoritative kernel configuration held by the session, and
+$b\in\mathcal{B}$, the \emph{bookkeeping state}: ledger file contents, event
+buffers, API caches, metrics, snapshot files, adapter queues, planner caches,
+and so on. The labels are the kernel labels (transitions $j$ and delays $\delta$)
+plus a set $\Sigma_{\mathrm{int}}$ of internal runtime actions, all of which are
+internal ($\tauact$):
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Internal action ($\tauact$) & Effect \\ \midrule
+ledger append / fsync / anchor & $b$ only \\
+API request parsing and response serialisation & $b$ only \\
+SSE / WebSocket publication & $b$ only \\
+metrics and structured logging & $b$ only \\
+snapshot persistence & $b$ only \\
+adapter polling (telemetry, map updates), queueing & $b$ only \\
+planning, plan validation, prediction queries & $b$ only (\cref{prop:nointerf}) \\
+\bottomrule
+\end{tabular}
+\end{center}
+The transitions are
+\begin{align*}
+(\kappa,b)&\trans{\lambda}(\kappa',b') && \text{if } \kappa\trans{\lambda}\kappa' \text{ in }\Ksem
+   \text{ and } b'=\mathit{rec}_\lambda(b,\kappa,\kappa'), \quad \lambda\in\{0..m-1\}\cup\Nat,\\
+(\kappa,b)&\trans{\tauact}(\kappa,b') && \text{for every internal action with effect } b\mapsto b',
+\end{align*}
+with labelling $\lab(\kappa,b)=\lab_K(\kappa)$. Here $\mathit{rec}$ is the
+bookkeeping that accompanies a committed step.
+\end{definition}
+
+The definition encodes three architectural properties. The theorem
+depends on them, and the implementation is built to ensure them.
+
+\begin{assumption}[Semantic isolation]\label{ass:isolation}
+No internal action modifies $\kappa$. In the code, the authoritative state is
+the private \code{KernelInstance} inside \code{TwinSession}. The session exposes
+only const views to adapters, the API, the ledger writer, the planner and the
+UI. The architecture tests check that runtime sources outside the session do
+not construct or assign kernel configurations.
+\end{assumption}
+
+\begin{assumption}[Single semantic authority]\label{ass:authority}
+Every change of $\kappa$ is the result of a kernel transition function
+(\code{delay}/\code{fire} via \code{KernelInstance}). There is no second
+implementation of the transition relation in the shell, adapters, planner or UI.
+The architecture tests check that runtime, planner and UI sources contain no
+location names of the model, so no shadow state machine can branch on them.
+\end{assumption}
+
+\begin{assumption}[Availability: no semantic refusal by the shell]\label{ass:available}
+Every well-formed request for a kernel step is forwarded to the kernel. Between
+two requests, the runtime performs only finitely many internal actions. The
+shell refuses a well-formed request only when the kernel refuses it, or when
+infrastructure fails (for example, the ledger cannot be written), in which case
+the runtime \emph{fails stop}: it accepts no further semantic steps.
+\end{assumption}
+
+\subsection{The weak bisimulation}
+
+\begin{theorem}[Production correctness]\label{thm:production}
+Under \cref{ass:isolation,ass:authority,ass:available}, and in the absence of
+infrastructure failures, the relation
+\[
+  \mathcal{R}=\{\,(\kappa,(\kappa,b))\mid \kappa\in\W(\hat M),\ b\in\mathcal{B}\,\}
+\]
+is a weak timed bisimulation between $\Ksem(M)$ and $\Kprod(M)$ that relates
+the initial states. Hence $\Ksem(M)\wbis\Kprod(M)$.
+\end{theorem}
+\begin{proof}
+The initial states are related because the runtime initialises the session
+with \code{KernelInstance::initialize}, that is, with \code{initial\_configuration}.
+Let $(\kappa,(\kappa,b))\in\mathcal{R}$.
+
+(W1) $\lab(\kappa,b)=\lab_K(\kappa)$ by definition.
+
+(W2) Suppose $\kappa\trans{\lambda}\kappa'$ in $\Ksem$, with $\lambda$ a transition or a
+delay. By \cref{ass:available}, a request for $\lambda$ reaches the kernel after
+finitely many internal actions $(\kappa,b)\wtrans{\epsilon}(\kappa,b_1)$; these leave
+$\kappa$ unchanged by \cref{ass:isolation}. The kernel computes the same function
+as in $\Ksem$, so $(\kappa,b_1)\trans{\lambda}(\kappa',b_2)$ with
+$b_2=\mathit{rec}_\lambda(b_1,\kappa,\kappa')$, and $(\kappa',(\kappa',b_2))\in\mathcal{R}$.
+If $\lambda$ is internal in $\Ksem$ (a $\tauact$-transition of the model), the same
+step is matched by a $\tauact$-step of $\Kprod$, which is admissible under
+$\wtrans{\epsilon}$.
+
+(W3) Suppose $(\kappa,b)\trans{\mu}(\kappa'',b'')$ in $\Kprod$. If $\mu$ is an internal
+runtime action, then $\kappa''=\kappa$ by \cref{ass:isolation}, and $\kappa$ matches it
+by the empty move, with $(\kappa,(\kappa,b''))\in\mathcal{R}$. Otherwise, by
+\cref{def:kprod} and \cref{ass:authority}, $\mu=\lambda$ is a kernel step
+$\kappa\trans{\lambda}\kappa''$, which $\Ksem$ matches exactly. Delays of $\Kprod$ are
+kernel delays, because logical time is a component of $\kappa$ and advances only
+through \code{delay}, so delay labels are matched exactly as well.
+\end{proof}
+
+\begin{corollary}[Safety under infrastructure failures]\label{cor:failstop}
+Without \cref{ass:available}, but with \cref{ass:isolation,ass:authority}, the
+relation $\mathcal{R}^{-1}$ is still a weak timed \emph{simulation} of $\Kprod$ by
+$\Ksem$. Every observable timed trace of the runtime, including traces cut short
+by a fail-stop, is a trace of $\Ksem$. Infrastructure failures can stop the twin;
+they cannot make it produce behaviour that the model does not admit.
+\end{corollary}
+\begin{proof}
+Clause (W3) of the proof above uses only \cref{ass:isolation,ass:authority}.
+\end{proof}
+
+\begin{remark}[The ledger is an internal action]\label{rem:ledger}
+A committed step is recorded in the ledger before the session publishes the new
+state (write-ahead), and the hash chain is computed from the committed values.
+The ledger therefore records the run, but it never influences which
+transitions exist. \Cref{thm:production} is independent of the ledger content,
+and replay (re-executing the recorded inputs with the kernel) reproduces the
+recorded states by determinism of the kernel functions.
+\end{remark}
+
+\begin{remark}[Monitor sets and execution policies]\label{rem:policy}
+For models that are not event-deterministic, the session holds the monitor set of
+\cref{def:monitor} instead of a single $\kappa$. \Cref{thm:production} then holds
+verbatim with $\kappa$ replaced by that set and $\Ksem$ replaced by its monitor
+(subset) construction, which is trace-equivalent to $\Ksem$ by \cref{prop:monitor}.
+Where an execution must commit to one successor (for example, to command the
+physical twin), the choice is made by an explicit \emph{policy} outside the
+kernel. A policy-constrained execution is a refinement: a weak timed
+\emph{simulation} by $\Ksem$, not a bisimulation. The demonstration model is
+event-deterministic (checked by the compiler), so neither situation arises there.
+\end{remark}

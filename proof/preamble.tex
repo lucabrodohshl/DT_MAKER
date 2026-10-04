@@ -1,0 +1,47 @@
+% ---------------------------------------------------------------------------
+% preamble.tex -- packages, theorem environments, layout
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.6cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{stmaryrd}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+\setlist{itemsep=2pt,topsep=4pt}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{assumption}[definition]{Assumption}
+\newtheorem{example}[definition]{Example}
+\theoremstyle{plain}
+\newtheorem{theorem}[definition]{Theorem}
+\newtheorem{lemma}[definition]{Lemma}
+\newtheorem{proposition}[definition]{Proposition}
+\newtheorem{corollary}[definition]{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}[definition]{Remark}
+
+\crefname{assumption}{Assumption}{Assumptions}
+
+\lstdefinestyle{kernel}{
+  language=C++,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{black!60},
+  columns=fullflexible,
+  frame=single,
+  framerule=0.3pt,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  showstringspaces=false,
+  escapeinside={(*}{*)},
+}
+\lstset{style=kernel}

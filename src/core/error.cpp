@@ -28,6 +28,14 @@ std::string_view to_string(ErrorCode code) noexcept {
     return "internal";
 }
 
+std::optional<ErrorCode> error_code_from_string(std::string_view name) noexcept {
+    for (int i = 0; i <= static_cast<int>(ErrorCode::Internal); ++i) {
+        const auto code = static_cast<ErrorCode>(i);
+        if (to_string(code) == name) return code;
+    }
+    return std::nullopt;
+}
+
 Error& Error::with(std::string key, std::string value) & {
     context.emplace_back(std::move(key), std::move(value));
     return *this;

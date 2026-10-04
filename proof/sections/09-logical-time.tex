@@ -1,0 +1,48 @@
+% ===========================================================================
+\section{Logical time in the runtime}\label{sec:time}
+% ===========================================================================
+
+\paragraph{Logical, not physical.}
+All time in the theorems is \emph{model time}. A timestamp $t$ on an observation
+means ``in the model, this event happens when the global logical clock $\theta$
+equals $t$''. The runtime does not read the operating system clock in order to
+decide semantic questions. The wall-clock time appears only as optional,
+informational metadata in ledger records and is never consulted by the kernel.
+The theorems therefore say nothing about how logical time relates to physical
+time; establishing that relation (sensor timestamping, clock synchronisation,
+bounded processing latency) is outside the scope of this report
+(\cref{sec:limitations}).
+
+\paragraph{Exact grid.}
+Timestamps are parsed exactly from decimal strings (\code{twin::parse\_time}):
+\code{"31.5"} at $R=1000$ is $31500$ ticks. A timestamp with more fractional
+digits than the grid allows yields the error \code{TimeNotRepresentable}; it is
+never rounded. The APIs reject JSON floating-point numbers for times.
+
+\paragraph{Observation processing.}
+An observation $(t,\sigma)$ is processed as a timed step: delay by $t-\theta$, then
+the discrete step selected by $\sigma$ (\cref{def:monitor}). Hence:
+\begin{itemize}
+\item if $t<\theta$, the observation is rejected (\code{TimeRegression});
+\item if the delay violates the current invariant, the observation is rejected
+  (\code{IncompatibleObservation}, reporting the deadline \code{max\_delay}). For
+  example, if the twin is in a location with invariant $x\le 5$ and $x=1.5$ at
+  $\theta=28$, an event at $t=31.5$ requires $x=5$ and is admissible, whereas an
+  event at $t=31.6$ is rejected;
+\item a rejected observation leaves the semantic state unchanged and is recorded
+  in the ledger as a rejection.
+\end{itemize}
+
+\paragraph{Simultaneous events.}
+Events carrying the same timestamp are processed one after the other with zero
+delay between them, in the order fixed by the runtime's single sequencer: the
+order in which the input adapters enqueue them, with a deterministic
+tie-breaking order between adapters. The ledger records that order, and replay
+follows it. This is a total order on inputs; it is part of the input, not of
+the model.
+
+\paragraph{Pure passage of time.}
+Between events the runtime may let time pass without an event
+(\code{advance\_to}). This is the \textsc{(Delay)} rule. If the passage of time
+alone would violate the current invariant (a missed deadline), the delay is
+refused, the runtime reports a monitoring alarm, and the state is not changed.

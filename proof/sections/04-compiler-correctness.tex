@@ -1,0 +1,146 @@
+% ===========================================================================
+\section{Compiler correctness: $\VD\iso\IR(\VD)$}\label{sec:compiler}
+% ===========================================================================
+
+\subsection{The translation}
+
+\begin{definition}[Compiler]\label{def:compiler}
+Let $A=(\Loc,\ell_0,\Clk,\Ch,\Edges,\Inv)$ satisfy \cref{rem:side}, with
+$\Loc=(\ell_0',\dots,\ell_{k-1}')$, $\Clk=(x_1,\dots,x_n)$ and $\Edges=(e_1,\dots,e_m)$. Define
+the index maps
+\[
+  \nu_\Loc(\ell_i')=i,\qquad \nu_\Clk(x_i)=i,\ \nu_\Clk(0)=0,\qquad \nu_\Edges(e_j)=t_{j-1},
+\]
+and lift $\nu_\Clk$ to atoms and conjunctions:
+$\nu(x-y\bowtie c)=(\nu_\Clk(x),\nu_\Clk(y),\bowtie,c)$ and $\nu(G)=\{\nu(\varphi)\mid\varphi\in G\}$.
+Let $\mathit{sort}$ denote the canonical list of a set. Then $C(A)=M$ with
+\begin{itemize}
+\item $X=(x_1,\dots,x_n)$, $\Ch_M=\mathit{sort}(\Ch)$, $R$ and $\mathit{info}$ from the options;
+\item $\lambda_i=(\mathrm{name}(\ell_i'),\ \mathit{sort}(\nu(\Inv(\ell_i'))))$;
+\item $\iota=\nu_\Loc(\ell_0)$ $(=0$ by \cref{rem:side});
+\item for $e_j=(\ell,g,\alpha,Y,\ell')$:
+  $t_{j-1}=(\mathit{tid}_{j-1},\nu_\Loc(\ell),\nu_\Loc(\ell'),\alpha,\mathit{sort}(\nu(g)),\mathit{sort}(\nu_\Clk(Y)))$,
+  where $\mathit{tid}$ is ``$\mathit{src}.\alpha.\mathit{tgt}$'', suffixed by $\#r$ for the
+  $r$-th repetition of the same triple in document order;
+\item $p_i=(\at{\mathrm{name}(\ell_i')},i,I_D(\ell_i'))$, with $I_D(\ell)$ the entry of the
+  DT interpretation file or the empty string.
+\end{itemize}
+This is \code{twin::compiler::compile\_file} (\code{src/compiler/compiler.cpp}).
+\end{definition}
+
+\begin{lemma}\label{lem:nu}
+$\nu_\Loc$, $\nu_\Clk$ and $\nu_\Edges$ are bijections onto the locations, clock
+identifiers and transitions of $C(A)$, and $C(A)$ is well-formed.
+\end{lemma}
+\begin{proof}
+One IR location, clock and transition is emitted per source location, clock
+and edge, in the same order. Location and clock names are unique in $A$
+(UTAP rejects duplicates, and the compiler re-checks), so the inverse maps are
+well defined. Transition identifiers are unique because repetitions are
+numbered. Well-formedness is checked by \code{ir::validate} before the IR is
+emitted. A failure there would be a compiler defect, reported as diagnostic
+\code{TWC090}, and no IR would be produced.
+\end{proof}
+
+\begin{lemma}[Constraint preservation]\label{lem:constraint}
+For every conjunction $G$ over $\Clk$ and valuation $v$:
+$v\sat G \iff (v\circ\nu_\Clk^{-1})\sat\mathit{sort}(\nu(G))$.
+\end{lemma}
+\begin{proof}
+Let $w=v\circ\nu_\Clk^{-1}$, so $w(\nu_\Clk(x))=v(x)$, and $w(0)=v(0)=0$. For an atom,
+$w(\nu_\Clk(x))-w(\nu_\Clk(y))=v(x)-v(y)$, so $v\sat\varphi\iff w\sat\nu(\varphi)$.
+Satisfaction of a conjunction depends only on the \emph{set} of its atoms, and
+$\mathit{sort}$ does not change that set.
+\end{proof}
+
+\subsection{The isomorphism}
+
+\begin{theorem}[Compiler correctness]\label{thm:compiler}
+Let $A$ satisfy \cref{rem:side}, be initialisable, and let $M=C(A)$. The map
+\[
+  \Gamma:\Valid(A)\to\Valid(M),\qquad
+  \Gamma(\ell,v,\theta)=(\nu_\Loc(\ell),\ v\circ\nu_\Clk^{-1},\ \theta)
+\]
+is a bijection, and $(\Gamma,\nu_\Edges,\pi)$ with $\pi(\at{\ell})=p_{\nu_\Loc(\ell)}$ is an
+isomorphism $\sem{A}\iso\sem{M}$ (\cref{def:iso}). The isomorphism maps internal
+labels to internal labels and preserves action labels:
+$\mathit{act}(e)=\alpha(\nu_\Edges(e))$.
+\end{theorem}
+\begin{proof}
+\emph{Bijection.} $\Gamma$ is the product of bijections (\cref{lem:nu}) with
+identity on $\theta$. The side conditions $v(x)\le\theta\le\Hz$ are
+invariant under renaming. Validity is preserved and reflected by
+\cref{lem:constraint} applied to $\Inv(\ell)$ and $J_{\nu_\Loc(\ell)}=\mathit{sort}(\nu(\Inv(\ell)))$.
+
+\emph{(i) Initial state.} $\Gamma(\ell_0,\mathbf{0},0)=(\nu_\Loc(\ell_0),\mathbf{0},0)=(\iota,\mathbf{0},0)$.
+$A$ is initialisable iff $M$ is, by \cref{lem:constraint}.
+
+\emph{(ii) Delays.} By \cref{lem:convex}, $(\ell,v,\theta)\trans{d}(\ell,v+d,\theta+d)$
+holds iff $\theta+d\le\Hz$, $v\sat\Inv(\ell)$ and $v+d\sat\Inv(\ell)$. By
+\cref{lem:constraint}, and since $(v+d)\circ\nu_\Clk^{-1}=(v\circ\nu_\Clk^{-1})+d$, this
+is exactly the premise of \textsc{(Delay$_M$)} for $\Gamma(\ell,v,\theta)$. The targets
+correspond: $\Gamma(\ell,v+d,\theta+d)=(\nu_\Loc(\ell),(v\circ\nu_\Clk^{-1})+d,\theta+d)$.
+
+\emph{(iii) Discrete steps.} Let $e=(\ell,g,\alpha,Y,\ell')$ and $t=\nu_\Edges(e)$.
+The premises of \textsc{(Disc)} are $v\sat g$ and $v[Y{:=}0]\sat\Inv(\ell')$. Those of
+\textsc{(Disc$_M$)} at $\Gamma(\ell,v,\theta)$ are $\nu_\Loc(\ell)=\mathit{src}(t)$, which holds
+by construction, $w\sat\mathit{sort}(\nu(g))$, and $w[\nu_\Clk(Y){:=}0]\sat J_{\nu_\Loc(\ell')}$.
+They coincide by \cref{lem:constraint}, using
+$v[Y{:=}0]\circ\nu_\Clk^{-1}=(v\circ\nu_\Clk^{-1})[\nu_\Clk(Y){:=}0]$. The targets
+correspond in the same way. Conversely, every $t\in T$ is $\nu_\Edges(e)$ for a
+unique $e$, so every IR step is the image of a source step.
+
+\emph{(iv) Propositions.} $\lab_A(\ell,v,\theta)=\{\at{\ell}\}$ and
+$\lab_M(\Gamma(\ell,v,\theta))=\{p_{\nu_\Loc(\ell)}\}=\{\pi(\at{\ell})\}$.
+
+Actions are copied verbatim, so internal edges map to internal transitions.
+\end{proof}
+
+\subsection{From the abstract compiler to the implemented one}
+
+\Cref{thm:compiler} is about the mathematical function $C$. Two links connect
+it to the bytes on disk.
+
+\begin{assumption}[Source reading]\label{ass:utap}
+UTAP parses the UPPAAL document into the abstract syntax of
+\cref{def:source}. This is the same assumption the alignment verdict rests on,
+because the aligner uses the same parser.
+\end{assumption}
+
+\begin{proposition}[Translation validation]\label{prop:tv}
+Suppose compilation succeeds. Then the automaton $A_c$ read by the compiler and
+the automaton $A_a$ read by the aligner's \code{dtpta::TimedAutomaton} agree on:
+the template, the clock sequence and numbering, the location names and their
+order, the initial location (index $0$), the edge sequence (endpoints, actions,
+reset sets), and, for every location and edge, the \emph{set of valuations}
+satisfying the invariant and the guard. Consequently $\sem{A_c}=\sem{A_a}$.
+\end{proposition}
+\begin{proof}
+These are exactly the checks of \code{crosscheck\_with\_aligner}
+(\code{src/compiler/crosscheck.cpp}). Compilation fails with \code{TWC060} if any
+of them fails. Invariants and guards are compared as zones: both readings are
+intersected with the universe of non-negative valuations, closed, and compared
+with UDBM's \code{dbm\_areEqual}. Two closed, non-empty DBMs are equal iff they
+denote the same zone; empty results are compared as empty. The semantics of
+\cref{def:source-sem} depends on conjunctions only through their satisfying
+valuations, and all other components are equal, so the two LTTSs coincide.
+\end{proof}
+
+\begin{corollary}\label{cor:compiled-is-verified}
+If compilation succeeds, then $\sem{\IR(\VD)}\iso\sem{A_a}$, where $A_a$ is the
+automaton the aligner analysed (up to the aligner's own zone semantics; see
+\cref{sec:limitations}).
+\end{corollary}
+\begin{proof}
+\Cref{thm:compiler} gives $\sem{A_c}\iso\sem{M}$ and \cref{prop:tv} gives
+$\sem{A_c}=\sem{A_a}$.
+\end{proof}
+
+\begin{remark}[Determinism of compilation]
+$C$ is a function of the source bytes, the interpretation file and the options
+$(\text{model id},\text{version},R)$. The implementation uses no timestamps,
+paths, environment variables or iteration over unordered containers in the IR
+(the compilation \emph{manifest} contains a timestamp and is not hashed into the
+IR). Recompiling therefore yields a byte-identical IR. The test suite checks
+this on the aligner's corpus.
+\end{remark}

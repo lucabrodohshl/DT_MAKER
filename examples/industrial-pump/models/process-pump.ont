@@ -1,0 +1,44 @@
+; Process-pump domain ontology (v1)
+; Centrifugal process pump with rolling-element bearings, driven by an induction
+; motor, with an auxiliary bearing-cooling unit. Values follow the pump datasheet
+; and ISO 10816-3 (vibration severity, group 2, rigid foundation).
+; Fragment: QF_LRA. Thresholds are constants of the domain; measured
+; quantities are unconstrained except by physical bounds.
+
+; === SORTS ===
+sort Temperature   ; degC
+sort Vibration     ; mm/s RMS velocity
+sort Pressure      ; bar(g)
+sort Speed         ; rpm
+
+; === FUNCTIONS ===
+fun bearing_temp        : Temperature  ; measured drive-end bearing temperature
+fun bearing_temp_limit  : Temperature  ; alarm limit (datasheet)
+fun bearing_temp_trip   : Temperature  ; protective trip limit (datasheet)
+fun vibration_rms       : Vibration    ; measured bearing-housing vibration
+fun vibration_limit     : Vibration    ; ISO 10816-3 zone C boundary
+fun discharge_pressure  : Pressure     ; measured discharge pressure
+fun pressure_max        : Pressure     ; maximum allowable working pressure
+fun shaft_speed         : Speed        ; measured shaft speed
+fun rated_speed         : Speed        ; nameplate speed
+
+; === RELATIONS ===
+rel motor_running            :  ; motor contactor closed
+rel cooling_active           :  ; auxiliary bearing cooling running
+rel stop_requested           :  ; controlled stop requested by operator/protection
+rel start_requested          :  ; start permissive and start command present
+rel trip_acknowledged        :  ; operator acknowledged the trip
+rel load_increase_requested  :  ; higher duty point requested
+
+; === AXIOMS ===
+axiom temp_limit_val    : (= bearing_temp_limit 90)
+axiom temp_trip_val     : (= bearing_temp_trip 105)
+axiom limit_below_trip  : (< bearing_temp_limit bearing_temp_trip)
+axiom vib_limit_val     : (= vibration_limit 7.1)
+axiom rated_speed_bound : (<= rated_speed 3600)
+axiom pressure_max_val  : (= pressure_max 16)
+axiom nn_temp           : (>= bearing_temp (- 40))
+axiom nn_vibration      : (>= vibration_rms 0)
+axiom nn_speed          : (>= shaft_speed 0)
+axiom nn_pressure       : (>= discharge_pressure 0)
+axiom running_spins     : (=> (> shaft_speed 0) motor_running)

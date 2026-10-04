@@ -1,0 +1,98 @@
+% ===========================================================================
+\section{The Twin Intermediate Representation}\label{sec:ir}
+% ===========================================================================
+
+The IR (\code{include/twin/ir/model.hpp}) is an executable canonicalisation of a
+source automaton. It is deliberately not a programming language: it contains
+exactly the information of \cref{def:source}, with names replaced by dense
+indices, conjunctions in canonical order, and explicit propositions.
+
+\begin{definition}[IR model]\label{def:ir}
+An IR model is a tuple
+$M=(\mathit{info},R,X,\Ch_M,\Lambda,\iota,T,P)$ where
+\begin{itemize}
+\item $\mathit{info}$ holds identity and provenance (model id, version, source
+  template, SHA-256 of the source); it has no semantic content;
+\item $R$ is the logical-time resolution of \cref{def:grid};
+\item $X=(X_1,\dots,X_n)$ are clock names; clock \emph{identifier} $i\in\{1..n\}$
+  denotes $X_i$, and identifier $0$ the reference clock;
+\item $\Ch_M$ is a sorted list of channel names;
+\item $\Lambda=(\lambda_0,\dots,\lambda_{k-1})$ are locations
+  $\lambda_i=(\mathit{id}_i,J_i)$ with a canonical conjunction $J_i$ (the invariant);
+\item $\iota\in\{0,\dots,k-1\}$ is the initial location;
+\item $T=(t_0,\dots,t_{m-1})$ are transitions
+  $t_j=(\mathit{tid}_j,\mathit{src}_j,\mathit{tgt}_j,\alpha_j,g_j,Y_j)$ with location indices,
+  an action $\alpha_j\in\{\tauact\}\cup\{a!,a?\mid a\in\Ch_M\}$, a canonical conjunction
+  $g_j$ and a sorted, duplicate-free reset list $Y_j\subseteq\{1..n\}$;
+\item $P=(p_0,\dots,p_{k-1})$ are propositions $p_i=(\at{\mathit{id}_i},i,\phi_i)$ where
+  $\phi_i$ is the ontology formula $I_D(\mathit{id}_i)$ (possibly empty). The formula is
+  metadata: it does not influence the transition relation.
+\end{itemize}
+Atomic constraints are quadruples $(i,j,\bowtie,c)$ with $1\le i\le n$, $0\le j\le n$,
+$i\ne j$, meaning $X_i-X_j\bowtie c$ (simple if $j=0$). A conjunction is
+\emph{canonical} if it is sorted strictly increasingly in the lexicographic order
+on quadruples. That makes it a set with a unique list representation.
+\end{definition}
+
+\begin{definition}[Well-formed IR]\label{def:wf-ir}
+$M$ is well-formed if identifiers are syntactically valid and unique
+(locations, clocks, channels, transitions); all indices are in range;
+conjunctions are canonical and their constants lie in $[-(2^{31}-1),2^{31}-1]$;
+reset lists are sorted, unique and do not contain $0$; every non-internal action
+uses a declared channel; $|P|=k$ with $p_i=(\at{\mathit{id}_i},i,\cdot)$; and $R$ is
+a power of ten in $[1,10^9]$. These rules are implemented by
+\code{twin::ir::validate} (\code{src/ir/validate.cpp}).
+\end{definition}
+
+\begin{definition}[IR semantics $\sem{M}$]\label{def:ir-sem}
+Configurations of $M$ are triples $(i,w,\theta)$ with $i\in\{0..k-1\}$,
+$w:\{1..n\}\to\TR$ and $\theta\in\TR^{\Hz}$ with $w(x)\le\theta$. Satisfaction of
+$(i,j,\bowtie,c)$ by $w$ is $w(i)-w(j)\bowtie c$ with $w(0)=0$. The LTTS $\sem{M}$ over
+$\TR$ has as states the valid configurations ($w\sat J_i$), the labels $T$, internal
+labels $\{t_j\mid\alpha_j=\tauact\}$, propositions $P$ with
+$\lab_M(i,w,\theta)=\{p_i\}$, and the rules
+\begin{align*}
+&\textsc{(Init$_M$)} && s_0=(\iota,\mathbf{0},0)\quad\text{provided }\mathbf{0}\sat J_\iota;\\
+&\textsc{(Delay$_M$)} && (i,w,\theta)\trans{d}(i,w+d,\theta+d)
+  \quad\text{iff } \theta+d\le\Hz,\ w\sat J_i,\ w+d\sat J_i;\\
+&\textsc{(Disc$_M$)} && (i,w,\theta)\trans{t_j}(\mathit{tgt}_j,w[Y_j{:=}0],\theta)
+  \quad\text{iff } i=\mathit{src}_j,\ w\sat g_j,\ w[Y_j{:=}0]\sat J_{\mathit{tgt}_j}.
+\end{align*}
+\end{definition}
+
+By \cref{lem:convex}, \textsc{(Delay$_M$)} is equivalent to the continuous
+formulation of \textsc{(Delay)}. The IR rule is written with end points because
+that is the form the kernel implements.
+
+\subsection{Canonical serialisation}
+
+\begin{definition}[Canonical text]\label{def:canon}
+$\mathit{canon}(M)$ is the JSON document of format \code{twin-ir/1}
+(\code{include/twin/ir/codec.hpp}) serialised with object keys sorted bytewise,
+no insignificant whitespace, and integers only (no floating-point values). The
+IR hash is $h(M)=\mathrm{SHA\text{-}256}(\mathit{canon}(M))$~\cite{fips}. For the
+documents used here this coincides with RFC~8785~\cite{jcs}.
+\end{definition}
+
+\begin{lemma}[Canonicity and faithful loading]\label{lem:canon}
+For well-formed $M,M'$: $\mathit{canon}(M)=\mathit{canon}(M')$ iff $M=M'$. Moreover,
+the loader \code{from\_canonical\_text} accepts a byte string $b$ only if it decodes
+$b$ into a well-formed $M$ with $\mathit{canon}(M)=b$.
+\end{lemma}
+\begin{proof}
+($\Leftarrow$) Serialisation is a function. ($\Rightarrow$) Every component of $M$
+is written explicitly; clocks, channels, locations, transitions and propositions
+are emitted as arrays in model order; references use unique identifiers; and
+conjunction and reset lists are canonical, so their list order is determined by
+the set. Hence $M$ can be recovered from $\mathit{canon}(M)$, and canon is
+injective. The second claim is the round-trip check implemented in
+\code{from\_canonical\_text}: the decoded model is validated, re-serialised and
+compared byte for byte with the input.
+\end{proof}
+
+\begin{remark}[Why the round trip matters]
+\Cref{lem:canon} reduces trust in the JSON parser. Whatever the parser does,
+the kernel only ever executes a model whose canonical serialisation is exactly
+the hashed byte string recorded in the package manifest. Duplicate keys,
+alternative number spellings and whitespace variants are rejected.
+\end{remark}

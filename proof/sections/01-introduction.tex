@@ -1,0 +1,121 @@
+% ===========================================================================
+\section{Introduction and preliminaries}\label{sec:intro}
+% ===========================================================================
+
+\paragraph{Context.}
+The alignment paper~\cite{icse} establishes, at design time, the chain
+\[
+  P \;\simul\; \VP \;\sbis_{\cons}\; \VD \;\sbis\; D,
+\]
+where $P$ is the physical system, $\VP$ and $\VD$ are timed-automaton views of
+the Physical and Digital Twin, $\sbis_{\cons}$ is semantic alignment under the
+domain knowledge $\cons=(K,\{I_P,I_D\})$, and $D$ is the deployed Digital Twin.
+The paper argues that the last relation, $\VD\sbis D$, can be obtained by
+construction because the DT is software under the engineer's control. This
+report makes that argument concrete for one implementation: the Verified Twin
+toolchain of this repository.
+
+\paragraph{The chain proved here.}
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Relation & Meaning & Result \\ \midrule
+$\VD \iso \IR(\VD)$ & the compiler preserves and reflects the semantics & \cref{thm:compiler} \\
+$\IR(\VD) \iso \Ksem(\IR(\VD))$ & the kernel executes exactly the IR semantics & \cref{thm:kernel} \\
+$\Ksem \wbis \Kprod$ & runtime bookkeeping is unobservable ($\tauact$) & \cref{thm:production} \\
+$\VD \wbis \Kprod(\IR(\VD))$ & composition & \cref{thm:composition} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Method.}
+The implementation and the proof were developed together. Wherever an
+implementation choice would have complicated the argument, the
+implementation was simplified instead. Examples are the exact integer time
+grid (\cref{sec:time}), value-type kernel configurations that map one-to-one
+onto formal configurations (\cref{sec:kernel}), and a compiler that
+\emph{rejects}, rather than approximates, every construct whose semantics
+it cannot preserve exactly (\cref{sec:compiler}). \Cref{app:code} maps every
+definition to the C++ function that implements it.
+
+\paragraph{What is not claimed.}
+Time is \emph{logical model time}. No statement is made about wall-clock
+time, worst-case execution time, scheduling, network latency, clock
+synchronisation, the physical plant, or the correctness of planners and
+sensor models (\cref{sec:limitations}). The argument is a pen-and-paper proof:
+it has not been checked by a proof assistant. Tests in the repository are
+validation, not proof.
+
+% ---------------------------------------------------------------------------
+\subsection{Labelled timed transition systems}
+% ---------------------------------------------------------------------------
+
+Throughout, $\TT\subseteq\Rnn$ denotes a \emph{time domain}: a set containing
+$0$ and closed under addition, ordered by $\le$. The domain used by the
+implementation is fixed in \cref{sec:time}.
+
+\begin{definition}[LTTS]\label{def:ltts}
+A \emph{labelled timed transition system} over $\TT$ is a tuple
+$\mathcal{T}=(S,s_0,\Sigma,\to,\Props,\lab)$ where $S$ is a set of states,
+$s_0\in S$ is the initial state, $\Sigma$ is a set of discrete labels with
+$\Sigma\cap\TT=\emptyset$, ${\to}\subseteq S\times(\Sigma\cup\TT)\times S$ is the
+transition relation, $\Props$ is a set of atomic propositions and
+$\lab:S\to2^{\Props}$ is the labelling. A designated subset
+$\Sigma_\tauact\subseteq\Sigma$ contains the \emph{internal} labels.
+We write $s\trans{\lambda}s'$ for $(s,\lambda,s')\in{\to}$.
+\end{definition}
+
+This is Definition~1 of the alignment paper, with the event and delay labels
+written $\Sigma$ and $\TT$.
+
+\begin{definition}[Isomorphism]\label{def:iso}
+Two LTTSs $\mathcal{T}_1,\mathcal{T}_2$ over the same $\TT$ are
+\emph{isomorphic}, written $\mathcal{T}_1\iso\mathcal{T}_2$, if there are
+bijections $\gamma:S_1\to S_2$, $\eta:\Sigma_1\to\Sigma_2$ (with
+$\eta(\Sigma_{1,\tauact})=\Sigma_{2,\tauact}$) and $\pi:\Props_1\to\Props_2$ such that
+(i) $\gamma(s_{0,1})=s_{0,2}$;
+(ii) $s\trans{d}s'$ iff $\gamma(s)\trans{d}\gamma(s')$ for all $d\in\TT$;
+(iii) $s\trans{a}s'$ iff $\gamma(s)\trans{\eta(a)}\gamma(s')$ for all $a\in\Sigma_1$;
+(iv) $p\in\lab_1(s)$ iff $\pi(p)\in\lab_2(\gamma(s))$.
+\end{definition}
+
+\begin{definition}[Weak timed bisimulation]\label{def:wtb}
+Let $\mathcal{T}_1,\mathcal{T}_2$ be LTTSs over $\TT$ whose observable label
+sets are identified by a bijection $\eta$ and whose propositions are
+identified by $\pi$. For $\mathcal{T}_i$ write
+$s\wtrans{\epsilon}s'$ if $s$ reaches $s'$ by a finite sequence of internal
+transitions, $s\wtrans{a}s'$ if $s\wtrans{\epsilon}\trans{a}\wtrans{\epsilon}s'$
+for an observable $a$, and $s\wtrans{d}s'$ if
+$s\wtrans{\epsilon}\trans{d_1}\wtrans{\epsilon}\cdots\trans{d_k}\wtrans{\epsilon}s'$
+with $d_1+\dots+d_k=d$. A relation $\mathcal{R}\subseteq S_1\times S_2$ is a
+\emph{weak timed bisimulation} if $(s_{0,1},s_{0,2})\in\mathcal{R}$ and for
+every $(s_1,s_2)\in\mathcal{R}$:
+\begin{enumerate}[label=(W\arabic*)]
+\item $p\in\lab_1(s_1)$ iff $\pi(p)\in\lab_2(s_2)$;
+\item if $s_1\trans{\lambda}s_1'$ ($\lambda$ observable or a delay) there is
+  $s_2\wtrans{\eta(\lambda)}s_2'$ with $(s_1',s_2')\in\mathcal{R}$, and if
+  $s_1\trans{\lambda}s_1'$ with $\lambda$ internal there is
+  $s_2\wtrans{\epsilon}s_2'$ with $(s_1',s_2')\in\mathcal{R}$;
+\item symmetrically for transitions of $s_2$.
+\end{enumerate}
+$\mathcal{T}_1\wbis\mathcal{T}_2$ if such a relation exists. Taking
+$\wtrans{}$ to be $\trans{}$ yields \emph{strong} timed bisimulation $\sbis$.
+\end{definition}
+
+\begin{lemma}[Standard facts]\label{lem:facts}
+(a) $\mathcal{T}_1\iso\mathcal{T}_2$ implies $\mathcal{T}_1\sbis\mathcal{T}_2$
+(the graph of $\gamma$ is a strong bisimulation), and strong timed bisimilarity
+implies weak timed bisimilarity.
+(b) $\iso$, $\sbis$ and $\wbis$ are equivalence relations; in particular they
+are transitive (relational composition of bisimulations is a bisimulation).
+(c) Isomorphic LTTSs satisfy the same properties expressible over their
+labels and propositions.
+\end{lemma}
+\begin{proof}
+(a) Conditions (i)--(iv) of \cref{def:iso} are exactly the strong-bisimulation
+conditions for the relation $\{(s,\gamma(s))\}$, and $\trans{}\subseteq\wtrans{}$.
+(b) is standard~\cite{milner}; for weak timed bisimulation the composition
+argument also covers delays because $\wtrans{d}$ composes additively.
+(c) follows because $\gamma$ maps runs to runs bijectively and preserves labels
+and propositions.
+\end{proof}

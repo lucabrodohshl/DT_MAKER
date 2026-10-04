@@ -88,3 +88,20 @@ if(TWIN_BUILD_ALIGNER_BENCHMARKS)
         target_compile_options(aligner_${bm} PRIVATE -w)
     endforeach()
 endif()
+
+# --- Aligner identity: digest of the exact aligner sources compiled in ---------------
+file(GLOB_RECURSE _aligner_identity_files CONFIGURE_DEPENDS
+     "${ALIGNER_DIR}/src/*.cpp" "${ALIGNER_DIR}/include/*.h")
+list(SORT _aligner_identity_files)
+set(_aligner_manifest "")
+set(TWIN_ALIGNER_FILE_COUNT 0)
+foreach(f IN LISTS _aligner_identity_files)
+    file(SHA256 "${f}" _h)
+    file(RELATIVE_PATH _rel "${ALIGNER_DIR}" "${f}")
+    string(APPEND _aligner_manifest "${_rel} ${_h}\n")
+    math(EXPR TWIN_ALIGNER_FILE_COUNT "${TWIN_ALIGNER_FILE_COUNT} + 1")
+endforeach()
+string(SHA256 TWIN_ALIGNER_DIGEST "${_aligner_manifest}")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/aligner_identity.hpp.in"
+               "${PROJECT_BINARY_DIR}/generated/include/twin/alignment/aligner_identity.hpp" @ONLY)
+message(STATUS "Aligner source digest: ${TWIN_ALIGNER_DIGEST} (${TWIN_ALIGNER_FILE_COUNT} files)")

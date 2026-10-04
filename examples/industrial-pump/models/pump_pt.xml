@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!--
+  V_P : Physical Twin view of centrifugal process pump P-101 (control-system / PLC vocabulary).
+  Same timing structure as the DT view; labels and location names follow the PLC
+  alarm and sequence names. Every synchronised label is interpreted in pt.interp.
+-->
+<nta>
+    <declaration>
+        clock t;
+        chan alarm_clear, alarm_raise, aux_cooling_done, aux_cooling_on, duty_up, emergency_trip, halted, ramp_down_cmd, start_cmd, trip_reset;
+    </declaration>
+    <template>
+        <name>PumpControlPT</name>
+        <location id="HALTED" x="0" y="0">
+            <name x="-20" y="-34">HALTED</name>
+        </location>
+        <location id="RUN_NORMAL" x="300" y="0">
+            <name x="280" y="-34">RUN_NORMAL</name>
+        </location>
+        <location id="RUN_ALARM" x="600" y="0">
+            <name x="580" y="-34">RUN_ALARM</name>
+            <label kind="invariant" x="580" y="17">t &lt;= 600</label>
+        </location>
+        <location id="AUX_COOLING" x="600" y="250">
+            <name x="580" y="216">AUX_COOLING</name>
+            <label kind="invariant" x="580" y="267">t &lt;= 300</label>
+        </location>
+        <location id="RAMP_DOWN" x="300" y="250">
+            <name x="280" y="216">RAMP_DOWN</name>
+            <label kind="invariant" x="280" y="267">t &lt;= 60</label>
+        </location>
+        <location id="TRIPPED" x="900" y="250">
+            <name x="880" y="216">TRIPPED</name>
+        </location>
+        <init ref="HALTED"/>
+        <transition>
+            <source ref="HALTED"/><target ref="RUN_NORMAL"/>
+            <label kind="synchronisation">start_cmd!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_NORMAL"/><target ref="RUN_NORMAL"/>
+            <label kind="synchronisation">duty_up!</label>
+        </transition>
+        <transition>
+            <source ref="RUN_NORMAL"/><target ref="RUN_ALARM"/>
+            <label kind="synchronisation">alarm_raise!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_ALARM"/><target ref="RUN_NORMAL"/>
+            <label kind="synchronisation">alarm_clear!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_ALARM"/><target ref="AUX_COOLING"/>
+            <label kind="synchronisation">aux_cooling_on!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="AUX_COOLING"/><target ref="RUN_NORMAL"/>
+            <label kind="guard">t &gt;= 30</label>
+            <label kind="synchronisation">aux_cooling_done!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_NORMAL"/><target ref="RAMP_DOWN"/>
+            <label kind="synchronisation">ramp_down_cmd!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_ALARM"/><target ref="RAMP_DOWN"/>
+            <label kind="synchronisation">ramp_down_cmd!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="AUX_COOLING"/><target ref="RAMP_DOWN"/>
+            <label kind="synchronisation">ramp_down_cmd!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RAMP_DOWN"/><target ref="HALTED"/>
+            <label kind="guard">t &gt;= 5</label>
+            <label kind="synchronisation">halted!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_NORMAL"/><target ref="TRIPPED"/>
+            <label kind="synchronisation">emergency_trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="RUN_ALARM"/><target ref="TRIPPED"/>
+            <label kind="synchronisation">emergency_trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="AUX_COOLING"/><target ref="TRIPPED"/>
+            <label kind="synchronisation">emergency_trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="TRIPPED"/><target ref="HALTED"/>
+            <label kind="guard">t &gt;= 60</label>
+            <label kind="synchronisation">trip_reset!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+    </template>
+    <system>
+        Plant = PumpControlPT();
+        system Plant;
+    </system>
+</nta>

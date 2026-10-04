@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!--
+  V_D : Digital Twin view of centrifugal process pump P-101 (reliability-engineering vocabulary).
+  Time unit: 1 second of logical model time. One clock t (time in the current mode).
+    DEGRADED  an operator decision (cool, stop, recover) is due within 600 s
+    COOLING   auxiliary cooling runs at least 30 s and at most 300 s
+    STOPPING  the pump spins down in 5..60 s
+    FAULT     a tripped pump stays tripped for at least 60 s (bearing cool-down)
+  increase_load is only admissible in NORMAL.
+  Event-deterministic; every synchronised label is interpreted in dt.interp.
+-->
+<nta>
+    <declaration>
+        clock t;
+        chan condition_degraded, condition_recovered, controlled_stop, cooling_complete, fault_reset, increase_load, pump_stopped, restart, start_cooling, trip;
+    </declaration>
+    <template>
+        <name>ProcessPumpDT</name>
+        <location id="STOPPED" x="0" y="0">
+            <name x="-20" y="-34">STOPPED</name>
+        </location>
+        <location id="NORMAL" x="300" y="0">
+            <name x="280" y="-34">NORMAL</name>
+        </location>
+        <location id="DEGRADED" x="600" y="0">
+            <name x="580" y="-34">DEGRADED</name>
+            <label kind="invariant" x="580" y="17">t &lt;= 600</label>
+        </location>
+        <location id="COOLING" x="600" y="250">
+            <name x="580" y="216">COOLING</name>
+            <label kind="invariant" x="580" y="267">t &lt;= 300</label>
+        </location>
+        <location id="STOPPING" x="300" y="250">
+            <name x="280" y="216">STOPPING</name>
+            <label kind="invariant" x="280" y="267">t &lt;= 60</label>
+        </location>
+        <location id="FAULT" x="900" y="250">
+            <name x="880" y="216">FAULT</name>
+        </location>
+        <init ref="STOPPED"/>
+        <transition>
+            <source ref="STOPPED"/><target ref="NORMAL"/>
+            <label kind="synchronisation">restart!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="NORMAL"/><target ref="NORMAL"/>
+            <label kind="synchronisation">increase_load!</label>
+        </transition>
+        <transition>
+            <source ref="NORMAL"/><target ref="DEGRADED"/>
+            <label kind="synchronisation">condition_degraded!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="DEGRADED"/><target ref="NORMAL"/>
+            <label kind="synchronisation">condition_recovered!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="DEGRADED"/><target ref="COOLING"/>
+            <label kind="synchronisation">start_cooling!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="COOLING"/><target ref="NORMAL"/>
+            <label kind="guard">t &gt;= 30</label>
+            <label kind="synchronisation">cooling_complete!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="NORMAL"/><target ref="STOPPING"/>
+            <label kind="synchronisation">controlled_stop!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="DEGRADED"/><target ref="STOPPING"/>
+            <label kind="synchronisation">controlled_stop!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="COOLING"/><target ref="STOPPING"/>
+            <label kind="synchronisation">controlled_stop!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="STOPPING"/><target ref="STOPPED"/>
+            <label kind="guard">t &gt;= 5</label>
+            <label kind="synchronisation">pump_stopped!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="NORMAL"/><target ref="FAULT"/>
+            <label kind="synchronisation">trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="DEGRADED"/><target ref="FAULT"/>
+            <label kind="synchronisation">trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="COOLING"/><target ref="FAULT"/>
+            <label kind="synchronisation">trip!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="FAULT"/><target ref="STOPPED"/>
+            <label kind="guard">t &gt;= 60</label>
+            <label kind="synchronisation">fault_reset!</label>
+            <label kind="assignment">t := 0</label>
+        </transition>
+    </template>
+    <system>
+        Pump = ProcessPumpDT();
+        system Pump;
+    </system>
+</nta>

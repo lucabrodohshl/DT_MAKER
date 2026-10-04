@@ -1,0 +1,77 @@
+% ===========================================================================
+% Verified Twin Execution Kernel -- correctness report
+%
+% Build:  make -C proof        (latexmk; output proof/build/main.pdf)
+%
+% This is a rigorous pen-and-paper argument. It has NOT been mechanically
+% verified; mechanisation (Lean/Coq/Isabelle) is future work (Section 10).
+% ===========================================================================
+\documentclass[11pt]{article}
+\input{preamble}
+\input{notation}
+
+\title{A Verified Twin Execution Kernel:\\
+Compiler and Kernel Correctness for Semantically Aligned Digital Twins}
+\author{Technical report accompanying the Verified Twin repository}
+\date{Report version 1.0 \quad (compiler 1.0.0, kernel 1.0.0, IR format \texttt{twin-ir/1})}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A Digital Twin (DT) view $\VD$ is a timed automaton that has been checked, by the
+semantic aligner of \emph{SemPTDTAlignmentICSE}, to be semantically aligned with
+the corresponding Physical Twin view $\VP$. This report proves that the Digital
+Twin implementation $D$ produced by the Verified Twin toolchain realises $\VD$
+\emph{by construction}. The implementation compiles $\VD$ into a canonical
+intermediate representation $\IR(\VD)$, executes it in a minimal semantic kernel
+$\Ksem$, and embeds the kernel in a production runtime $\Kprod$. We prove
+\[
+  \VD \;\iso\; \IR(\VD) \;\iso\; \Ksem(\IR(\VD)) \;\wbis\; \Kprod(\IR(\VD)),
+  \qquad\text{hence}\qquad \VD \;\wbis\; \Kprod(\IR(\VD)),
+\]
+under an explicitly defined \emph{logical-time} semantics and explicitly stated
+assumptions. The first two relations are isomorphisms of labelled timed
+transition systems; the last is a weak timed bisimulation that abstracts
+runtime bookkeeping (ledger writes, API serialisation, metrics, publication)
+as internal $\tauact$-actions. We make no claim about hard real-time
+behaviour, wall-clock time, schedulers or networks, and the proof has not
+been mechanised.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{sections/01-introduction}
+\input{sections/02-source-semantics}
+\input{sections/03-ir}
+\input{sections/04-compiler-correctness}
+\input{sections/05-kernel-semantics}
+\input{sections/06-kernel-isomorphism}
+\input{sections/07-production-bisimulation}
+\input{sections/08-composition}
+\input{sections/09-logical-time}
+\input{sections/10-limitations}
+\appendix
+\input{sections/A-code-map}
+
+\begin{thebibliography}{9}
+\bibitem{alur-dill} R.~Alur and D.~L.~Dill. A theory of timed automata.
+  \emph{Theoretical Computer Science}, 126(2):183--235, 1994.
+\bibitem{uppaal} G.~Behrmann, A.~David, K.~G.~Larsen. A tutorial on \textsc{Uppaal}.
+  In \emph{SFM-RT}, LNCS 3185, 2004.
+\bibitem{hmp} T.~A.~Henzinger, Z.~Manna, A.~Pnueli. What good are digital clocks?
+  In \emph{ICALP}, LNCS 623, 1992.
+\bibitem{milner} R.~Milner. \emph{Communication and Concurrency}. Prentice Hall, 1989.
+\bibitem{cerans} K.~\v{C}er\=ans. Decidability of bisimulation equivalences for
+  parallel timer processes. In \emph{CAV}, LNCS 663, 1992.
+\bibitem{tv} A.~Pnueli, M.~Siegel, E.~Singerman. Translation validation.
+  In \emph{TACAS}, LNCS 1384, 1998.
+\bibitem{icse} A Formal Software Engineering Methodology for Semantically Aligned
+  Digital Twins. Paper accompanying \emph{SemPTDTAlignmentICSE} (cited as ``the
+  alignment paper'').
+\bibitem{fips} NIST. FIPS PUB 180-4: Secure Hash Standard, 2015.
+\bibitem{jcs} A.~Rundgren, B.~Jordan, S.~Erdtman. RFC 8785: JSON Canonicalization Scheme, 2020.
+\end{thebibliography}
+
+\end{document}

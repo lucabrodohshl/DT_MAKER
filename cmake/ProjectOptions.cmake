@@ -54,5 +54,10 @@ function(twin_add_executable name)
     target_compile_definitions(${name} PRIVATE ${TWIN_VERSION_DEFINITIONS})
     target_link_libraries(${name} PRIVATE ${ARG_DEPS})
     set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+    if(APPLE)
+        # Static libraries reached through several dependency paths are listed more
+        # than once on the link line; that is correct and the warning is noise.
+        target_link_options(${name} PRIVATE "LINKER:-no_warn_duplicate_libraries")
+    endif()
     twin_set_warnings(${name})
 endfunction()

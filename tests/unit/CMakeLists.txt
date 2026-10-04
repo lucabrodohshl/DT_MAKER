@@ -10,3 +10,15 @@ twin_add_test(kernel_unit_tests LABEL unit
     SOURCES kernel/semantics_test.cpp kernel/state_set_test.cpp kernel/explore_test.cpp
             kernel/instance_test.cpp
     DEPS twin::kernel)
+
+twin_add_test(package_unit_tests LABEL unit
+    SOURCES package/package_test.cpp
+    DEPS twin::package_builder)
+
+twin_add_test(ledger_unit_tests LABEL unit
+    SOURCES ledger/ledger_test.cpp
+    DEPS twin::ledger twin::runtime twin::package_builder)
+
+twin_add_test(runtime_unit_tests LABEL unit
+    SOURCES runtime/session_test.cpp
+    DEPS twin::runtime twin::package_builder)

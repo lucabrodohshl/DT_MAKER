@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!--
+  V_D : Digital Twin view of an indoor autonomous inspection drone.
+  Perspective: mission-supervision twin (DT engineering team vocabulary).
+
+  This is the behavioural model executed by the verified semantic kernel.
+  Time unit: 1 second of logical model time.
+
+  Clocks
+    t_mode    time since the last mode change / progress event (watchdogs, deadlines)
+    t_flight  time since take-off (endurance budget)
+
+  Timing requirements encoded
+    INITIALIZING  mission must be loaded within 30 s
+    TAKING_OFF    climb takes between 2 s and 10 s
+    NAVIGATING    progress watchdog: a waypoint, target or mode change every <= 60 s;
+                  outbound endurance: t_flight <= 900 s
+    REPLANNING    a new admissible plan must be accepted within 5 s, else failsafe
+    HOVERING      at most 30 s holding in front of an obstacle
+    INSPECTING    an inspection scan takes between 3 s and 20 s
+    RETURNING     total flight budget t_flight <= 1200 s, progress every <= 60 s
+    LANDING       touchdown between 2 s and 15 s after the descent starts
+
+  The model is event-deterministic: no two transitions with the same label
+  leave the same location. Every synchronised label is interpreted in dt.interp.
+-->
+<nta>
+    <declaration>
+        clock t_mode, t_flight;
+        chan mission_loaded, start_mission, takeoff_complete, waypoint_reached,
+             path_invalidated, replan_requested, obstacle_detected, obstacle_cleared,
+             target_reached, inspection_complete, return_requested, battery_low,
+             plan_accepted, replan_timeout, home_reached, landing_complete;
+    </declaration>
+    <template>
+        <name>MissionSupervisorDT</name>
+        <location id="INITIALIZING" x="-600" y="0">
+            <name x="-640" y="-34">INITIALIZING</name>
+            <label kind="invariant" x="-640" y="17">t_mode &lt;= 30</label>
+        </location>
+        <location id="READY" x="-400" y="0">
+            <name x="-420" y="-34">READY</name>
+        </location>
+        <location id="TAKING_OFF" x="-200" y="0">
+            <name x="-230" y="-34">TAKING_OFF</name>
+            <label kind="invariant" x="-230" y="17">t_mode &lt;= 10</label>
+        </location>
+        <location id="NAVIGATING" x="0" y="0">
+            <name x="-30" y="-34">NAVIGATING</name>
+            <label kind="invariant" x="-30" y="17">t_mode &lt;= 60 &amp;&amp; t_flight &lt;= 900</label>
+        </location>
+        <location id="REPLANNING" x="0" y="-200">
+            <name x="-30" y="-234">REPLANNING</name>
+            <label kind="invariant" x="-30" y="-217">t_mode &lt;= 5 &amp;&amp; t_flight &lt;= 900</label>
+        </location>
+        <location id="HOVERING" x="200" y="-200">
+            <name x="170" y="-234">HOVERING</name>
+            <label kind="invariant" x="170" y="-217">t_mode &lt;= 30 &amp;&amp; t_flight &lt;= 900</label>
+        </location>
+        <location id="INSPECTING" x="200" y="0">
+            <name x="170" y="-34">INSPECTING</name>
+            <label kind="invariant" x="170" y="17">t_mode &lt;= 20 &amp;&amp; t_flight &lt;= 900</label>
+        </location>
+        <location id="RETURNING" x="0" y="200">
+            <name x="-30" y="166">RETURNING</name>
+            <label kind="invariant" x="-30" y="217">t_mode &lt;= 60 &amp;&amp; t_flight &lt;= 1200</label>
+        </location>
+        <location id="RETURN_REPLANNING" x="-200" y="200">
+            <name x="-260" y="166">RETURN_REPLANNING</name>
+            <label kind="invariant" x="-260" y="217">t_mode &lt;= 5 &amp;&amp; t_flight &lt;= 1200</label>
+        </location>
+        <location id="LANDING" x="200" y="200">
+            <name x="170" y="166">LANDING</name>
+            <label kind="invariant" x="170" y="217">t_mode &lt;= 15 &amp;&amp; t_flight &lt;= 1200</label>
+        </location>
+        <location id="LANDED" x="400" y="200">
+            <name x="370" y="166">LANDED</name>
+        </location>
+        <location id="MISSION_FAILED" x="-200" y="-200">
+            <name x="-260" y="-234">MISSION_FAILED</name>
+        </location>
+        <init ref="INITIALIZING"/>
+
+        <!-- Pre-flight -->
+        <transition>
+            <source ref="INITIALIZING"/><target ref="READY"/>
+            <label kind="synchronisation">mission_loaded!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="READY"/><target ref="TAKING_OFF"/>
+            <label kind="synchronisation">start_mission!</label>
+            <label kind="assignment">t_mode := 0, t_flight := 0</label>
+        </transition>
+        <transition>
+            <source ref="TAKING_OFF"/><target ref="NAVIGATING"/>
+            <label kind="guard">t_mode &gt;= 2</label>
+            <label kind="synchronisation">takeoff_complete!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+
+        <!-- Outbound navigation -->
+        <transition>
+            <source ref="NAVIGATING"/><target ref="NAVIGATING"/>
+            <label kind="synchronisation">waypoint_reached!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="REPLANNING"/>
+            <label kind="synchronisation">path_invalidated!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="REPLANNING"/>
+            <label kind="synchronisation">replan_requested!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="HOVERING"/>
+            <label kind="synchronisation">obstacle_detected!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="INSPECTING"/>
+            <label kind="synchronisation">target_reached!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">return_requested!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="NAVIGATING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">battery_low!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+
+        <!-- Replanning (outbound) -->
+        <transition>
+            <source ref="REPLANNING"/><target ref="NAVIGATING"/>
+            <label kind="synchronisation">plan_accepted!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="REPLANNING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">return_requested!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="REPLANNING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">battery_low!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="REPLANNING"/><target ref="MISSION_FAILED"/>
+            <label kind="guard">t_mode &gt;= 5</label>
+            <label kind="synchronisation">replan_timeout!</label>
+        </transition>
+
+        <!-- Obstacle hold -->
+        <transition>
+            <source ref="HOVERING"/><target ref="NAVIGATING"/>
+            <label kind="synchronisation">obstacle_cleared!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="HOVERING"/><target ref="REPLANNING"/>
+            <label kind="synchronisation">path_invalidated!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="HOVERING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">battery_low!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+
+        <!-- Inspection -->
+        <transition>
+            <source ref="INSPECTING"/><target ref="NAVIGATING"/>
+            <label kind="guard">t_mode &gt;= 3</label>
+            <label kind="synchronisation">inspection_complete!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="INSPECTING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">battery_low!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+
+        <!-- Return to home -->
+        <transition>
+            <source ref="RETURNING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">waypoint_reached!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="RETURNING"/><target ref="RETURN_REPLANNING"/>
+            <label kind="synchronisation">path_invalidated!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="RETURN_REPLANNING"/><target ref="RETURNING"/>
+            <label kind="synchronisation">plan_accepted!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="RETURN_REPLANNING"/><target ref="MISSION_FAILED"/>
+            <label kind="guard">t_mode &gt;= 5</label>
+            <label kind="synchronisation">replan_timeout!</label>
+        </transition>
+        <transition>
+            <source ref="RETURNING"/><target ref="LANDING"/>
+            <label kind="synchronisation">home_reached!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+        <transition>
+            <source ref="LANDING"/><target ref="LANDED"/>
+            <label kind="guard">t_mode &gt;= 2</label>
+            <label kind="synchronisation">landing_complete!</label>
+            <label kind="assignment">t_mode := 0</label>
+        </transition>
+    </template>
+    <system>
+        Supervisor = MissionSupervisorDT();
+        system Supervisor;
+    </system>
+</nta>

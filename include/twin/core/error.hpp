@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -46,6 +47,9 @@ enum class ErrorCode {
 
 /// @brief Stable lower_snake_case name of an error code, e.g. "invariant_violation".
 [[nodiscard]] std::string_view to_string(ErrorCode code) noexcept;
+
+/// @brief Inverse of to_string(ErrorCode); std::nullopt for unknown names (e.g. from a peer service).
+[[nodiscard]] std::optional<ErrorCode> error_code_from_string(std::string_view name) noexcept;
 
 /**
  * @brief An error value: a code, a human-readable message and key/value context.

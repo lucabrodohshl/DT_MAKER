@@ -26,3 +26,6 @@ function(twin_add_test name)
 endfunction()
 
 add_subdirectory(unit)
+if(TWIN_BUILD_STUDIO)  # Verified Twin Studio suites (tests/studio/)
+    add_subdirectory(studio)
+endif()

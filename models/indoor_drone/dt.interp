@@ -1,0 +1,36 @@
+; =============================================================================
+; I_D : interpretation of the DT view (MissionSupervisorDT) over domain.ont.
+; Format: the semantic aligner's .interp syntax.
+; =============================================================================
+
+; ------------------------------------------------------------- locations
+INITIALIZING      : (and (not airborne) (not mission_validated))
+READY             : (and (not airborne) mission_validated)
+TAKING_OFF        : (and airborne (< height_m cruise_height_m))
+NAVIGATING        : (and airborne (not holding_position) (not returning_home) (= path_conflicts 0))
+REPLANNING        : (and airborne holding_position (not returning_home))
+HOVERING          : (and airborne holding_position (< obstacle_distance_m safety_distance_m))
+INSPECTING        : (and airborne (<= distance_to_target_m waypoint_tolerance_m) (< inspection_coverage required_coverage))
+RETURNING         : (and airborne returning_home (not holding_position))
+RETURN_REPLANNING : (and airborne returning_home holding_position)
+LANDING           : (and airborne returning_home (<= distance_to_home_m waypoint_tolerance_m))
+LANDED            : (and (not airborne) (<= height_m landed_height_m))
+MISSION_FAILED    : failsafe_active
+
+; ---------------------------------------------------------------- events
+mission_loaded!      : (and mission_validated (>= mission_target_count 1))
+start_mission!       : (and preflight_ok (>= energy_remaining_wh energy_mission_wh))
+takeoff_complete!    : (>= height_m (- cruise_height_m 0.1))
+waypoint_reached!    : (<= distance_to_waypoint_m waypoint_tolerance_m)
+path_invalidated!    : (> path_conflicts 0)
+replan_requested!    : (< (+ candidate_path_cost replan_gain_threshold) current_path_cost)
+obstacle_detected!   : (< obstacle_distance_m safety_distance_m)
+obstacle_cleared!    : (>= obstacle_distance_m safety_distance_m)
+target_reached!      : (<= distance_to_target_m waypoint_tolerance_m)
+inspection_complete! : (>= inspection_coverage required_coverage)
+return_requested!    : (or mission_complete targets_unreachable)
+battery_low!         : (<= energy_remaining_wh (+ energy_to_home_wh energy_reserve_wh))
+plan_accepted!       : (and (= plan_version_active plan_version_proposed) (= path_conflicts 0))
+replan_timeout!      : (> planning_time_s planning_deadline_s)
+home_reached!        : (<= distance_to_home_m waypoint_tolerance_m)
+landing_complete!    : (<= height_m landed_height_m)

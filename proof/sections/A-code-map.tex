@@ -1,0 +1,35 @@
+% ===========================================================================
+\section{Correspondence between definitions and code}\label{app:code}
+% ===========================================================================
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Formal object & Implementation \\ \midrule
+\cref{def:grid} (grid $\TR$, horizon) & \code{twin::TimeBase}, \code{kMaxTicks}, \code{parse\_time}, \code{format\_time} (\code{src/core/logical\_time.cpp}) \\
+\cref{def:source} (source automaton) & \code{compiler::detail::SourceModel} (\code{src/compiler/source\_model.hpp}) \\
+\cref{rem:side} (side conditions) & \code{StrictReader} (\code{src/compiler/utap\_reader.cpp}), diagnostics \code{TWC0xx} \\
+\cref{def:ir,def:wf-ir} (IR, well-formedness) & \code{twin::ir::Model}, \code{ir::validate} (\code{src/ir/validate.cpp}) \\
+\cref{def:canon} (canonical text) & \code{ir::to\_canonical\_text}, \code{json::canonical\_dump} \\
+\cref{lem:canon} (faithful loading) & \code{ir::from\_canonical\_text} (round-trip check) \\
+\cref{def:compiler} (compiler $C$) & \code{compiler::compile\_file} (\code{src/compiler/compiler.cpp}) \\
+\cref{prop:tv} (translation validation) & \code{detail::crosscheck\_with\_aligner} (\code{src/compiler/crosscheck.cpp}) \\
+\cref{def:kmodel} (kernel model) & \code{kernel::Model::create} (\code{src/kernel/model.cpp}) \\
+\cref{def:kconf} (configurations, $\W$) & \code{kernel::Configuration}, \code{check\_configuration} \\
+\cref{def:katom} (atom satisfaction) & \code{atom\_holds}, \code{satisfies} (\code{src/kernel/semantics.cpp}) \\
+\cref{def:kfun} (transition functions) & \code{initial\_configuration}, \code{delay}, \code{fire}, \code{propositions} \\
+\cref{lem:window} (enabling windows) & \code{enabling\_window}, \code{restrict\_by\_atom} \\
+\cref{def:monitor} (monitoring) & \code{kernel::observe}, \code{advance\_to} (\code{src/kernel/state\_set.cpp}) \\
+\cref{prop:nointerf} (prediction) & \code{explore}, \code{simulate}, \code{KernelInstance} const members \\
+\cref{def:kprod} ($\Kprod$) & \code{runtime::TwinSession} and the shell modules (\code{src/runtime}) \\
+\cref{rem:ledger} (ledger) & \code{twin::ledger} (\code{src/ledger}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent The test suites cross-check several of these correspondences
+empirically: compiler determinism and translation validation on the aligner's
+corpus, kernel-versus-aligner zone-graph agreement on generated automata, and
+exhaustive window/step agreement around boundaries. These tests are validation
+and do not replace the proofs.

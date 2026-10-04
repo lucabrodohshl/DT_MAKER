@@ -1,0 +1,108 @@
+% ===========================================================================
+\section{The semantic kernel $\Ksem$}\label{sec:kernel}
+% ===========================================================================
+
+The kernel (\code{include/twin/kernel}, \code{src/kernel}) is the only component
+that computes semantic successors. Its library target links only the IR value
+types and the dependency-free core (errors, exact time). It performs no I/O,
+networking, persistence or logging. This section defines the kernel transition
+system as the functions the code computes.
+
+\subsection{Executable model}
+
+\begin{definition}[Kernel model]\label{def:kmodel}
+\code{Model::create(M)} succeeds for a well-formed $M$ (it re-runs
+\code{ir::validate}) and produces $\hat M$, which consists of $M$ unchanged plus, for
+every atom $(i,j,\bowtie,c)$ of every invariant and guard, the \emph{tick atom}
+$(i,j,\bowtie,\hat c)$ with $\hat c=c\cdot R$. The multiplication is checked: if
+$|c|>2^{31}-1$ or the product overflows, creation fails. The remaining data
+(outgoing-transition lists sorted by index, a label table) are derived indexes
+that change no semantics.
+\end{definition}
+
+\begin{definition}[Kernel configurations]\label{def:kconf}
+A kernel configuration is the C++ value
+\begin{lstlisting}
+struct Configuration {
+    uint32_t             location;  // l
+    std::vector<int64_t> clocks;    // v, in ticks; clocks[i-1] is clock i
+    int64_t              time;      // theta, in ticks
+};
+\end{lstlisting}
+Mathematically, $\kappa=(l,c,\tau)\in\Nat\times\Int^n\times\Int$. Its value of clock
+$i$ is $c_{i-1}$ for $i\ge1$ and $0$ for the reference clock. The set of
+\emph{admissible} kernel configurations is
+\[
+  \W(\hat M)=\{(l,c,\tau)\mid l<k,\ |c|=n,\ 0\le c_{i}\le\tau\le\Tmax,\ (l,c,\tau)\text{ satisfies }\hat J_l\}.
+\]
+This is exactly what \code{check\_configuration} accepts.
+\end{definition}
+
+\subsection{Kernel functions}
+
+The following functions are those of \code{src/kernel/semantics.cpp}. They are
+pure: they read their arguments and the immutable $\hat M$ and return a value
+or an error, and they have no other effect.
+
+\begin{definition}[Atom satisfaction]\label{def:katom}
+$\kappa$ satisfies the tick atom $(i,j,\bowtie,\hat c)$ iff
+$\mathit{val}_\kappa(i)-\mathit{val}_\kappa(j)\bowtie\hat c$, computed in \code{int64}
+(\code{atom\_holds}). $\kappa$ satisfies a conjunction iff it satisfies every atom
+(\code{satisfies}).
+\end{definition}
+
+\begin{definition}[Kernel transition functions]\label{def:kfun}\leavevmode
+\begin{lstlisting}
+initial_configuration(M) =
+  c0 := (iota, 0^n, 0);   ok(c0) if c0 satisfies J_iota else err
+delay(M, (l,c,t), d) =
+  if d < 0                              -> err(InvalidArgument)
+  if (l,c,t) does not satisfy J_l        -> err(InvariantViolation)
+  t' := t + d; c' := c + d   (checked; any value > T_max -> err(Overflow))
+  if (l,c',t') does not satisfy J_l      -> err(InvariantViolation)
+  ok((l,c',t'))
+fire(M, (l,c,t), j) =                    // transition t_j = (id,src,tgt,a,g,Y)
+  if j >= m                              -> err(InvalidArgument)
+  if l != src                            -> err(NotEnabled)
+  if (l,c,t) does not satisfy g          -> err(NotEnabled)
+  c' := c with c'[y-1] := 0 for y in Y
+  if (tgt,c',t) does not satisfy J_tgt   -> err(NotEnabled)
+  ok((tgt,c',t))
+propositions(M, (l,c,t)) = { i | p_i.location == l }      // = {l}
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[Kernel LTTS $\Ksem(M)$]\label{def:ksem}
+$\Ksem(M)$ is the LTTS over the tick domain with states $\W(\hat M)$, initial state
+the result of \code{initial\_configuration}, labels $\{0,\dots,m-1\}$ (internal
+iff $\alpha_j=\tauact$), propositions $P$, labelling \code{propositions}, and
+\[
+  \kappa\trans{\delta}\kappa' \iff \code{delay}(\hat M,\kappa,\delta)=\ok(\kappa'),
+  \qquad
+  \kappa\trans{j}\kappa' \iff \code{fire}(\hat M,\kappa,j)=\ok(\kappa').
+\]
+The delay label $\delta\in\Nat$ is in ticks. When kernel and IR are compared,
+$\delta$ corresponds to the delay $\delta/R\in\TR$ (\cref{sec:iso}).
+\end{definition}
+
+\begin{remark}[Derived kernel functions]
+\code{enabled\_transitions}, \code{discrete\_successors}, \code{timed\_step}
+($=\code{fire}\circ\code{delay}$), \code{enabling\_window}, \code{observe} and the
+exploration functions are defined in terms of \code{delay} and \code{fire} or
+characterised by them (\cref{lem:window,prop:monitor}). They add no transitions.
+\end{remark}
+
+\subsection{Arithmetic safety}
+
+\begin{lemma}[No overflow]\label{lem:overflow}
+For $\kappa\in\W(\hat M)$, every \code{int64} expression evaluated by
+\code{atom\_holds}, \code{delay} and \code{fire} is computed without overflow,
+or the function returns the explicit error \code{ArithmeticOverflow}.
+\end{lemma}
+\begin{proof}
+Clock values lie in $[0,\Tmax]$ with $\Tmax<2^{62}$, so differences lie in
+$(-2^{62},2^{62})$. Tick bounds satisfy $|\hat c|\le(2^{31}-1)\cdot10^9<2^{61}$.
+Comparisons of such values are exact. In \code{delay}, the additions $\tau+\delta$
+and $c_i+\delta$ use \code{\_\_builtin\_add\_overflow}, and results above $\Tmax$ are
+rejected explicitly. \code{fire} assigns only the constant $0$.
+\end{proof}

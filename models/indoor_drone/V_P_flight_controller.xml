@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!--
+  V_P : Physical Twin view of the indoor autonomous inspection drone.
+  Perspective: flight-controller / companion-computer firmware team
+  (PT vocabulary: centimetres, percent, milliseconds, FC_* modes).
+
+  The PT has internal behaviour that the Digital Twin abstracts away:
+    - FC_ARMING : motor spin-up before the climb (internal step to FC_CLIMB);
+    - a sensor-fusion update loop while flying waypoints (internal self-loop).
+  Internal steps are unsynchronised edges (tau), as required for the semantic
+  aligner to abstract them (see docs/existing-aligner-integration.md, finding 13).
+
+  Clocks: fc_mode_timer (mode timer), fc_flight_timer (time since arming).
+  Every synchronised label is interpreted in pt.interp.
+-->
+<nta>
+    <declaration>
+        clock fc_mode_timer, fc_flight_timer;
+        chan mission_upload_ack, arm_and_takeoff, altitude_reached, wp_arrived,
+             route_blocked, reroute_request, proximity_brake, path_clear,
+             poi_arrived, survey_done, rtl_commanded, battery_reserve_reached,
+             route_uploaded, reroute_timeout_failsafe, home_arrived, touchdown_disarm;
+    </declaration>
+    <template>
+        <name>FlightControllerPT</name>
+        <location id="FC_BOOT" x="-600" y="0">
+            <name x="-620" y="-34">FC_BOOT</name>
+            <label kind="invariant" x="-640" y="17">fc_mode_timer &lt;= 30</label>
+        </location>
+        <location id="FC_IDLE" x="-400" y="0">
+            <name x="-420" y="-34">FC_IDLE</name>
+        </location>
+        <location id="FC_ARMING" x="-300" y="-100">
+            <name x="-330" y="-134">FC_ARMING</name>
+            <label kind="invariant" x="-330" y="-117">fc_mode_timer &lt;= 10</label>
+        </location>
+        <location id="FC_CLIMB" x="-200" y="0">
+            <name x="-220" y="-34">FC_CLIMB</name>
+            <label kind="invariant" x="-230" y="17">fc_mode_timer &lt;= 10</label>
+        </location>
+        <location id="FC_AUTO_WP" x="0" y="0">
+            <name x="-30" y="-34">FC_AUTO_WP</name>
+            <label kind="invariant" x="-30" y="17">fc_mode_timer &lt;= 60 &amp;&amp; fc_flight_timer &lt;= 900</label>
+        </location>
+        <location id="FC_HOLD_REROUTE" x="0" y="-200">
+            <name x="-40" y="-234">FC_HOLD_REROUTE</name>
+            <label kind="invariant" x="-40" y="-217">fc_mode_timer &lt;= 5 &amp;&amp; fc_flight_timer &lt;= 900</label>
+        </location>
+        <location id="FC_BRAKE_HOLD" x="200" y="-200">
+            <name x="170" y="-234">FC_BRAKE_HOLD</name>
+            <label kind="invariant" x="170" y="-217">fc_mode_timer &lt;= 30 &amp;&amp; fc_flight_timer &lt;= 900</label>
+        </location>
+        <location id="FC_SURVEY" x="200" y="0">
+            <name x="170" y="-34">FC_SURVEY</name>
+            <label kind="invariant" x="170" y="17">fc_mode_timer &lt;= 20 &amp;&amp; fc_flight_timer &lt;= 900</label>
+        </location>
+        <location id="FC_RTL" x="0" y="200">
+            <name x="-20" y="166">FC_RTL</name>
+            <label kind="invariant" x="-30" y="217">fc_mode_timer &lt;= 60 &amp;&amp; fc_flight_timer &lt;= 1200</label>
+        </location>
+        <location id="FC_RTL_HOLD" x="-200" y="200">
+            <name x="-230" y="166">FC_RTL_HOLD</name>
+            <label kind="invariant" x="-260" y="217">fc_mode_timer &lt;= 5 &amp;&amp; fc_flight_timer &lt;= 1200</label>
+        </location>
+        <location id="FC_DESCENT" x="200" y="200">
+            <name x="170" y="166">FC_DESCENT</name>
+            <label kind="invariant" x="170" y="217">fc_mode_timer &lt;= 15 &amp;&amp; fc_flight_timer &lt;= 1200</label>
+        </location>
+        <location id="FC_DISARMED" x="400" y="200">
+            <name x="370" y="166">FC_DISARMED</name>
+        </location>
+        <location id="FC_FAILSAFE" x="-200" y="-200">
+            <name x="-240" y="-234">FC_FAILSAFE</name>
+        </location>
+        <init ref="FC_BOOT"/>
+
+        <transition>
+            <source ref="FC_BOOT"/><target ref="FC_IDLE"/>
+            <label kind="synchronisation">mission_upload_ack!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_IDLE"/><target ref="FC_ARMING"/>
+            <label kind="synchronisation">arm_and_takeoff!</label>
+            <label kind="assignment">fc_mode_timer := 0, fc_flight_timer := 0</label>
+        </transition>
+        <!-- internal: motors spun up, climb starts (tau) -->
+        <transition>
+            <source ref="FC_ARMING"/><target ref="FC_CLIMB"/>
+        </transition>
+        <transition>
+            <source ref="FC_CLIMB"/><target ref="FC_AUTO_WP"/>
+            <label kind="guard">fc_mode_timer &gt;= 2</label>
+            <label kind="synchronisation">altitude_reached!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+
+        <!-- internal: sensor-fusion update while flying waypoints (tau) -->
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_AUTO_WP"/>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_AUTO_WP"/>
+            <label kind="synchronisation">wp_arrived!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_HOLD_REROUTE"/>
+            <label kind="synchronisation">route_blocked!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_HOLD_REROUTE"/>
+            <label kind="synchronisation">reroute_request!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_BRAKE_HOLD"/>
+            <label kind="synchronisation">proximity_brake!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_SURVEY"/>
+            <label kind="synchronisation">poi_arrived!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">rtl_commanded!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_AUTO_WP"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">battery_reserve_reached!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FC_HOLD_REROUTE"/><target ref="FC_AUTO_WP"/>
+            <label kind="synchronisation">route_uploaded!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_HOLD_REROUTE"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">rtl_commanded!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_HOLD_REROUTE"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">battery_reserve_reached!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_HOLD_REROUTE"/><target ref="FC_FAILSAFE"/>
+            <label kind="guard">fc_mode_timer &gt;= 5</label>
+            <label kind="synchronisation">reroute_timeout_failsafe!</label>
+        </transition>
+
+        <transition>
+            <source ref="FC_BRAKE_HOLD"/><target ref="FC_AUTO_WP"/>
+            <label kind="synchronisation">path_clear!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_BRAKE_HOLD"/><target ref="FC_HOLD_REROUTE"/>
+            <label kind="synchronisation">route_blocked!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_BRAKE_HOLD"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">battery_reserve_reached!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FC_SURVEY"/><target ref="FC_AUTO_WP"/>
+            <label kind="guard">fc_mode_timer &gt;= 3</label>
+            <label kind="synchronisation">survey_done!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_SURVEY"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">battery_reserve_reached!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+
+        <transition>
+            <source ref="FC_RTL"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">wp_arrived!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_RTL"/><target ref="FC_RTL_HOLD"/>
+            <label kind="synchronisation">route_blocked!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_RTL_HOLD"/><target ref="FC_RTL"/>
+            <label kind="synchronisation">route_uploaded!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_RTL_HOLD"/><target ref="FC_FAILSAFE"/>
+            <label kind="guard">fc_mode_timer &gt;= 5</label>
+            <label kind="synchronisation">reroute_timeout_failsafe!</label>
+        </transition>
+        <transition>
+            <source ref="FC_RTL"/><target ref="FC_DESCENT"/>
+            <label kind="synchronisation">home_arrived!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+        <transition>
+            <source ref="FC_DESCENT"/><target ref="FC_DISARMED"/>
+            <label kind="guard">fc_mode_timer &gt;= 2</label>
+            <label kind="synchronisation">touchdown_disarm!</label>
+            <label kind="assignment">fc_mode_timer := 0</label>
+        </transition>
+    </template>
+    <system>
+        FlightController = FlightControllerPT();
+        system FlightController;
+    </system>
+</nta>

@@ -4,6 +4,7 @@ twin_add_library(core
     SOURCES
         error.cpp
         logical_time.cpp
-        sha256.cpp)
+        sha256.cpp
+        wall_clock.cpp)
 target_include_directories(twin_core PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/include>)

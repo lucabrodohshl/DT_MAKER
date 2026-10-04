@@ -1,0 +1,37 @@
+; =============================================================================
+; I_P : interpretation of the PT view (FlightControllerPT) over domain.ont.
+; Format: the semantic aligner's .interp syntax.
+; =============================================================================
+
+; ------------------------------------------------------------- locations
+FC_BOOT         : (and (not in_air) (not mission_crc_ok))
+FC_IDLE         : (and (not in_air) mission_crc_ok)
+FC_ARMING       : (and in_air (< altitude_cm takeoff_alt_cm))
+FC_CLIMB        : (and in_air (< altitude_cm takeoff_alt_cm))
+FC_AUTO_WP      : (and in_air (not position_hold) (not rtl_active) (= route_cells_blocked 0))
+FC_HOLD_REROUTE : (and in_air position_hold (not rtl_active))
+FC_BRAKE_HOLD   : (and in_air position_hold (< proximity_range_cm brake_distance_cm))
+FC_SURVEY       : (and in_air (<= dist_to_poi_cm wp_acceptance_radius_cm) (< gimbal_sweep_deg 360))
+FC_RTL          : (and in_air rtl_active (not position_hold))
+FC_RTL_HOLD     : (and in_air rtl_active position_hold)
+FC_DESCENT      : (and in_air rtl_active (<= dist_to_home_cm wp_acceptance_radius_cm))
+FC_DISARMED     : (and (not in_air) (<= altitude_cm landed_alt_cm))
+FC_FAILSAFE     : failsafe_engaged
+
+; ---------------------------------------------------------------- events
+mission_upload_ack!       : (and mission_crc_ok (>= mission_item_count 2))
+arm_and_takeoff!          : (and prearm_checks_passed (>= battery_pct mission_battery_pct))
+altitude_reached!         : (>= altitude_cm (- takeoff_alt_cm 10))
+wp_arrived!               : (<= dist_to_wp_cm wp_acceptance_radius_cm)
+route_blocked!            : (>= route_cells_blocked 1)
+reroute_request!          : (> (- active_route_cost proposed_route_cost) reroute_threshold_cost)
+proximity_brake!          : (< proximity_range_cm brake_distance_cm)
+path_clear!               : (>= proximity_range_cm brake_distance_cm)
+poi_arrived!              : (<= dist_to_poi_cm wp_acceptance_radius_cm)
+survey_done!              : (>= gimbal_sweep_deg 360)
+rtl_commanded!            : rtl_commanded_by_gcs
+battery_reserve_reached!  : (<= battery_pct (+ rtl_battery_pct reserve_pct))
+route_uploaded!           : (and (= route_id_active route_id_uploaded) (= route_cells_blocked 0))
+reroute_timeout_failsafe! : (> hold_time_ms hold_timeout_ms)
+home_arrived!             : (<= dist_to_home_cm wp_acceptance_radius_cm)
+touchdown_disarm!         : (<= altitude_cm landed_alt_cm)

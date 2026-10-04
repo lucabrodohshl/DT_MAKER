@@ -1,0 +1,76 @@
+% ===========================================================================
+\section{Composition and the alignment chain}\label{sec:composition}
+% ===========================================================================
+
+\begin{theorem}[$\VD$ is realised by the runtime]\label{thm:composition}
+Let $\VD$ be a UPPAAL document whose compilation succeeds, with $M=\IR(\VD)$.
+Under \cref{ass:utap,ass:isolation,ass:authority,ass:available} and the
+logical-time semantics of \cref{def:grid},
+\[
+  \sem{\VD}\ \iso\ \sem{M}\ \iso\ \Ksem(M)\ \wbis\ \Kprod(M),
+  \qquad\text{hence}\qquad \sem{\VD}\ \wbis\ \Kprod(M).
+\]
+The labels are identified by the action-preserving maps $\nu_\Edges$ and
+$\mathrm{id}$, the propositions by $\at{\ell}\mapsto p_{\nu_\Loc(\ell)}$, and delays by
+$d\mapsto dR$ ticks.
+\end{theorem}
+\begin{proof}
+\Cref{thm:compiler,thm:kernel,thm:production}, followed by \cref{lem:facts}(a)
+to weaken isomorphisms to weak timed bisimulations and \cref{lem:facts}(b) to
+compose. The label and proposition maps compose because each step preserves
+actions and propositions.
+\end{proof}
+
+\begin{corollary}[Grid-timed traces]\label{cor:traces}
+Every observable timed trace of the deployed twin $D=\Kprod(\IR(\VD))$ is a timed
+trace of the dense-time semantics $\sem{\VD}_{\Real}$. Every timed trace of
+$\sem{\VD}_{\Real}$ whose timestamps lie on the grid $\TR^{\Hz}$ is a timed trace of $D$
+(under \cref{ass:available}).
+\end{corollary}
+\begin{proof}
+Combine \cref{thm:composition} (weak bisimilarity implies equality of observable
+timed traces) with \cref{prop:dense}.
+\end{proof}
+
+\subsection{Connection to semantic alignment}
+
+The alignment paper's chain $P\simul\VP\sbis_{\cons}\VD\sbis D$ has three links, and
+this project discharges only the last one:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+Link & Status in this project & Evidence \\ \midrule
+$P\simul\VP$ & assumption about the physical system and the PT engineering process & none (out of scope) \\
+$\VP\sbis_{\cons}\VD$ & assumption, decided by the unmodified aligner (Z3 + zone graphs) &
+  \code{evidence/alignment.json} in the package, hash-bound to $\VP$, $\VD$, $K$, $I_P$, $I_D$ \\
+$\VD\sbis D$ & \emph{theorem} (\cref{thm:composition}), in its weak-bisimulation form over $\TR^{\Hz}$ &
+  this report, plus compilation manifest and translation validation \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Because $\VD\wbis D$ preserves observable propositions and timed traces, the
+guarantees the alignment paper derives from $\VP\sbis_{\cons}\VD$ apply to $D$
+within the logical-time semantics. These are agreement of the twins' domain
+interpretations at matched states (paper, Theorem~1) and transfer of TCTL
+properties over the observable propositions (paper, Theorem~2). Two
+qualifications must be stated:
+\begin{enumerate}
+\item The guarantee is only as strong as the alignment verdict. The integration
+  report lists the aspects of Definition~5 that the aligner's implementation
+  does not check (Condition~I is not evaluated; uninterpreted synchronised
+  labels are skipped; the zone graph starts from the unconstrained initial
+  zone). These qualify the \emph{assumption} $\VP\sbis_{\cons}\VD$, not \cref{thm:composition}.
+\item Properties of $\sem{\VD}_{\Real}$ that depend on off-grid timing need not hold
+  for $D$, and vice versa. By \cref{cor:traces}, universally quantified trace
+  properties (safety) of $\sem{\VD}_{\Real}$ hold for $D$.
+\end{enumerate}
+
+\paragraph{The defensible product statement.}
+\emph{A verified DT view is compiled into a canonical executable representation
+and executed by a small trusted semantic kernel whose logical behaviour realises
+the verified view by construction (\cref{thm:composition}). Runtime decisions and
+observations are recorded in a cryptographically tamper-evident execution
+ledger, while planners and industrial integrations remain outside the trusted
+semantic core (\cref{ass:isolation,ass:authority}).}

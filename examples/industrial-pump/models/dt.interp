@@ -1,0 +1,22 @@
+; I_D: interpretation of the pump DT view (ProcessPumpDT) over process-pump.ont.
+; Vocabulary of the reliability-engineering twin.
+
+; --- locations ---
+NORMAL    : (and motor_running (<= bearing_temp bearing_temp_limit) (<= vibration_rms vibration_limit))
+DEGRADED  : (and motor_running (<= bearing_temp bearing_temp_trip) (or (> bearing_temp bearing_temp_limit) (> vibration_rms vibration_limit)))
+COOLING   : (and motor_running cooling_active (<= bearing_temp bearing_temp_trip))
+STOPPING  : (and stop_requested (> shaft_speed 0))
+STOPPED   : (and (not motor_running) (= shaft_speed 0))
+FAULT     : (and (not motor_running) (> bearing_temp bearing_temp_trip))
+
+; --- events ---
+condition_degraded!  : (or (> bearing_temp bearing_temp_limit) (> vibration_rms vibration_limit))
+condition_recovered! : (and (<= bearing_temp bearing_temp_limit) (<= vibration_rms vibration_limit) (not cooling_active))
+increase_load!       : (and load_increase_requested (< shaft_speed rated_speed))
+start_cooling!       : (and cooling_active (> bearing_temp bearing_temp_limit))
+cooling_complete!    : (and cooling_active (<= bearing_temp bearing_temp_limit))
+controlled_stop!     : stop_requested
+pump_stopped!        : (and (not motor_running) (= shaft_speed 0))
+trip!                : (> bearing_temp bearing_temp_trip)
+fault_reset!         : (and trip_acknowledged (<= bearing_temp bearing_temp_limit))
+restart!             : start_requested

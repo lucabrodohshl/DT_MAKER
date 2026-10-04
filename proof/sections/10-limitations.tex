@@ -1,0 +1,84 @@
+% ===========================================================================
+\section{Assumptions, trusted base and limitations}\label{sec:limitations}
+% ===========================================================================
+
+\subsection{What is established}
+Under the stated assumptions, the relationship between the formal DT view
+$\VD$, its compiled IR, and the logical semantic execution performed by the
+kernel and the production runtime is an isomorphism, respectively a weak
+timed bisimulation, over the logical-time grid $\TR^{\Hz}$ (\cref{thm:composition}).
+
+\subsection{Assumptions}
+\begin{enumerate}[label=(A\arabic*)]
+\item \textbf{Source reading}: UTAP parses UPPAAL XML as specified (\cref{ass:utap}).
+  The aligner rests on the same assumption.
+\item \textbf{Implementation = definitions}: the C++ functions listed in
+  \cref{app:code} compute the mathematical functions of
+  \cref{sec:ir,sec:compiler,sec:kernel}. The kernel was kept small (about 600
+  lines including documentation) to make this assumption auditable, and the
+  compiler's output is translation-validated (\cref{prop:tv}).
+\item \textbf{C++ toolchain and platform}: the compiler, the standard library and
+  the hardware execute the code as the C++ standard prescribes. In particular,
+  \code{int64} arithmetic is two's complement and \code{\_\_builtin\_add\_overflow}
+  reports overflow.
+\item \textbf{Runtime architecture}: \cref{ass:isolation,ass:authority} (enforced by
+  code structure and architecture tests) and \cref{ass:available} (availability;
+  without it only \cref{cor:failstop} holds).
+\item \textbf{Alignment}: $\VP\sbis_{\cons}\VD$ is assumed, and the evidence is the
+  verdict of the unmodified aligner, qualified by the integration findings.
+\end{enumerate}
+
+\subsection{Trusted computing base for $\VD\wbis D$}
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Must be trusted & Why \\ \midrule
+\code{twin::kernel} & computes every semantic successor (\cref{thm:kernel}) \\
+\code{twin::ir\_model} (types, \code{validate}) & defines what the kernel executes \\
+\code{twin::core} (\code{Result}, logical time) & exact time arithmetic and parsing \\
+IR loader (\code{ir::from\_canonical\_text}) + SHA-256 & loads exactly the hashed IR (\cref{lem:canon}) \\
+\code{twin::compiler} \emph{or} its translation validation & establishes $\VD\iso\IR(\VD)$ \\
+UTAP (shared with the aligner) & reads the source \\
+\code{TwinSession} commit protocol & the single mutation path (\cref{ass:authority}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent\emph{Need not be trusted for $\VD\wbis D$.} These components may fail
+without invalidating semantic correctness; they can at worst cause refusals,
+stops or wrong \emph{proposals}. They are the planner, the plan validator, the
+mission controller, the input adapters (they produce candidate observations,
+and wrong observations are rejected or faithfully recorded), the map service,
+the PT simulator, the visualisation, the HTTP/SSE server, metrics and logging,
+and the ledger (it records the run but cannot change it; it matters for
+\emph{audit}, not for semantics).
+
+\noindent\emph{What would invalidate the claim.} Any of the following would: a
+code path that changes the session's configuration without a kernel call; a
+second implementation of transition logic in the shell, planner or UI; a kernel
+or IR-validation defect; loading an IR other than the hashed one; changing
+$\VD$ after the alignment verdict without re-running the aligner (the package
+hashes detect this); or using a UTAP version that parses differently from the
+one the alignment was performed with.
+
+\subsection{What is \emph{not} established}
+\begin{itemize}
+\item hard real-time execution, worst-case execution time, or response-time bounds;
+\item equivalence between logical timestamps and wall-clock time;
+\item operating-system scheduler, network latency or message-ordering guarantees;
+\item synchronisation of distributed clocks;
+\item equivalence between the physical plant and any model ($P\simul\VP$ is assumed);
+\item correctness, optimality or completeness of the path planner;
+\item correctness of the building sensor model or of the environment service;
+\item the soundness of the alignment verdict beyond what the aligner checks
+  (integration findings 10--13);
+\item mechanised (machine-checked) correctness of this proof. Mechanisation in
+  Lean, Coq or Isabelle/HOL is future work.
+\end{itemize}
+
+\subsection{Future work}
+Mechanising \cref{thm:compiler,thm:kernel} is the natural next step: their
+proofs are by direct case analysis over a small rule set, which makes them
+well suited to a proof assistant, possibly with code extraction for the
+kernel. A second direction is a hard-real-time realisation that relates
+logical time to physical time under explicit WCET and scheduling assumptions.

@@ -1,0 +1,128 @@
+; =============================================================================
+; Ontology K = (S, F, R, Delta) for the indoor inspection drone.
+; Format: the semantic aligner's .ont syntax (SemPTDTAlignmentICSE).
+;
+; The Physical Twin team (flight-controller firmware) and the Digital Twin team
+; (mission supervision) measure the same physical quantities in different units
+; and under different names. The bridge axioms below are the shared domain
+; knowledge that relates the two vocabularies; they are what makes, e.g.,
+; "wp_arrived!" (PT, centimetres) mean the same as "waypoint_reached!" (DT, metres).
+;
+; Fragment: quantifier-free linear real/integer arithmetic with Boolean constants.
+; =============================================================================
+
+; ---------------------------------------------------------------- DT vocabulary
+fun height_m               : Real   ; height of the drone above the floor
+fun cruise_height_m        : Real   ; commanded cruise height
+fun landed_height_m        : Real   ; height below which the drone counts as landed
+fun distance_to_waypoint_m : Real
+fun distance_to_target_m   : Real   ; distance to the current inspection target
+fun distance_to_home_m     : Real
+fun waypoint_tolerance_m   : Real   ; acceptance radius of waypoints and targets
+fun obstacle_distance_m    : Real   ; closest obstacle ahead
+fun safety_distance_m      : Real
+fun energy_remaining_wh    : Real
+fun energy_to_home_wh      : Real   ; energy needed to return home on the current route
+fun energy_reserve_wh      : Real
+fun energy_mission_wh      : Real   ; energy the planned mission requires
+fun planning_time_s        : Real   ; time spent in the current planning episode
+fun planning_deadline_s    : Real
+fun inspection_coverage    : Real   ; fraction of the target surface inspected (0..1)
+fun required_coverage      : Real
+fun current_path_cost      : Real
+fun candidate_path_cost    : Real
+fun replan_gain_threshold  : Real   ; minimum cost gain that justifies a replan
+fun path_conflicts         : Int    ; known blocked cells on the planned path
+fun plan_version_active    : Int
+fun plan_version_proposed  : Int
+fun mission_target_count   : Int
+rel mission_validated      :
+rel preflight_ok           :
+rel airborne               :
+rel holding_position       :
+rel returning_home         :
+rel failsafe_active        :
+rel mission_complete       :        ; every target inspected
+rel targets_unreachable    :        ; no admissible route to the remaining targets
+
+; ---------------------------------------------------------------- PT vocabulary
+fun altitude_cm             : Real
+fun takeoff_alt_cm          : Real
+fun landed_alt_cm           : Real
+fun dist_to_wp_cm           : Real
+fun dist_to_poi_cm          : Real
+fun dist_to_home_cm         : Real
+fun wp_acceptance_radius_cm : Real
+fun proximity_range_cm      : Real
+fun brake_distance_cm       : Real
+fun battery_pct             : Real
+fun rtl_battery_pct         : Real
+fun reserve_pct             : Real
+fun mission_battery_pct     : Real
+fun hold_time_ms            : Real
+fun hold_timeout_ms         : Real
+fun gimbal_sweep_deg        : Real
+fun active_route_cost       : Real
+fun proposed_route_cost     : Real
+fun reroute_threshold_cost  : Real
+fun route_cells_blocked     : Int
+fun route_id_active         : Int
+fun route_id_uploaded       : Int
+fun mission_item_count      : Int
+rel mission_crc_ok          :
+rel prearm_checks_passed    :
+rel in_air                  :
+rel position_hold           :
+rel rtl_active              :
+rel failsafe_engaged        :
+rel rtl_commanded_by_gcs    :
+
+; ------------------------------------------------------- bridge axioms (units)
+axiom height_units       : (= altitude_cm (* 100 height_m))
+axiom takeoff_units      : (= takeoff_alt_cm (* 100 cruise_height_m))
+axiom landed_units       : (= landed_alt_cm (* 100 landed_height_m))
+axiom waypoint_units     : (= dist_to_wp_cm (* 100 distance_to_waypoint_m))
+axiom target_units       : (= dist_to_poi_cm (* 100 distance_to_target_m))
+axiom home_units         : (= dist_to_home_cm (* 100 distance_to_home_m))
+axiom radius_units       : (= wp_acceptance_radius_cm (* 100 waypoint_tolerance_m))
+axiom proximity_units    : (= proximity_range_cm (* 100 obstacle_distance_m))
+axiom brake_units        : (= brake_distance_cm (* 100 safety_distance_m))
+; 10 Wh battery pack (small indoor platform): 1 % of charge = 0.1 Wh
+axiom energy_units       : (= energy_remaining_wh (* 0.1 battery_pct))
+axiom rtl_energy_units   : (= energy_to_home_wh (* 0.1 rtl_battery_pct))
+axiom reserve_units      : (= energy_reserve_wh (* 0.1 reserve_pct))
+axiom mission_units      : (= energy_mission_wh (* 0.1 mission_battery_pct))
+axiom hold_time_units    : (= hold_time_ms (* 1000 planning_time_s))
+axiom hold_timeout_units : (= hold_timeout_ms (* 1000 planning_deadline_s))
+; a full inspection is one 360-degree gimbal sweep
+axiom coverage_units     : (= gimbal_sweep_deg (* 360 inspection_coverage))
+
+; ------------------------------------------------- bridge axioms (concepts)
+axiom route_cost_active   : (= active_route_cost current_path_cost)
+axiom route_cost_proposed : (= proposed_route_cost candidate_path_cost)
+axiom reroute_threshold   : (= reroute_threshold_cost replan_gain_threshold)
+axiom route_conflicts     : (= route_cells_blocked path_conflicts)
+axiom route_id_active_eq  : (= route_id_active plan_version_active)
+axiom route_id_upload_eq  : (= route_id_uploaded plan_version_proposed)
+; a mission upload contains every inspection target plus the home position
+axiom mission_items       : (= mission_item_count (+ mission_target_count 1))
+axiom crc_is_validation   : (= mission_crc_ok mission_validated)
+axiom prearm_is_preflight : (= prearm_checks_passed preflight_ok)
+axiom in_air_is_airborne  : (= in_air airborne)
+axiom hold_is_hold        : (= position_hold holding_position)
+axiom rtl_is_return       : (= rtl_active returning_home)
+axiom failsafe_is_failure : (= failsafe_engaged failsafe_active)
+; the ground station commands RTL exactly when the mission is complete or blocked
+axiom gcs_rtl_policy      : (= rtl_commanded_by_gcs (or mission_complete targets_unreachable))
+
+; --------------------------------------------------- physical parameters
+axiom tolerance_value    : (= waypoint_tolerance_m 0.25)
+axiom safety_value       : (= safety_distance_m 0.75)
+axiom cruise_value       : (= cruise_height_m 1.5)
+axiom landed_value       : (= landed_height_m 0.05)
+axiom coverage_value     : (= required_coverage 1)
+axiom deadline_value     : (= planning_deadline_s 5)
+axiom distances_nn       : (and (>= distance_to_waypoint_m 0) (>= distance_to_target_m 0) (>= distance_to_home_m 0) (>= obstacle_distance_m 0))
+axiom energy_nn          : (and (>= energy_remaining_wh 0) (>= energy_to_home_wh 0) (>= energy_reserve_wh 0))
+axiom conflicts_nn       : (>= path_conflicts 0)
+axiom targets_nn         : (>= mission_target_count 0)

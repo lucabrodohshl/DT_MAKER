@@ -1,0 +1,159 @@
+% ===========================================================================
+\section{Source models and their logical-time semantics}\label{sec:source}
+% ===========================================================================
+
+\subsection{The supported fragment}
+
+The source $\VD$ is a UPPAAL XML document. Its meaning is the abstract syntax
+that the UPPAAL parser UTAP builds from it, which is the same parser the semantic
+aligner uses. The compiler accepts exactly the fragment the aligner gives
+semantics to (see \texttt{docs/existing-aligner-integration.md}); everything
+else is rejected (\cref{sec:compiler}).
+
+\begin{definition}[Clock constraints]\label{def:constraints}
+Let $\Clk$ be a finite set of clocks and $0\notin\Clk$ a \emph{reference clock}.
+An \emph{atomic constraint} is $x-y\bowtie c$ with $x\in\Clk$,
+$y\in\Clk\cup\{0\}$, $x\neq y$, ${\bowtie}\in\{<,\le,=,\ge,>\}$ and $c\in\Int$;
+for $y=0$ it is written $x\bowtie c$ (a \emph{simple} constraint), otherwise it is
+a \emph{diagonal} constraint. A \emph{conjunction} is a finite \emph{set} $G$ of
+atomic constraints. A valuation $v:\Clk\to\TT$ is extended by $v(0)=0$, and
+\[
+  v\sat(x-y\bowtie c)\iff v(x)-v(y)\bowtie c,\qquad
+  v\sat G\iff \forall\varphi\in G.\;v\sat\varphi .
+\]
+$\cons(\Clk)$ denotes all conjunctions, $\cons_s(\Clk)$ those with simple atoms only.
+\end{definition}
+
+\begin{definition}[Source automaton]\label{def:source}
+A \emph{source automaton} is $A=(\Loc,\ell_0,\Clk,\Ch,\Edges,\Inv)$ where
+$\Loc=(\ell_0',\dots,\ell_{k-1}')$ is a finite sequence of distinctly named
+locations (document order) with $\ell_0\in\Loc$; $\Clk=(x_1,\dots,x_n)$ is a
+finite sequence of distinct clocks (global declarations first, then template
+declarations, both in declaration order); $\Ch$ is a finite set of channels;
+$\Act=\{\tauact\}\cup\{a!,a?\mid a\in\Ch\}$;
+$\Edges=(e_1,\dots,e_m)$ is a finite sequence of edges (document order)
+$e_j=(\ell,g,\alpha,Y,\ell')$ with $\ell,\ell'\in\Loc$, $g\in\cons_s(\Clk)$,
+$\alpha\in\Act$, $Y\subseteq\Clk$; and $\Inv:\Loc\to\cons(\Clk)$.
+\end{definition}
+
+Edges are identified by their position, so two edges with equal components are
+still distinct transitions (UPPAAL semantics). Guards are simple conjunctions
+because the aligner's guard reader cannot read diagonals (finding~6 of the
+integration report), whereas invariants may contain diagonals.
+
+\begin{remark}[Side conditions enforced by the compiler]\label{rem:side}
+In addition, the compiler requires: exactly one template, instantiated once;
+no data variables, functions, select bindings, urgent/committed locations,
+urgent/broadcast channels, priorities or probabilistic weights; resets to
+$0$ only; constants within UDBM's bound range; and $\ell_0=\ell_0'$, that is,
+the initial location is the first location in document order, which is the
+aligner's assumption (finding~4). Under these conditions the abstract syntax
+read by the compiler and the one read by the aligner coincide (\cref{prop:tv}).
+\end{remark}
+
+\subsection{Logical time}
+
+\begin{definition}[Logical-time grid and horizon]\label{def:grid}
+Fix a resolution $R\in\{10^0,10^1,\dots,10^9\}$ (ticks per model time unit) and
+the horizon $\Hz=\Tmax/R$ with $\Tmax=2^{62}-1$. The \emph{logical time domain} is
+\[
+  \TR=\{\,k/R\mid k\in\Nat\,\},\qquad \TR^{\Hz}=\{\,t\in\TR\mid t\le\Hz\,\}.
+\]
+\end{definition}
+
+$\TR$ contains $0$ and is closed under addition, so it is a time domain in the
+sense of \cref{sec:intro}. It consists exactly of the non-negative decimal
+numbers with at most $\log_{10}R$ fractional digits, which makes timestamps such
+as $31.5$ representable exactly. Values off the grid are rejected, never rounded
+(\cref{sec:time}). At $R=1000$ the horizon $\Hz$ is about $4.6\cdot10^{15}$ time
+units.
+
+\subsection{Semantics}
+
+\begin{definition}[Configurations]\label{def:conf}
+A \emph{configuration} of $A$ is a triple $(\ell,v,\theta)$ with $\ell\in\Loc$,
+$v:\Clk\to\TR$ and $\theta\in\TR^{\Hz}$ such that $v(x)\le\theta$ for all $x$.
+$\theta$ is the \emph{global logical time}, an implicit clock that is never
+reset. The set of configurations is $\Conf(A)$; a configuration is
+\emph{valid} if $v\sat\Inv(\ell)$; the valid configurations form $\Valid(A)$.
+For $d\in\TR$, $(v+d)(x)=v(x)+d$; for $Y\subseteq\Clk$, $v[Y{:=}0](x)=0$ if $x\in Y$
+and $v(x)$ otherwise.
+\end{definition}
+
+\begin{definition}[Logical-time semantics $\sem{A}$]\label{def:source-sem}
+The LTTS $\sem{A}=(\Valid(A),s_0,\Edges,\to,\Props_A,\lab_A)$ over $\TR$ has
+internal labels $\{e\in\Edges\mid \mathit{act}(e)=\tauact\}$,
+$\Props_A=\{\at{\ell}\mid\ell\in\Loc\}$ and $\lab_A(\ell,v,\theta)=\{\at{\ell}\}$.
+The initial state and the transitions are given by the rules
+\begin{align*}
+&\textsc{(Init)} && s_0=(\ell_0,\mathbf{0},0) \quad\text{provided } \mathbf{0}\sat\Inv(\ell_0);\\
+&\textsc{(Delay)} && (\ell,v,\theta)\trans{d}(\ell,v+d,\theta+d)
+  \quad\text{iff } \theta+d\le\Hz \text{ and } \forall d'\in[0,d]\subseteq\Rnn.\;v+d'\sat\Inv(\ell);\\
+&\textsc{(Disc)} && (\ell,v,\theta)\trans{e}(\ell',v[Y{:=}0],\theta)
+  \quad\text{iff } e=(\ell,g,\alpha,Y,\ell'),\; v\sat g,\; v[Y{:=}0]\sat\Inv(\ell').
+\end{align*}
+$A$ is \emph{initialisable} if $\mathbf{0}\sat\Inv(\ell_0)$; all results below
+are about initialisable automata (the kernel refuses to start otherwise).
+The \emph{action-labelled} view of $\sem{A}$ is obtained by relabelling each
+edge $e$ with $\mathit{act}(e)$; it is the timed transition system of the
+alignment paper, with $\tauact$-edges internal.
+\end{definition}
+
+The intermediate points $d'$ in \textsc{(Delay)} range over the \emph{reals}: the
+invariant must hold continuously, as in the dense-time semantics of timed
+automata~\cite{alur-dill,uppaal}. The next lemma shows that this condition can be
+checked at the two end points.
+
+\begin{lemma}[Convexity of delays]\label{lem:convex}
+For every conjunction $G$ and valuation $v$, the set
+$D(v,G)=\{d'\in\Rnn\mid v+d'\sat G\}$ is an interval. Consequently
+\[
+  \forall d'\in[0,d].\;v+d'\sat G \iff v\sat G\ \wedge\ v+d\sat G .
+\]
+\end{lemma}
+\begin{proof}
+For a diagonal atom $x-y\bowtie c$, $(v(x)+d')-(v(y)+d')=v(x)-v(y)$ does not depend
+on $d'$, so its solution set is $\emptyset$ or $\Rnn$. For a simple atom
+$x\bowtie c$ the solution set $\{d'\mid v(x)+d'\bowtie c\}$ is a (possibly empty
+or degenerate) half-line or point of $\Rnn$. Hence $D(v,G)$ is a finite
+intersection of intervals, an interval. If an interval contains $0$ and $d$ it
+contains $[0,d]$; the converse direction is trivial.
+\end{proof}
+
+\begin{lemma}[Well-formedness is invariant]\label{lem:wf}
+Every state reachable from $s_0$ in $\sem{A}$ is a valid configuration
+$(\ell,v,\theta)$ with $0\le v(x)\le\theta\le\Hz$ for all $x\in\Clk$.
+\end{lemma}
+\begin{proof}
+By induction on run length. $s_0$ satisfies it by \textsc{(Init)}. \textsc{(Delay)}
+adds $d$ to every clock and to $\theta$, preserving $v(x)\le\theta$, enforces
+$\theta+d\le\Hz$, and requires $v+d\sat\Inv(\ell)$. \textsc{(Disc)} keeps $\theta$, sets
+some clocks to $0\le\theta$, and requires the target invariant.
+\end{proof}
+
+\begin{proposition}[Relation to dense time]\label{prop:dense}
+Let $\sem{A}_{\Real}$ be the standard dense-time semantics: the same rules over
+$\TT=\Rnn$ with no horizon. Then $\sem{A}$ is the sub-LTTS of $\sem{A}_{\Real}$
+induced by the configurations with values in $\TR$ and $\theta\le\Hz$, and by
+delays in $\TR$. That is, for grid configurations $s,s'$ and $\lambda\in\Edges\cup\TR$:
+$s\trans{\lambda}s'$ in $\sem{A}$ iff $s\trans{\lambda}s'$ in $\sem{A}_{\Real}$ and
+$\theta(s')\le\Hz$. In particular every timed run of $\sem{A}$ is a timed run of
+$\sem{A}_{\Real}$.
+\end{proposition}
+\begin{proof}
+The rules are literally the same; \textsc{(Delay)} quantifies over real
+intermediate points in both semantics. A grid configuration plus a grid delay
+yields a grid configuration, and resets yield grid values.
+\end{proof}
+
+\begin{remark}
+\Cref{prop:dense} says the grid semantics \emph{under-approximates} dense time
+soundly. The grid cannot reproduce dense-time behaviours that require
+timestamps off the grid, for example two events $10^{-4}$ time units apart at
+$R=1000$. Such behaviours are not representable in the logical time of the
+implementation, by design. For \emph{closed} automata (no strict constraints)
+integer time already preserves location reachability~\cite{hmp}. For automata
+with strict constraints, a finer grid may be needed. We do not claim a general
+completeness bound for the grid; this remark is informative and is not used in
+the proofs.
+\end{remark}
