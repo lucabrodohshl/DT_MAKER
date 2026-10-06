@@ -6,7 +6,7 @@
 #   ir, json <- authoring (canonical model, import/export; + compiler, alignment)
 #   core <- kernel(ir_model only) <- monitoring (properties, monitor documents)
 #   core, json, ir, kernel <- package <- ledger <- runtime
-#   core <- geo <- planner, world
+#   core <- geo <- planner, world; geo <- scene (World & Layout documents, simulator adapter)
 #   core, json <- ptfeed (scripted PT feeds; never linked into the runtime)
 # =============================================================================
 
@@ -32,6 +32,7 @@ add_subdirectory(package)
 add_subdirectory(ledger)
 add_subdirectory(runtime)
 add_subdirectory(geo)
+add_subdirectory(scene)
 add_subdirectory(planner)
 add_subdirectory(world)
 add_subdirectory(ptfeed)

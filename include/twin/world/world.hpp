@@ -112,6 +112,7 @@ private:
     DroneSimulator drone_;
     EnvironmentService env_;
     Ticks now_{0};
+    Ticks last_sense_{-1};
     std::size_t next_event_{0};
     std::uint64_t truth_version_{0};
 };

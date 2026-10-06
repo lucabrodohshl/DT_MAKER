@@ -156,6 +156,33 @@ Result<Scenario> scenario_from_json(const Json& j) {
     s.drone.battery_start_pct = number_or(d, "battery_start_pct", s.drone.battery_start_pct);
     s.drone.reserve_pct = number_or(d, "reserve_pct", s.drone.reserve_pct);
     s.drone.sensor_range_m = number_or(d, "sensor_range_m", s.drone.sensor_range_m);
+    s.drone.proximity_range_m = number_or(d, "proximity_range_m", s.drone.proximity_range_m);
+    if (s.drone.sensor_range_m <= 0.0 || s.drone.proximity_range_m <= 0.0 || s.drone.max_speed_mps <= 0.0) {
+        return make_error(ErrorCode::ValidationError, "sensor range, proximity range and speed must be positive");
+    }
+    const Json o = j.value("observation", Json::object());
+    if (o.contains("update_interval_ms")) {
+        if (!o.at("update_interval_ms").is_number_integer() || o.at("update_interval_ms").get<std::int64_t>() < 0) {
+            return make_error(ErrorCode::ValidationError, "observation.update_interval_ms must be a non-negative integer");
+        }
+        s.observation.update_interval = o.at("update_interval_ms").get<std::int64_t>();
+    }
+    if (o.contains("observes")) {
+        if (!o.at("observes").is_array()) return make_error(ErrorCode::ValidationError, "observation.observes must be an array");
+        s.observation.walls = s.observation.obstacles = s.observation.doors = false;
+        s.observation.free_space = true;
+        for (const Json& t : o.at("observes")) {
+            const std::string k = t.is_string() ? t.get<std::string>() : std::string();
+            if (k == "wall") s.observation.walls = true;
+            else if (k == "obstacle") s.observation.obstacles = true;
+            else if (k == "door") s.observation.doors = true;
+            else return make_error(ErrorCode::ValidationError, "observation.observes accepts wall, obstacle and door").with("value", k);
+        }
+    }
+    if (o.value("noise", std::string("none")) != "none") {
+        return make_error(ErrorCode::UnsupportedConstruct, "only the noise-free observation model is supported by this simulator")
+            .with("noise", o.value("noise", std::string()));
+    }
     for (const Json& e : j.value("events", Json::array())) {
         ScenarioEvent ev;
         Result<Ticks> at = parse_time(e.value("at", std::string()), kWorldTime);

@@ -50,3 +50,7 @@ twin_add_test(alignment_unit_tests LABEL unit
 twin_add_test(monitoring_unit_tests LABEL unit
     SOURCES monitoring/property_test.cpp monitoring/monitors_test.cpp
     DEPS twin::monitoring twin::compiler)
+
+twin_add_test(scene_unit_tests LABEL unit
+    SOURCES scene/scene_test.cpp
+    DEPS twin::scene twin::world)

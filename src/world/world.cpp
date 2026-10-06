@@ -99,7 +99,23 @@ StepResult World::step(Ticks dt) {
     now_ += dt;
     apply_due_events(r.facility_log);
     r.events = drone_.step(now_, dt);
-    env_.observe(now_, drone_.sense());
+    // Observation model: sensor sweeps at the configured interval report only the observed classes.
+    const ObservationSpec& om = scenario_.observation;
+    if (om.update_interval <= 0 || last_sense_ < 0 || now_ - last_sense_ >= om.update_interval) {
+        last_sense_ = now_;
+        std::vector<geo::CellChange> sensed = drone_.sense();
+        std::erase_if(sensed, [&om](const geo::CellChange& c) {
+            switch (c.occupancy) {
+                case geo::Occupancy::Wall: return !om.walls;
+                case geo::Occupancy::Obstacle: return !om.obstacles;
+                case geo::Occupancy::DoorOpen:
+                case geo::Occupancy::DoorClosed: return !om.doors;
+                case geo::Occupancy::Free: return !om.free_space;
+                default: return false;
+            }
+        });
+        env_.observe(now_, sensed);
+    }
     r.telemetry = drone_.telemetry(now_);
     return r;
 }
@@ -197,7 +213,14 @@ json::Json World::scenario_info() const {
                       {"description", scenario_.description},
                       {"home", geo::to_json(scenario_.home)},
                       {"targets", targets},
-                      {"timeline", timeline}};
+                      {"timeline", timeline},
+                      {"observation",
+                       {{"sensor_range_mm", static_cast<std::int64_t>(std::llround(scenario_.drone.sensor_range_m * 1000))},
+                        {"proximity_range_mm", static_cast<std::int64_t>(std::llround(scenario_.drone.proximity_range_m * 1000))},
+                        {"update_interval_ms", scenario_.observation.update_interval},
+                        {"walls", scenario_.observation.walls},
+                        {"obstacles", scenario_.observation.obstacles},
+                        {"doors", scenario_.observation.doors}}}};
 }
 
 }  // namespace twin::world

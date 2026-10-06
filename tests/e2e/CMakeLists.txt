@@ -3,4 +3,4 @@
 # service, connected in-process through the same JSON API the HTTP transport uses.
 twin_add_test(e2e_tests LABEL e2e
     SOURCES drone_mission_test.cpp
-    DEPS twin::runtime_shell twin::world twin::package_builder)
+    DEPS twin::runtime_shell twin::world twin::scene twin::package_builder)

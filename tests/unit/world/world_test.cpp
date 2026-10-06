@@ -15,7 +15,7 @@ using json::Json;
 
 std::unique_ptr<WorldService> open_world() {
     Result<std::unique_ptr<WorldService>> s =
-        WorldService::open(std::filesystem::path(TWIN_SOURCE_DIR) / "scenarios" / "inspection_default.json");
+        WorldService::open(std::filesystem::path(TWIN_SOURCE_DIR) / "tests" / "fixtures" / "legacy" / "inspection_default.json");
     EXPECT_TRUE(s.ok()) << (s ? "" : s.error().to_string());
     return std::move(s).value();
 }

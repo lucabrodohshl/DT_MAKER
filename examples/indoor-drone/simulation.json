@@ -1,0 +1,44 @@
+{
+ "cellSize": 500,
+ "description": "Inspect the main switchboard (T1) and the sprinkler riser valve (T2), then return to the lobby pad. The facility plan is outdated: it shows fire door FD-2 open (it is closed) and does not know the refurbished open-plan office. During the mission the facility declares a temporary no-fly zone in server room S-1.",
+ "kind": "mobile-robot",
+ "mission": {
+  "start": "start-pad-p1",
+  "targets": [
+   "target-t1",
+   "target-t2"
+  ]
+ },
+ "name": "Indoor inspection \u2014 Building A, floor 1",
+ "observation": {
+  "discovery": "on-sight",
+  "noise": "none",
+  "observes": [
+   "wall",
+   "obstacle",
+   "door"
+  ],
+  "proximityRange": "1",
+  "sensorRange": "3",
+  "unobservableLayers": [],
+  "updateIntervalMs": 0
+ },
+ "robot": {
+  "batteryCapacityWh": "10",
+  "batteryStartPct": "100",
+  "maxAccel": "1.5",
+  "maxSpeed": "1.2",
+  "reservePct": "20"
+ },
+ "seed": 20261004,
+ "timeline": [
+  {
+   "at": "52",
+   "description": "Facility notice: aerial work platform operating in server room S-1 - temporary no-fly zone",
+   "id": "notice-nofly-server-s1",
+   "kind": "hazard",
+   "notify": true,
+   "object": "nofly-server-s1"
+  }
+ ]
+}

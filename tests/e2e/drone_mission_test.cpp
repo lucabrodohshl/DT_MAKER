@@ -23,11 +23,14 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "support/drone_package.hpp"
 #include "support/in_process_world_port.hpp"
+#include "twin/scene/robot_sim.hpp"
 #include "twin/ledger/replay.hpp"
 #include "twin/ledger/verifier.hpp"
 #include "twin/runtime/cosim_driver.hpp"
@@ -53,8 +56,27 @@ struct MissionRun {
     std::uint64_t ticks{0};
 };
 
+/// The simulator scenario generated from the indoor-drone Blueprint's authored world (Studio's
+/// World & Layout model) by the mobile-robot simulation adapter: exactly what a deployment runs.
 std::filesystem::path scenario_path() {
-    return std::filesystem::path(TWIN_SOURCE_DIR) / "scenarios" / "inspection_default.json";
+    static const std::filesystem::path generated = [] {
+        const std::filesystem::path dir = std::filesystem::path(TWIN_SOURCE_DIR) / "examples" / "indoor-drone";
+        auto read = [](const std::filesystem::path& p) {
+            std::ifstream in(p);
+            std::ostringstream s;
+            s << in.rdbuf();
+            return json::parse(s.str()).value();
+        };
+        const Json sim = read(dir / "simulation.json");
+        auto world = scene::world_from_json(read(dir / "world.json"));
+        auto scenario = scene::simulator_scenario(world.value(), sim, sim.value("name", std::string()),
+                                                  sim.value("description", std::string()));
+        if (!scenario) throw std::runtime_error(scenario.error().to_string());
+        const std::filesystem::path out = std::filesystem::temp_directory_path() / "twin-e2e-drone-scenario.json";
+        std::ofstream(out) << scenario.value().dump(1);
+        return out;
+    }();
+    return generated;
 }
 
 std::vector<std::string> read_lines(const std::filesystem::path& file) {
