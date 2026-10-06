@@ -1,0 +1,75 @@
+{
+ "format": "twin-example/2",
+ "id": "thermal-chamber",
+ "name": "Simple thermal chamber TC-1",
+ "description": "Reference result of the 'Build Your First Twin' tutorial: a laboratory thermal chamber monitored against its controller's events.",
+ "blueprint": {
+  "id": "simple-thermal-chamber",
+  "name": "Simple Thermal Chamber",
+  "domain": "thermal",
+  "icon": "thermometer",
+  "description": "Laboratory heating chamber (tutorial).",
+  "document": "blueprint.json",
+  "formal": {
+   "ontology": {
+    "id": "thermal-chamber",
+    "name": "Thermal-chamber domain",
+    "description": "Domain theory of a heated chamber (temperature limit, heater, door).",
+    "file": "models/thermal-chamber.ont"
+   },
+   "pt_interpretation": {
+    "id": "tc-pt-semantics",
+    "name": "TC-1 PT interpretation",
+    "description": "Meaning of the controller's labels.",
+    "file": "models/pt.interp"
+   },
+   "dt_interpretation": {
+    "id": "tc-dt-semantics",
+    "name": "TC-1 DT interpretation",
+    "description": "Meaning of the twin's labels.",
+    "file": "models/dt.interp"
+   },
+   "pt_model": {
+    "id": "tc-pt-view",
+    "name": "TC-1 PT view (ChamberControllerPT)",
+    "description": "Physical Twin view from the controller specification.",
+    "file": "models/chamber_pt.xml"
+   },
+   "dt_model": {
+    "id": "tc-dt-view",
+    "name": "TC-1 DT view (ThermalChamberDT)",
+    "description": "Digital Twin behavioural view executed by the kernel.",
+    "file": "models/chamber_dt.tta.json"
+   }
+  }
+ },
+ "estate": {
+  "assets": [],
+  "relationships": []
+ },
+ "instances": [
+  {
+   "id": "chamber-tc1-dt",
+   "name": "TC-1",
+   "description": "Thermal chamber TC-1 in materials lab M-2",
+   "assetIds": {
+    "chamber": "chamber-tc1",
+    "heater": "heater-tc1",
+    "door-sensor": "door-sensor-tc1",
+    "temp-sensor": "temp-sensor-tc1",
+    "lab": "lab-m2"
+   },
+   "properties": {
+    "chamber": {
+     "serial": "TC-1-2026-0042"
+    }
+   },
+   "target": {
+    "kind": "local",
+    "speed": 1
+   },
+   "deploy": true
+  }
+ ],
+ "maintenanceHistory": []
+}

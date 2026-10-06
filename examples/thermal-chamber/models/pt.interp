@@ -1,0 +1,13 @@
+; I_P: interpretation of the chamber controller's PT view (ChamberControllerPT)
+; over thermal-chamber.ont. Vocabulary of the controller's event log.
+
+; --- locations ---
+IDLE        : (and (not heater_on) (<= temperature temperature_limit))
+HEATING     : (and heater_on (not door_open) (<= temperature temperature_limit))
+OVERHEATED  : (and (not heater_on) (> temperature temperature_limit))
+
+; --- events ---
+heater_on!  : (and heater_on (not door_open))
+heater_off! : (not heater_on)
+overheat!   : (> temperature temperature_limit)
+latch_reset! : (and reset_requested (<= temperature temperature_limit))

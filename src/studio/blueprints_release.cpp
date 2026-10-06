@@ -73,6 +73,7 @@ Result<Json> BlueprintService::run_check(std::string_view id, std::int64_t v, st
     const Json identity = ver.document.value("identity", Json::object());
     if (check == "formal") {
         Json results = Json::array();
+        std::int64_t passed = 0;
         for (const char* role : {"ontology", "pt_interpretation", "dt_interpretation", "pt_model", "dt_model"}) {
             auto p = ver.pins.find(role);
             if (p == ver.pins.end()) {
@@ -93,10 +94,16 @@ Result<Json> BlueprintService::run_check(std::string_view id, std::int64_t v, st
             } else {
                 Json x = r.value();
                 x.erase("content");
-                results.push_back(Json{{"role", role}, {"ref", ref.value().str()}, {"open", open}, {"result", x}});
+                const bool ok = x.value("validation", Json::object()).value("outcome", std::string()) == "pass";
+                passed += ok ? 1 : 0;
+                results.push_back(Json{{"role", role}, {"ref", ref.value().str()}, {"open", open}, {"state", ok ? "pass" : "fail"}, {"result", x}});
             }
         }
-        return Json{{"check", "formal"}, {"results", results}};
+        const bool all = passed == 5;
+        return Json{{"check", "formal"},
+                    {"outcome", all ? "pass" : "fail"},
+                    {"summary", std::to_string(passed) + " of 5 formal artefacts validated."},
+                    {"results", results}};
     }
     if (check == "alignment") {
         auto b = impl_->bindings(ver);
@@ -252,7 +259,7 @@ Result<Json> BlueprintService::run_check(std::string_view id, std::int64_t v, st
     }
     Json b = to_json(stored.value());
     b["manifest"] = manifest;
-    return Json{{"check", "package"}, {"built", true}, {"evidence", built.value()}, {"package", pkg}, {"bundle", b}};
+    return Json{{"check", "package"}, {"outcome", "pass"}, {"built", true}, {"evidence", built.value()}, {"package", pkg}, {"bundle", b}};
 }
 
 // ----------------------------------------------------------------------------- package
@@ -442,13 +449,14 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
     const std::string parent_override = placement.value("parentAssetId", std::string());
     const Json asset_ids = body.value("assetIds", Json::object());  // optional explicit ids per Blueprint asset
 
-    // Asset map: instance-scoped assets get instance ids, context assets are shared.
+    // Asset map: instance-scoped assets get instance ids; context assets are shared and may be
+    // bound to existing estate assets through assetIds (reused, never modified).
     std::map<std::string, std::string> map;
     std::map<std::string, Json> defs;
     for (const Json& a : structure.value("assets", Json::array())) {
         const std::string aid = a.value("id", std::string());
         defs[aid] = a;
-        if (a.value("scope", std::string("instance")) == "context") map[aid] = aid;
+        if (a.value("scope", std::string("instance")) == "context") map[aid] = asset_ids.value(aid, aid);
         else map[aid] = asset_ids.value(aid, aid == structure.value("root", std::string()) ? id : id + "-" + aid);
     }
     const std::string root = structure.value("root", std::string());

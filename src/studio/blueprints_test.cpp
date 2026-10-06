@@ -370,6 +370,7 @@ Result<Json> BlueprintService::run_scenarios(std::string_view id, std::int64_t v
                     continue;
                 }
                 const Json& res = r.value()["steps"][0];
+                const bool expect_refused = st.value("expectRefused", false);
                 out["status"] = res.value("status", std::string());
                 out["requested"] = res.value("requested", Json());
                 if (res.value("status", std::string()) == "ok") {
@@ -378,6 +379,20 @@ Result<Json> BlueprintService::run_scenarios(std::string_view id, std::int64_t v
                     if (kind == "event") last_branches = res.value("branches", Json::array());
                     out["after"] = state;
                     out["branches"] = res.value("branches", Json::array());
+                    if (expect_refused) {
+                        // A negative test: the verified model must refuse this step.
+                        out["status"] = "fail";
+                        out["detail"] = "The kernel admitted a step this scenario expects to be refused.";
+                        ++failed;
+                        if (first_failure.empty()) first_failure = "step " + st.value("id", std::string()) + " was admitted, expected a refusal";
+                    }
+                } else if (expect_refused) {
+                    // Refused as expected: the state is unchanged and the test continues.
+                    out["status"] = "pass";
+                    out["detail"] = "Refused by the verified model, as this scenario expects.";
+                    out["error"] = res.value("error", Json());
+                    out["explanation"] = res.value("explanation", Json());
+                    ++passed;
                 } else {
                     out["error"] = res.value("error", Json());
                     out["explanation"] = res.value("explanation", Json());

@@ -457,15 +457,33 @@ std::vector<SectionFinding> BlueprintService::Impl::validate_sections(const Blue
     std::set<std::string> telemetry;
     std::set<std::string> events;
     std::set<std::string> monitors;
-    validate_identity(d.value("identity", Json::object()), d, Collector{out, "identity"});
-    validate_structure(d.value("structure", Json::object()), Collector{out, "structure"}, assets);
-    validate_world(d.value("world", Json::object()), d.value("simulation", Json::object()), assets, Collector{out, "world"});
-    validate_data(d.value("data", Json::object()), assets, pt, dt, Collector{out, "data"}, telemetry, events);
-    validate_connectivity(d.value("connectivity", Json::object()), telemetry, events, Collector{out, "connectivity"});
-    validate_assurance(d.value("assurance", Json::object()), telemetry, Collector{out, "assurance"}, monitors);
-    validate_presentation(d.value("presentation", Json::object()), telemetry, assets, dt, monitors, Collector{out, "presentation"});
-    validate_simulation(d.value("simulation", Json::object()), d.value("world", Json::object()), pt, Collector{out, "simulation"});
-    validate_scenarios(d.value("scenarios", Json::array()), pt, dt, d.value("world", Json::object()), Collector{out, "scenarios"});
+    // A section is user input: one whose members have unexpected types is reported (TWB000) instead
+    // of failing the whole validation, so the other sections and the overview stay usable.
+    auto guarded = [&](const char* section, auto&& validator) {
+        try {
+            validator();
+        } catch (const std::exception& e) {
+            Collector{out, section}.error("TWB000", std::string("The section has a member of an unexpected type (") + e.what() +
+                                                        "); correct it in the editor or the JSON view.", "", "");
+        }
+    };
+    guarded("identity", [&] { validate_identity(d.value("identity", Json::object()), d, Collector{out, "identity"}); });
+    guarded("structure", [&] { validate_structure(d.value("structure", Json::object()), Collector{out, "structure"}, assets); });
+    guarded("world", [&] {
+        validate_world(d.value("world", Json::object()), d.value("simulation", Json::object()), assets, Collector{out, "world"});
+    });
+    guarded("data", [&] { validate_data(d.value("data", Json::object()), assets, pt, dt, Collector{out, "data"}, telemetry, events); });
+    guarded("connectivity", [&] { validate_connectivity(d.value("connectivity", Json::object()), telemetry, events, Collector{out, "connectivity"}); });
+    guarded("assurance", [&] { validate_assurance(d.value("assurance", Json::object()), telemetry, Collector{out, "assurance"}, monitors); });
+    guarded("presentation", [&] {
+        validate_presentation(d.value("presentation", Json::object()), telemetry, assets, dt, monitors, Collector{out, "presentation"});
+    });
+    guarded("simulation", [&] {
+        validate_simulation(d.value("simulation", Json::object()), d.value("world", Json::object()), pt, Collector{out, "simulation"});
+    });
+    guarded("scenarios", [&] {
+        validate_scenarios(d.value("scenarios", Json::array()), pt, dt, d.value("world", Json::object()), Collector{out, "scenarios"});
+    });
     return out;
 }
 

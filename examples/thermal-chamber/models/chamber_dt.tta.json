@@ -1,0 +1,120 @@
+{
+  "format": "twin-ta/1",
+  "name": "ThermalChamberDT",
+  "note": "V_D: Digital Twin view of the thermal chamber. Time unit 1 s; clock t is the time in the current mode.",
+  "clocks": [
+    {
+      "name": "t",
+      "note": "time in the current mode"
+    }
+  ],
+  "constants": [],
+  "channels": [
+    {
+      "name": "start_heating",
+      "note": ""
+    },
+    {
+      "name": "stop_heating",
+      "note": ""
+    },
+    {
+      "name": "high_temperature",
+      "note": ""
+    },
+    {
+      "name": "cooled_down",
+      "note": ""
+    }
+  ],
+  "locations": [
+    {
+      "name": "IDLE",
+      "initial": true,
+      "invariant": [],
+      "note": "Heater off, chamber within limits."
+    },
+    {
+      "name": "HEATING",
+      "initial": false,
+      "invariant": [
+        {
+          "clock": "t",
+          "op": "<=",
+          "bound": 600
+        }
+      ],
+      "note": "Heating; the heater-on watchdog ends heating within 600 s."
+    },
+    {
+      "name": "OVERHEATED",
+      "initial": false,
+      "invariant": [],
+      "note": "Over-temperature latch set; heater off."
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "IDLE",
+      "target": "HEATING",
+      "sync": {
+        "channel": "start_heating",
+        "direction": "!"
+      },
+      "guard": [],
+      "resets": [
+        "t"
+      ],
+      "note": ""
+    },
+    {
+      "id": "e2",
+      "source": "HEATING",
+      "target": "IDLE",
+      "sync": {
+        "channel": "stop_heating",
+        "direction": "!"
+      },
+      "guard": [],
+      "resets": [
+        "t"
+      ],
+      "note": ""
+    },
+    {
+      "id": "e3",
+      "source": "HEATING",
+      "target": "OVERHEATED",
+      "sync": {
+        "channel": "high_temperature",
+        "direction": "!"
+      },
+      "guard": [],
+      "resets": [
+        "t"
+      ],
+      "note": ""
+    },
+    {
+      "id": "e4",
+      "source": "OVERHEATED",
+      "target": "IDLE",
+      "sync": {
+        "channel": "cooled_down",
+        "direction": "!"
+      },
+      "guard": [
+        {
+          "clock": "t",
+          "op": ">=",
+          "bound": 30
+        }
+      ],
+      "resets": [
+        "t"
+      ],
+      "note": "The latch can be reset after 30 s of cool-down."
+    }
+  ]
+}

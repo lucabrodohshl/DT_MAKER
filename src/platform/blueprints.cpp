@@ -99,13 +99,30 @@ Result<std::string> document_hash(const json::Json& document) {
 
 }  // namespace
 
+json::Json without_nulls(const json::Json& j) {
+    if (j.is_object()) {
+        json::Json out = json::Json::object();
+        for (const auto& [k, v] : j.items()) {
+            if (!v.is_null()) out[k] = without_nulls(v);
+        }
+        return out;
+    }
+    if (j.is_array()) {
+        json::Json out = json::Json::array();
+        for (const auto& v : j) out.push_back(without_nulls(v));
+        return out;
+    }
+    return j;
+}
+
 bool valid_blueprint_id(std::string_view id) noexcept {
     if (id.empty() || id.size() > 64 || id.front() == '-') return false;
     return std::all_of(id.begin(), id.end(), [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'; });
 }
 
-Result<BlueprintVersion> BlueprintRepository::create(const Blueprint& b, const json::Json& document,
+Result<BlueprintVersion> BlueprintRepository::create(const Blueprint& b, const json::Json& given,
                                                      const std::map<std::string, std::string>& pins, std::string_view actor) {
+    const json::Json document = without_nulls(given);
     if (!valid_blueprint_id(b.id)) {
         return make_error(ErrorCode::InvalidArgument, "a Blueprint id uses lowercase letters, digits and '-' (at most 64)")
             .with("id", b.id);
@@ -245,8 +262,9 @@ Result<BlueprintVersion> BlueprintRepository::create_draft(std::string_view id, 
 }
 
 Result<BlueprintVersion> BlueprintRepository::save(std::string_view id, std::int64_t v, std::int64_t expected_revision,
-                                                   const json::Json& document,
+                                                   const json::Json& given,
                                                    const std::map<std::string, std::string>& pins, std::string_view actor) {
+    const json::Json document = without_nulls(given);
     if (auto st = check_pins(pins); !st) return st.error();
     auto hash = document_hash(document);
     if (!hash) return std::move(hash).error();

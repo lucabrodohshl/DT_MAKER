@@ -100,7 +100,7 @@ public:
     /// @brief Repository over @p db; @p clock stamps records.
     BlueprintRepository(Database& db, const Clock& clock) : db_(db), clock_(clock) {}
 
-    /// @brief Creates a Blueprint and its version 1 (draft) with @p document and @p pins.
+    /// @brief Creates a Blueprint and its version 1 (draft) with @p document (see without_nulls()) and @p pins.
     [[nodiscard]] Result<BlueprintVersion> create(const Blueprint& blueprint, const json::Json& document,
                                                   const std::map<std::string, std::string>& pins, std::string_view actor);
     /// @brief The Blueprint @p id (NotFound otherwise).
@@ -123,7 +123,7 @@ public:
     [[nodiscard]] Result<BlueprintVersion> create_draft(std::string_view id, std::int64_t from, std::string_view note,
                                                         std::string_view actor);
     /**
-     * @brief Saves a draft's document and pins if @p expected_revision is current.
+     * @brief Saves a draft's document (see without_nulls()) and pins if @p expected_revision is current.
      * @return the saved version (revision + 1); StateError for a published version or a stale revision.
      */
     [[nodiscard]] Result<BlueprintVersion> save(std::string_view id, std::int64_t version, std::int64_t expected_revision,
@@ -153,6 +153,11 @@ private:
     Database& db_;
     const Clock& clock_;
 };
+
+/// @brief @p j with every object member whose value is null removed, recursively. In twin-blueprint/1
+/// an absent member and a null one mean the same; documents are stored without nulls so that
+/// readers never meet a null where they expect an object, array or string.
+[[nodiscard]] json::Json without_nulls(const json::Json& j);
 
 /// @brief Whether @p id is a valid Blueprint or instance id (1-64 of [a-z0-9-], starting with a letter or digit).
 [[nodiscard]] bool valid_blueprint_id(std::string_view id) noexcept;

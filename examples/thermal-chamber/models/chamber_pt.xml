@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!--
+  V_P : Physical Twin view of the thermal chamber, from the controller specification.
+  Time unit: 1 second of logical model time. One clock x (time in the current mode).
+    HEATING     the controller leaves HEATING within 600 s (heater-on watchdog)
+    OVERHEATED  the over-temperature latch can only be reset after 30 s
+-->
+<nta>
+    <declaration>
+        clock x;
+        chan heater_on, heater_off, overheat, latch_reset;
+    </declaration>
+    <template>
+        <name>ChamberControllerPT</name>
+        <location id="IDLE" x="0" y="0">
+            <name x="-20" y="-34">IDLE</name>
+        </location>
+        <location id="HEATING" x="300" y="0">
+            <name x="280" y="-34">HEATING</name>
+            <label kind="invariant" x="280" y="17">x &lt;= 600</label>
+        </location>
+        <location id="OVERHEATED" x="300" y="250">
+            <name x="280" y="216">OVERHEATED</name>
+        </location>
+        <init ref="IDLE"/>
+        <transition>
+            <source ref="IDLE"/><target ref="HEATING"/>
+            <label kind="synchronisation">heater_on!</label>
+            <label kind="assignment">x := 0</label>
+        </transition>
+        <transition>
+            <source ref="HEATING"/><target ref="IDLE"/>
+            <label kind="synchronisation">heater_off!</label>
+            <label kind="assignment">x := 0</label>
+        </transition>
+        <transition>
+            <source ref="HEATING"/><target ref="OVERHEATED"/>
+            <label kind="synchronisation">overheat!</label>
+            <label kind="assignment">x := 0</label>
+        </transition>
+        <transition>
+            <source ref="OVERHEATED"/><target ref="IDLE"/>
+            <label kind="guard">x &gt;= 30</label>
+            <label kind="synchronisation">latch_reset!</label>
+            <label kind="assignment">x := 0</label>
+        </transition>
+    </template>
+    <system>
+        system ChamberControllerPT;
+    </system>
+</nta>

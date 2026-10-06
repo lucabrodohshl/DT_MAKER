@@ -129,8 +129,10 @@ public:
     [[nodiscard]] Result<json::Json> instance(std::string_view id);
     /**
      * @brief Create an instance of a published version: {blueprintId, version, id, name,
-     * description?, placement?: {parentAssetId?, world?: {...}}, properties?: {...},
-     * bindings?: {sources?, bindings?}, target?: {kind: "local", speed?, paused?}}.
+     * description?, assetIds?: {blueprintAsset: assetId}, placement?: {parentAssetId?, world?: {...}},
+     * properties?: {...}, connectivity?: {sources?, bindings?}, target?: {kind: "local", speed?, paused?}}.
+     * assetIds names the instance's assets (instance scope) or the existing estate assets the
+     * Blueprint's context assets denote (reused, never modified).
      * Instantiates the Blueprint's instance-scoped assets and the telemetry channels of its data
      * contract; never copies or changes formal artefacts.
      */
