@@ -9,6 +9,7 @@
  * A tool that fails to run is recorded with outcome "error" ("check failed"),
  * never as a negative verdict.
  */
+#include <chrono>
 #include <random>
 
 #include "ontology_json.hpp"
@@ -118,10 +119,14 @@ Result<json::Json> Services::run_refinement(const PhiRefs& base, const PhiRefs& 
     events_.publish("evidence", {{"kind", "refinement"}, {"state", "check_running"}, {"subject", candidate.ontology.str()}},
                     iso8601_utc(clock_->now_ms()));
 
+    const auto started = std::chrono::steady_clock::now();
     const auto report = run_with_large_stack([&] { return onto::check_refinement(b, c, onto::SolverConfig{config_.solver_timeout_ms}); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     json::Json doc = to_json(report);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     doc["base"] = {{"ontology", base.ontology.str()},
                    {"ptInterpretation", base.pt_interpretation ? json::Json(base.pt_interpretation->str()) : json::Json(nullptr)},
                    {"dtInterpretation", base.dt_interpretation ? json::Json(base.dt_interpretation->str()) : json::Json(nullptr)}};
@@ -172,7 +177,10 @@ Result<json::Json> Services::run_alignment(const std::vector<Binding>& bindings,
     events_.publish("evidence", {{"kind", "alignment"}, {"state", "check_running"}, {"subject", dt->ref.str()}},
                     iso8601_utc(clock_->now_ms()));
 
+    const auto started = std::chrono::steady_clock::now();
     const auto result = run_with_large_stack([&] { return alignment::check_alignment(in); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     Outcome outcome = Outcome::Error;
@@ -192,6 +200,7 @@ Result<json::Json> Services::run_alignment(const std::vector<Binding>& bindings,
         summary = "The aligner could not be run: " + result.error().message;
     }
     doc["bindings"] = bindings_doc(bindings);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     auto ev = impl_->evidence->record(EvidenceKind::Alignment, outcome, verdict, summary,
                                       std::string(alignment::kAlignerName) + " " +
                                           std::string(alignment::kAlignerSourceDigest).substr(0, 16),
@@ -241,7 +250,10 @@ Result<json::Json> Services::run_compile_for(const BuildTarget& target, const st
     options.ticks_per_unit = target.ticks_per_unit;
     options.interpretation = interp;
     options.legacy_system_declaration = config_.legacy_system_declaration;
+    const auto started = std::chrono::steady_clock::now();
     const auto result = run_with_large_stack([&] { return compiler::compile_file(model, options); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     json::Json doc;
@@ -266,6 +278,7 @@ Result<json::Json> Services::run_compile_for(const BuildTarget& target, const st
         summary = "Compilation failed with " + std::to_string(diags.size()) + " diagnostic(s).";
     }
     doc["bindings"] = bindings_doc(bindings);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     auto ev = impl_->evidence->record(EvidenceKind::Compilation, outcome, outcome == Outcome::Pass ? "compiled" : "failed",
                                       summary, "twin-compiler " + std::string(twin::version::kCompiler), doc,
                                       inputs_of(bindings, {"dt_model", "dt_interpretation"}), actor.name, change_id);

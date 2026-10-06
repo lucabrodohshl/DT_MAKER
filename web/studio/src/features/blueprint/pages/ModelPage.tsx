@@ -8,7 +8,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { AlertOctagon, AlertTriangle, Download, FileUp, LayoutGrid, Plus, Search, Trash2, Workflow } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { blueprintApi, bpKeys, useBlueprintModel } from '@/api/blueprints';
@@ -166,6 +166,20 @@ export default function ModelPage({ role }: { role: 'pt' | 'dt' }) {
     workRef.current = current;
   });
   const diags = useMemo(() => diagnostics ?? q.data?.diagnostics ?? [], [diagnostics, q.data]);
+  // Deep links (search, cross-layer view, findings): ?state=NAME or ?edge=ID selects and frames it once.
+  const [params] = useSearchParams();
+  const deepLink = params.get('state') ?? params.get('edge');
+  const [linked, setLinked] = useState<string | null>(null);
+  if (deepLink && server && linked !== deepLink) {
+    setLinked(deepLink);
+    if (server.model.locations.some((l) => l.name === deepLink)) {
+      setSelection({ locations: [deepLink], edges: [] });
+      setFocus({ id: deepLink, nonce: 0 });
+    } else if (server.model.edges.some((x) => x.id === deepLink)) {
+      setSelection({ locations: [], edges: [deepLink] });
+      setFocus({ id: deepLink, nonce: 0 });
+    }
+  }
   const editable = e.editable;
 
   const save = useCallback(async () => {

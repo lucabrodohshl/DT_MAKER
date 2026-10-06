@@ -922,13 +922,16 @@ export interface MonitorDef {
   severity: 'info' | 'warning' | 'critical';
   requirement?: string;
   property?: string;
-  events?: string;
-  unmatchedEvents?: string;
+  /** "all" or a list of Physical System View labels ("start!"). */
+  events?: string | string[];
+  unmatchedEvents?: 'record' | 'reject';
   field?: string;
   check?: string;
   maxAgeSeconds?: number;
-  min?: number;
-  max?: number;
+  maxSilenceSeconds?: number;
+  /** Integer or decimal string (canonical documents hold no floats). */
+  min?: number | string;
+  max?: number | string;
   condition?: string;
 }
 
