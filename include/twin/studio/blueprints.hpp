@@ -131,7 +131,8 @@ public:
      * @brief Start an isolated Studio preview of a version (draft or published): the real runtime,
      * simulator and feed on the version's verified core (its package, or a sandbox build of the
      * pinned artefacts that is never recorded), with no twin record, deployment or stored telemetry.
-     * Body: {speed?, paused?}. The runtime is reachable through the twin proxy under previewId.
+     * Body: {speed?, paused?, simulator?} (simulator false: no event script, the engineer drives
+     * the runtime). The runtime is reachable through the twin proxy under previewId.
      */
     [[nodiscard]] Result<json::Json> start_preview(std::string_view id, std::int64_t version, const json::Json& body,
                                                    const Actor& actor);

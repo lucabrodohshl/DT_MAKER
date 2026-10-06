@@ -138,7 +138,8 @@ Result<Json> BlueprintService::start_preview(std::string_view id, std::int64_t v
         if (auto w = write_text(sandbox / "simulation" / "world-scenario.json", scenario.value().dump(1)); !w) return w.error();
         plan.world_scenario = sandbox / "simulation" / "world-scenario.json";
         simulator = "mobile-robot";
-    } else if (sim.value("kind", std::string()) == "event-script") {
+    } else if (sim.value("kind", std::string()) == "event-script" && body.value("simulator", true)) {
+        // {"simulator": false}: no event script — the engineer drives the preview (events, scenarios).
         if (auto w = write_text(sandbox / "simulation" / "event-script.json", sim.value("script", Json::object()).dump(1)); !w) return w.error();
         plan.feed = sandbox / "simulation" / "event-script.json";
         simulator = "event-script";
