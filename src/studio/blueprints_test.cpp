@@ -210,6 +210,45 @@ Result<Json> BlueprintService::timing(std::string_view id, std::int64_t v, const
     if (!c0) return std::move(c0).error();
     Json req = request.is_object() ? request : Json::object();
     if (!req.contains("start")) req["start"] = Json{{"kind", "initial"}};
+    // A scenario's own steps (Scenario Builder): its formal steps are derived exactly as the
+    // scenario runner derives them — events and delays as written, world changes with an
+    // observation generate the mapped event, steps expected to be refused leave the state as is.
+    Json origins = nullptr;
+    if (req.contains("scenarioSteps") && req.at("scenarioSteps").is_array()) {
+        ScenarioContext ctx;
+        ctx.data = ver.value().document.value("data", Json::object());
+        Json formal = Json::array();
+        origins = Json::array();
+        for (const Json& st : req.at("scenarioSteps")) {
+            const std::string kind = st.value("kind", std::string());
+            const std::string sid = st.value("id", std::string());
+            if ((kind == "event" || kind == "delay") && !st.value("expectRefused", false)) {
+                Json f{{"kind", kind}};
+                for (const char* key : {"label", "level", "transition", "at", "delay"}) {
+                    if (st.contains(key)) f[key] = st.at(key);
+                }
+                formal.push_back(f);
+                origins.push_back(sid);
+            } else if (kind == "expect" && st.contains("at")) {
+                // An expectation at a later time lets logical time pass first (as the runner does).
+                formal.push_back(Json{{"kind", "delay"}, {"until", st.at("at")}});
+                origins.push_back(sid);
+            } else if (kind == "world" && st.contains("observation")) {
+                const Json obs = st.at("observation");
+                auto lab = observation_label(ctx, obs);
+                if (!lab) {
+                    Error err = std::move(lab).error();
+                    err.with("step", sid);
+                    return err;
+                }
+                formal.push_back(Json{{"kind", "event"}, {"label", lab.value().first}, {"level", lab.value().second},
+                                      {"at", obs.value("at", st.value("at", std::string("0")))}});
+                origins.push_back(sid + "/observed");
+            }
+        }
+        req["steps"] = formal;
+        req.erase("scenarioSteps");
+    }
     // PT-level events are translated through E (from the alignment evidence of exactly these pins).
     const auto e = label_map(impl_->alignment_for(ver.value()));
     Json steps = Json::array();
@@ -232,6 +271,7 @@ Result<Json> BlueprintService::timing(std::string_view id, std::int64_t v, const
     auto r = runtime::what_if(m, kernel::StateSet::of(c0.value()), req);
     if (!r) return std::move(r).error();
     Json out = r.value();
+    if (!origins.is_null()) out["origins"] = origins;
     out["irSha256"] = compiled.value()->ir_sha256;
     out["timeUnit"] = ver.value().document.value("identity", Json::object()).value("timeUnit", std::string("s"));
     out["authority"] = "semantic kernel (twin::kernel) on the compiled Digital Twin View";

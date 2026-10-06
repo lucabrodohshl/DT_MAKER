@@ -107,6 +107,10 @@ public:
     /// @brief Rasterised simulator grids of the world (ground truth and initial knowledge).
     [[nodiscard]] Result<json::Json> world_raster(std::string_view id, std::int64_t version);
     /// @brief Kernel what-if on the compiled DT view: legal delay intervals, explanations, refusals.
+    ///
+    /// The request is a what-if request (`start`, `steps`), or `scenarioSteps`: the steps of a
+    /// Blueprint scenario, from which the formal steps are derived as the scenario runner does
+    /// (world observations generate their mapped event; `origins` names each step's source).
     [[nodiscard]] Result<json::Json> timing(std::string_view id, std::int64_t version, const json::Json& request);
     /// @brief Run one scenario (or all when empty) as a test; records scenario evidence.
     [[nodiscard]] Result<json::Json> run_scenarios(std::string_view id, std::int64_t version,
