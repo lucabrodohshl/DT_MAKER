@@ -277,4 +277,18 @@ TEST_F(BlueprintTest, SeededInstanceDeploysRealProcesses) {
     auto stopped = bp().control_instance("chamber-tc1-dt", "stop", alice);
     ASSERT_TRUE(stopped.ok()) << stopped.error().to_string();
     EXPECT_EQ(bp().instance("chamber-tc1-dt").value()["runtime"]["state"], "stopped");
+
+    // A draft previews in isolation: sandbox build of its core, real runtime and feed, nothing recorded.
+    const std::size_t packages_before = s().packages("").value().size();
+    ASSERT_TRUE(bp().create_draft("simple-thermal-chamber", 1, "preview", alice).ok());
+    auto preview = bp().start_preview("simple-thermal-chamber", 2, Json::object(), alice);
+    ASSERT_TRUE(preview.ok()) << preview.error().to_string();
+    EXPECT_EQ(preview.value()["previewId"], "preview~simple-thermal-chamber~v2");
+    EXPECT_EQ(preview.value()["runtime"]["state"], "running");
+    EXPECT_EQ(preview.value()["core"]["checksFailed"].size(), 0U);
+    EXPECT_EQ(s().packages("").value().size(), packages_before) << "a preview records no package";
+    EXPECT_FALSE(s().twin_record("preview~simple-thermal-chamber~v2").ok()) << "a preview is not a twin";
+    auto ended = bp().stop_preview("simple-thermal-chamber", 2, alice);
+    ASSERT_TRUE(ended.ok());
+    EXPECT_EQ(ended.value()["runtime"]["state"], "stopped");
 }

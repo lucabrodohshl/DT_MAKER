@@ -235,6 +235,7 @@ struct StudioServer::Impl {
     void proxy_routes();
     void static_routes();
     std::optional<std::string> upstream_for(const std::string& twin_id, const std::string& family);
+    std::optional<std::string> supervised_url(const std::string& id, const char* key);
 };
 
 std::optional<std::string> StudioServer::Impl::upstream_for(const std::string& twin_id, const std::string& family) {
@@ -243,13 +244,21 @@ std::optional<std::string> StudioServer::Impl::upstream_for(const std::string& t
         if (it != options.world_urls.end()) return it->second;
         auto t = services.twin_record(twin_id);
         if (t && t.value().world_url) return *t.value().world_url;  // started by the deployment supervisor
-        return std::nullopt;  // ground truth is never substituted by the twin's belief
+        return supervised_url(twin_id, "worldUrl");  // ground truth is never substituted by the twin's belief
     }
     auto it = options.runtime_urls.find(twin_id);
     if (it != options.runtime_urls.end()) return it->second;
     auto t = services.twin_record(twin_id);
     if (t && t.value().runtime_url) return *t.value().runtime_url;
-    return std::nullopt;
+    return supervised_url(twin_id, "runtimeUrl");
+}
+
+std::optional<std::string> StudioServer::Impl::supervised_url(const std::string& id, const char* key) {
+    // Studio previews ("preview~...") have no twin record: their URLs come from the supervisor.
+    if (id.rfind("preview~", 0) != 0) return std::nullopt;
+    const Json st = services.supervisor().status(id);
+    if (st.value("state", std::string()) != "running" || !st.contains(key) || !st.at(key).is_string()) return std::nullopt;
+    return st.at(key).get<std::string>();
 }
 
 void StudioServer::Impl::routes() {
@@ -725,6 +734,24 @@ void StudioServer::Impl::blueprint_routes() {
         auto ver = path_version(r);
         if (!ver) return std::move(ver).error();
         return b.export_bundle(id_of(r), ver.value());
+    });
+    // Isolated Studio preview of a version (real runtime/simulator, nothing recorded).
+    route("GET", v + "/preview", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.preview(id_of(r), ver.value());
+    });
+    route("POST", v + "/preview", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.start_preview(id_of(r), ver.value(), body.value(), a);
+    });
+    route("DELETE", v + "/preview", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.stop_preview(id_of(r), ver.value(), a);
     });
     route("POST", v + "/bindings/test", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
         auto ver = path_version(r);

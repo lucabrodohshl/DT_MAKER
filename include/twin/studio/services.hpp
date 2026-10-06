@@ -178,6 +178,14 @@ public:
     [[nodiscard]] Result<json::Json> build_package_for(const BuildTarget& target,
                                                        const std::vector<platform::Binding>& bindings,
                                                        const std::optional<std::string>& change_id, const Actor& actor);
+    /**
+     * @brief Build a package of @p bindings into @p directory WITHOUT recording it (no package
+     * record, no evidence): the Studio preview sandbox. The builder performs the same checks as
+     * for a release; the result is {packageHash, irSha256, checks[]}.
+     */
+    [[nodiscard]] Result<json::Json> build_package_into(const BuildTarget& target,
+                                                        const std::vector<platform::Binding>& bindings,
+                                                        const std::filesystem::path& directory);
     /// @brief Re-verify a stored package now (live integrity checks).
     [[nodiscard]] Result<json::Json> verify_package(std::string_view package_id);
     /// @brief One evidence record with its document.

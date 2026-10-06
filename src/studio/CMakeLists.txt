@@ -20,6 +20,7 @@ twin_add_library(studio
         blueprints_validate.cpp
         blueprints_test.cpp
         blueprints_release.cpp
+        blueprints_preview.cpp
     PUBLIC_DEPS twin::platform twin::ontology
     PRIVATE_DEPS twin::compiler twin::alignment twin::authoring twin::monitoring twin::scene twin::world twin::ptfeed twin::runtime_shell twin::package_builder twin::studio_engine httplib::httplib)
 target_include_directories(twin_studio PRIVATE

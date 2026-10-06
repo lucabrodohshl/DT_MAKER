@@ -52,6 +52,7 @@ struct Process {
 
 struct Supervisor::Instance {
     std::string id;
+    std::string kind{"instance"};  ///< "instance" or "preview".
     std::string state{"starting"};  ///< "starting", "running", "stopped", "failed".
     std::string message;
     std::vector<Process> processes;
@@ -238,6 +239,7 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
     stop(plan.instance_id, "restart");
     auto inst = std::make_shared<Instance>();
     inst->id = plan.instance_id;
+    inst->kind = plan.kind;
     inst->started_at = platform::iso8601_utc(services_.clock().now_ms());
     std::error_code ec;
     const fs::path logs = plan.work_dir / "logs";
@@ -366,8 +368,9 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
         inst->processes.push_back(f.value());
     }
 
-    // Register the URLs and start the telemetry bridge: Operate needs no configuration.
-    auto twin = services_.twin_record(plan.instance_id);
+    // Register the URLs and start the telemetry bridge: Operate needs no configuration. A preview
+    // has no twin record and records nothing.
+    auto twin = plan.kind == "instance" ? services_.twin_record(plan.instance_id) : Result<platform::Twin>(make_error(ErrorCode::NotFound, "preview"));
     if (twin) {
         auto rec = twin.value();
         rec.runtime_url = runtime_url;
@@ -375,9 +378,11 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
         rec.desired_state = "running";
         (void)services_.upsert_twin(rec);
     }
-    inst->bridge = std::thread([this, inst, runtime_url] {
-        run_runtime_bridge(services_, inst->id, runtime_url, inst->bridge_stop);
-    });
+    if (plan.bridge) {
+        inst->bridge = std::thread([this, inst, runtime_url] {
+            run_runtime_bridge(services_, inst->id, runtime_url, inst->bridge_stop);
+        });
+    }
     {
         std::lock_guard l(mu_);
         inst->state = "running";
@@ -452,6 +457,7 @@ Json Supervisor::status(const std::string& instance_id) const {
         if (p.name == "twin-world") world_url = p.url;
     }
     return Json{{"instance", i.id},
+                {"kind", i.kind},
                 {"state", i.state},
                 {"message", i.message},
                 {"startedAt", i.started_at},

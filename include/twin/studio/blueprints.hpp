@@ -122,6 +122,22 @@ public:
     /// @brief Export a version as a twin-blueprint-bundle/1 document (document + formal contents).
     [[nodiscard]] Result<json::Json> export_bundle(std::string_view id, std::int64_t version);
 
+    // ------------------------------------------------------------------ preview
+    /**
+     * @brief Start an isolated Studio preview of a version (draft or published): the real runtime,
+     * simulator and feed on the version's verified core (its package, or a sandbox build of the
+     * pinned artefacts that is never recorded), with no twin record, deployment or stored telemetry.
+     * Body: {speed?, paused?}. The runtime is reachable through the twin proxy under previewId.
+     */
+    [[nodiscard]] Result<json::Json> start_preview(std::string_view id, std::int64_t version, const json::Json& body,
+                                                   const Actor& actor);
+    /// @brief State of a version's preview ({runtime: {state: "not_started"}} if none).
+    [[nodiscard]] Result<json::Json> preview(std::string_view id, std::int64_t version);
+    /// @brief Stop a version's preview (idempotent).
+    [[nodiscard]] Result<json::Json> stop_preview(std::string_view id, std::int64_t version, const Actor& actor);
+    /// @brief The preview id of a version ("preview~<id>~v<n>"; never a valid twin id).
+    [[nodiscard]] static std::string preview_id(std::string_view id, std::int64_t version);
+
     // ------------------------------------------------------------------ instances
     /// @brief Instances (of one Blueprint, or all), with deployment and runtime state.
     [[nodiscard]] Result<json::Json> instances(const std::optional<std::string>& blueprint);

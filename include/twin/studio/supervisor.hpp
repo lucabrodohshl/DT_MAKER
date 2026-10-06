@@ -48,6 +48,8 @@ struct LaunchPlan {
     bool paused{true};                             ///< Co-simulation starts paused (operator starts the mission).
     std::filesystem::path work_dir;                ///< Ledgers and logs of the instance.
     std::vector<std::filesystem::path> package_store;  ///< Directories of further packages (replay).
+    std::string kind{"instance"};                  ///< "instance" (a twin) or "preview" (Studio sandbox).
+    bool bridge{true};                             ///< Bridge runtime telemetry into the twin's channels.
 };
 
 /// @brief See file documentation.
