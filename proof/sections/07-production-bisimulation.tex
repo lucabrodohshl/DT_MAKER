@@ -23,6 +23,8 @@ internal ($\tauact$):
 \toprule
 Internal action ($\tauact$) & Effect \\ \midrule
 ledger append / fsync / anchor & $b$ only \\
+ledger \emph{context} records (map knowledge, planning episodes, commands) & $b$ only \\
+telemetry logging and streaming & $b$ only \\
 API request parsing and response serialisation & $b$ only \\
 SSE / WebSocket publication & $b$ only \\
 metrics and structured logging & $b$ only \\
@@ -124,6 +126,28 @@ The ledger therefore records the run, but it never influences which
 transitions exist. \Cref{thm:production} is independent of the ledger content,
 and replay (re-executing the recorded inputs with the kernel) reproduces the
 recorded states by determinism of the kernel functions.
+
+The same holds for the ledger's \emph{context} records: they chain the
+information the runtime acted on (the twin's map knowledge, each planning
+episode with its candidates and verdicts, the commands sent to the physical
+twin) into the evidence, but their builder takes the state only to record its
+time, and replay checks that the state is unchanged across them. They are
+internal actions in the sense of \cref{def:kprod}.
+\end{remark}
+
+\begin{remark}[Hosts, adapters and proposers]\label{rem:hosts}
+The runtime has two hosts that own the session: a co-simulation driver (the
+runtime steps a simulated physical twin) and a monitor host (an external
+physical twin pushes events). In both, an event of the physical twin enters
+$\Kprod$ only as a label input to the session, after translation through the
+label equivalence $E$ recorded in the package's alignment evidence. A label
+without a unique $E$-image is not submitted. The mission controller and the
+planner only \emph{propose} label inputs, such as \texttt{plan\_accepted!}. Their
+admissibility pre-checks are prediction queries on copies
+(\cref{prop:nointerf}), whatever estimates they use, and the session submits
+the proposal to the same kernel transition functions as every other input. None
+of these components adds transitions to $\Kprod$, removes them, or reorders the
+commit protocol, so \cref{thm:production} is unaffected by their correctness.
 \end{remark}
 
 \begin{remark}[Monitor sets and execution policies]\label{rem:policy}

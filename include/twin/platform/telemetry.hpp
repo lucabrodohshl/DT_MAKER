@@ -10,9 +10,12 @@
  * or by the runtime — never by this module and never by the UI.
  *
  * Time stamps:
- *  - `observed_ms`: when the value was observed at the source (event time);
- *  - `ingested_ms`: when Studio received it (ingestion time).
- * Both are wall-clock UTC milliseconds; neither is logical model time.
+ *  - `observed_ms`: when the value was observed at the source (event time), in
+ *    wall-clock UTC ms. For runtime-fed channels the Physical Twin has no wall
+ *    clock, so this is the reception time (the channel view says so);
+ *  - `ingested_ms`: when Studio received it (ingestion time, wall clock);
+ *  - `logical_ticks`: the source's logical observation time, if it has one
+ *    (co-simulated Physical Twin). Never mixed with the wall-clock times.
  *
  * Freshness is classified server-side from the channel's expected period:
  *  - **fresh**: latest sample observed within 3 × expected period of now;
@@ -54,6 +57,7 @@ struct TelemetrySample {
     std::optional<double> number;            ///< Numeric value (numbers; booleans as 0/1).
     std::optional<std::string> text;         ///< Text value (categories, strings, "true"/"false").
     std::string quality{"good"};             ///< "good" | "uncertain" | "bad".
+    std::optional<std::int64_t> logical_ticks;  ///< Logical observation time (ticks), when the source has one.
 };
 
 /// @brief Aggregate of the samples in one time bucket (downsampling).
@@ -88,6 +92,7 @@ enum class Freshness { Fresh, Stale, Missing, Invalid };
 /// @brief Telemetry store (see file documentation).
 class TelemetryRepository {
 public:
+    /// @brief Repository over @p db.
     explicit TelemetryRepository(Database& db) : db_(db) {}
 
     /// @brief Insert or replace a channel definition.
@@ -120,9 +125,11 @@ private:
     Database& db_;
 };
 
-/// @brief API representations.
+/// @brief API form of a channel (unit, source, ontology symbol, presentation).
 [[nodiscard]] json::Json to_json(const TelemetryChannel& channel);
+/// @brief API form of a sample (observation and ingestion time, quality, value).
 [[nodiscard]] json::Json to_json(const TelemetrySample& sample);
+/// @brief API form of a series (raw samples or downsampled buckets).
 [[nodiscard]] json::Json to_json(const TelemetrySeries& series);
 
 }  // namespace twin::platform

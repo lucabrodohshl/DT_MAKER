@@ -30,8 +30,9 @@ struct Anchor {
     std::string hash;     ///< Chain hash of that record.
 };
 
-/// @brief Encode / decode an anchor ("twin-ledger-anchor/1").
+/// @brief Encode an anchor ("twin-ledger-anchor/1").
 [[nodiscard]] json::Json to_json(const Anchor& anchor);
+/// @brief Decode and validate an anchor.
 [[nodiscard]] Result<Anchor> anchor_from_json(const json::Json& j);
 
 /// @brief Verification options.

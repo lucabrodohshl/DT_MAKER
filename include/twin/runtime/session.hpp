@@ -76,6 +76,42 @@ struct EnabledInfo {
     bool enabled_now{false};              ///< Admissible without delay.
 };
 
+/**
+ * @brief Monitoring summary, aggregated by the session from the kernel's verdicts.
+ *
+ * Inputs from the mission controller or an operator are the twin's own
+ * *decisions*; every other input (PT adapter, external API) is an
+ * *observation* of the physical side. The twin is **conformant** while every
+ * observation has been explained by the verified model and no deadline alarm
+ * has been raised. Nothing here is computed outside the kernel: the counters
+ * only count the kernel's accept/reject verdicts and the recorded alarms.
+ */
+struct MonitoringSummary {
+    std::uint64_t observations{0};           ///< Observations submitted.
+    std::uint64_t observations_rejected{0};  ///< ... that the model could not explain.
+    std::uint64_t decisions{0};              ///< Decisions submitted.
+    std::uint64_t decisions_rejected{0};     ///< ... refused by the kernel.
+    std::uint64_t alarms{0};                 ///< Monitoring alarms recorded.
+    std::optional<std::uint64_t> first_violation_seq;  ///< Ledger seq of the first violation.
+    std::string first_violation;             ///< Its description.
+    /// @brief True while no observation was rejected and no alarm was raised.
+    [[nodiscard]] bool conformant() const noexcept { return observations_rejected == 0 && alarms == 0; }
+};
+
+/// @brief The last committed discrete transition (for observers).
+struct LastTransition {
+    std::uint64_t seq{0};       ///< Ledger record.
+    std::string transition;     ///< Transition id.
+    std::string label;          ///< Action label.
+    std::string source;         ///< Source location.
+    std::string target;         ///< Target location.
+    std::string input_source;   ///< Who submitted the input.
+    Ticks at{0};                ///< Logical time of the step.
+};
+
+/// @brief True for inputs that are the twin's own decisions (not observations of the PT).
+[[nodiscard]] bool is_decision_source(std::string_view source) noexcept;
+
 /// @brief A consistent copy of the session state for queries.
 struct Snapshot {
     kernel::StateSet state;                       ///< Committed semantic state.
@@ -86,6 +122,8 @@ struct Snapshot {
     std::string ledger_head;                      ///< Hash of the last record.
     bool failed{false};                           ///< Fail-stop state.
     bool closed{false};                           ///< Session ended.
+    MonitoringSummary monitoring;                 ///< Conformance counters.
+    std::optional<LastTransition> last_transition;  ///< Most recent discrete step.
 };
 
 /// @brief Notification after every committed record.
@@ -118,6 +156,16 @@ public:
     /// @brief Record a monitoring alarm (no state change).
     [[nodiscard]] Result<SubmitResult> raise_alarm(std::string_view alarm, std::string_view detail);
 
+    /**
+     * @brief Record non-semantic context (map knowledge, a planning episode, a command).
+     *
+     * Context is chained into the ledger in order with the semantic records so
+     * that audit and replay can show what the twin knew and did; the semantic
+     * state is unchanged. Like every record, a failed write makes the session
+     * fail-stop. @p data must be canonical-safe (no floating-point numbers).
+     */
+    [[nodiscard]] Result<SubmitResult> record_context(std::string_view topic, Ticks at, const json::Json& data);
+
     /// @brief End the session with an "end" record; further inputs are refused.
     [[nodiscard]] Result<SubmitResult> close(std::string_view reason);
 
@@ -148,6 +196,8 @@ public:
     [[nodiscard]] const std::string& session_id() const noexcept { return session_id_; }
     /// @brief Ledger path.
     [[nodiscard]] const std::filesystem::path& ledger_path() const noexcept { return ledger_->path(); }
+    /// @brief Number of records written so far (cheap; for anchoring telemetry to the ledger).
+    [[nodiscard]] std::uint64_t record_count() const;
 
 private:
     TwinSession(package::LoadedPackage package, std::shared_ptr<const kernel::Model> model,
@@ -168,6 +218,8 @@ private:
     std::string session_id_;
     bool failed_{false};
     bool closed_{false};
+    MonitoringSummary monitoring_;
+    std::optional<LastTransition> last_transition_;
     mutable std::mutex mutex_;
     std::mutex listener_mutex_;
     std::vector<std::function<void(const SessionEvent&)>> listeners_;

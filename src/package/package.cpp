@@ -14,6 +14,7 @@
 #include "twin/core/sha256.hpp"
 #include "twin/core/version.hpp"
 #include "twin/ir/codec.hpp"
+#include "twin/monitoring/monitors.hpp"
 
 namespace twin::package {
 namespace {
@@ -209,6 +210,27 @@ Outcome verify_impl(const std::filesystem::path& dir, const VerifyOptions& optio
         v.check("alignment lint clean", clean, "the evidence contains lint errors");
     }
     pkg.alignment_evidence = e;
+
+    // ---- optional Studio additions ------------------------------------------------------
+    if (by_role.count("monitors") == 1) {
+        Result<Json> md = json::parse(bytes_by_role.at("monitors"));
+        std::string detail = md.ok() ? "" : md.error().to_string();
+        if (md.ok()) {
+            Result<monitoring::MonitorsDocument> doc = monitoring::monitors_from_json(md.value());
+            if (!doc) {
+                detail = doc.error().to_string();
+            } else if (const auto findings = monitoring::validate_document(doc.value()); !findings.empty()) {
+                detail = findings.front().code + " " + findings.front().message;
+            }
+        }
+        v.check("monitor document valid", detail.empty(), detail);
+        if (detail.empty()) pkg.monitors = md.value();
+    }
+    if (by_role.count("type_metadata") == 1) {
+        Result<Json> tm = json::parse(bytes_by_role.at("type_metadata"));
+        v.check("type metadata is JSON", tm.ok(), tm.ok() ? "" : tm.error().to_string());
+        if (tm.ok()) pkg.type_metadata = tm.value();
+    }
     return finish();
 }
 

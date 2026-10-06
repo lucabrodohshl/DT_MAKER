@@ -36,6 +36,7 @@ namespace twin::world {
  */
 class EnvironmentService {
 public:
+    /// @brief Service publishing the scenario's prior knowledge.
     explicit EnvironmentService(const Scenario& scenario);
 
     /// @brief Current published knowledge (prior plan + all updates).
@@ -66,6 +67,7 @@ struct StepResult {
  */
 class World {
 public:
+    /// @brief World at logical time 0 of @p scenario.
     explicit World(Scenario scenario);
 
     /// @brief Advance logical time by @p dt ticks.
@@ -79,9 +81,13 @@ public:
 
     /// @name Environment API (what the Digital Twin may know)
     /// @{
+    /// @brief Published knowledge (prior plan plus all updates).
     [[nodiscard]] json::Json env_known_map() const;
+    /// @brief Updates with sequence number > @p since.
     [[nodiscard]] json::Json env_updates_since(std::uint64_t since) const;
+    /// @brief Mission definition (home, targets, drone parameters).
     [[nodiscard]] json::Json env_mission() const;
+    /// @brief Declared no-fly cells.
     [[nodiscard]] json::Json env_hazards() const;
     /// @}
 

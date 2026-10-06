@@ -31,6 +31,7 @@ struct HubEvent {
 /// @brief Thread-safe publish/subscribe buffer (see file documentation).
 class EventHub {
 public:
+    /// @brief Hub keeping the last @p capacity events for resumption.
     explicit EventHub(std::size_t capacity = 4000) : capacity_(capacity) {}
 
     /// @brief Publish an event; returns its sequence number.

@@ -19,8 +19,10 @@
  *    sequence number, `event` the topic; a `hello` event carries the hub
  *    epoch; resuming with `Last-Event-ID` after evicted events yields a
  *    `resync` event (the client must refetch state).
- *  - `/api/v1/twins/{id}/runtime/...` is forwarded to that twin's
- *    twin-runtime (`/runtime/...`). Without a configured runtime the answer is
+ *  - `/api/v1/twins/{id}/{runtime|simulation|planner|world|mission}/...` is
+ *    forwarded to that twin's twin-runtime (`world` is the twin's *known* world);
+ *    `/api/v1/twins/{id}/{observer|scenario}/...` to twin-world (physical ground
+ *    truth, for visualisation only). Without a configured runtime the answer is
  *    503 `runtime_not_connected` — Studio never fabricates behavioural state.
  */
 #pragma once
@@ -43,12 +45,13 @@ struct ServerOptions {
     std::optional<std::filesystem::path> web_root; ///< Built web UI (index.html) to serve, if any.
     int runtime_timeout_ms{5000};                  ///< Timeout for proxied runtime requests.
     std::map<std::string, std::string> runtime_urls;  ///< twin id -> twin-runtime base URL (overrides the twin record).
-    std::map<std::string, std::string> world_urls;    ///< twin id -> environment/world service base URL (domain plugins).
+    std::map<std::string, std::string> world_urls;    ///< twin id -> twin-world (ground truth: /observer, /scenario).
 };
 
 /// @brief See file documentation.
 class StudioServer {
 public:
+    /// @brief HTTP server exposing @p services; it does not listen until started.
     StudioServer(Services& services, ServerOptions options);
     ~StudioServer();
     StudioServer(const StudioServer&) = delete;

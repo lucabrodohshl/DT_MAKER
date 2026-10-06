@@ -38,8 +38,12 @@ struct PlanCheck {
 
 /**
  * @brief Validate the route @p waypoints flown from @p from against @p map.
- * @param energy_remaining_wh current battery energy; @param home_distance_m
- *        straight-line distance from the route's end to home (for the energy check).
+ * @param map the twin-KNOWN map (never the ground truth).
+ * @param from where the route starts (metres).
+ * @param waypoints the route (metres).
+ * @param energy_remaining_wh current battery energy.
+ * @param home_distance_m straight-line distance from the route's end to home (energy check).
+ * @param policy sampling resolution, reserve and energy model.
  */
 [[nodiscard]] PlanCheck validate_route(const geo::OccupancyGrid& map, geo::Point from,
                                        const std::vector<geo::Point>& waypoints, double energy_remaining_wh,

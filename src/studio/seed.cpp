@@ -110,7 +110,7 @@ TelemetrySample ProfileGenerator::live_sample(std::int64_t t_ms) {
 
 // --- seeding --------------------------------------------------------------------------
 
-Result<json::Json> seed_example(Services& services, const fs::path& example_dir, const SeedOptions& options) {
+Result<json::Json> seed_example(Services& services, const std::filesystem::path& example_dir, const SeedOptions& options) {
     auto manifest = read_manifest(example_dir);
     if (!manifest) return std::move(manifest).error();
     const json::Json& m = manifest.value();
@@ -229,7 +229,8 @@ Result<json::Json> seed_example(Services& services, const fs::path& example_dir,
         ch.expected_period_ms = c.value("expectedPeriodMs", std::int64_t{1000});
         ch.presentation = c.value("presentation", json::Json::object());
         if (auto st = services.upsert_channel(ch); !st) return st.error();
-        if (!options.telemetry_history) continue;
+        // Live-only channels (no profile, e.g. fed by a runtime) get no synthetic history.
+        if (!options.telemetry_history || !c.contains("profile")) continue;
         ProfileGenerator gen(c.value("profile", json::Json::object()), ch.value_type, now, seed + channel_index++);
         std::vector<TelemetrySample> batch;
         // Align sample times to the period grid so all channels share timestamps.
@@ -257,7 +258,7 @@ Result<json::Json> seed_example(Services& services, const fs::path& example_dir,
                       {"telemetrySamples", samples_written}};
 }
 
-void run_demo_feed(Services& services, const fs::path& example_dir, const std::atomic<bool>& stop) {
+void run_demo_feed(Services& services, const std::filesystem::path& example_dir, const std::atomic<bool>& stop) {
     auto manifest = read_manifest(example_dir);
     if (!manifest) {
         services.app_log().write(LogLevel::Error, "studio.demo-feed", "cannot read example manifest",
@@ -274,6 +275,8 @@ void run_demo_feed(Services& services, const fs::path& example_dir, const std::a
     const std::int64_t now = services.clock().now_ms();
     std::uint32_t i = 0;
     for (const auto& c : manifest.value().value("telemetry", json::Json::array())) {
+        // Channels fed by a runtime are never simulated: live data must have exactly one source.
+        if (c.value("source", std::string()).rfind("runtime:", 0) == 0 || !c.contains("profile")) continue;
         const std::int64_t period = c.value("expectedPeriodMs", std::int64_t{5000});
         feeds.push_back({c.at("id").get<std::string>(), period, now,
                          ProfileGenerator(c.value("profile", json::Json::object()), c.at("valueType").get<std::string>(), now,

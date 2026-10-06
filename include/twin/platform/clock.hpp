@@ -35,6 +35,7 @@ public:
 /// @brief A manually driven clock for tests and deterministic demo seeding.
 class ManualClock final : public Clock {
 public:
+    /// @brief Clock fixed at @p start_ms (Unix milliseconds) until advanced.
     explicit ManualClock(std::int64_t start_ms) : now_(start_ms) {}
     [[nodiscard]] std::int64_t now_ms() const override { return now_; }
     /// @brief Move time forward by @p ms.

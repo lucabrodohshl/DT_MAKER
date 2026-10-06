@@ -3,6 +3,9 @@
  * @brief Structured, machine-readable error values.
  * @ingroup core
  *
+ * @defgroup core Core utilities
+ * @brief Errors and results, exact logical time, SHA-256, wall-clock metadata. Part of the trusted computing base.
+ *
  * Errors are first-class values in this code base: every operation that can
  * fail for a reason other than a programming bug returns twin::Result<T>
  * (see result.hpp) carrying a twin::Error. Error codes are stable identifiers:
@@ -22,7 +25,7 @@ namespace twin {
  * @brief Stable error categories.
  *
  * The categories distinguish *semantic refusals* (the kernel correctly refuses a
- * step that the formal model does not admit, e.g. #InvariantViolation) from
+ * step that the formal model does not admit, e.g. ErrorCode::InvariantViolation) from
  * *input errors* and *infrastructure failures*. Only the latter may make the
  * production runtime fail-stop; see docs/trusted-computing-base.md.
  */

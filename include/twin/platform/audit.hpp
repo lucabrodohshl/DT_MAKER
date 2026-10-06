@@ -66,6 +66,7 @@ struct AuditFilter {
 /// @brief The audit log (see file documentation).
 class AuditLog {
 public:
+    /// @brief Audit trail stored in @p db; @p clock stamps records.
     AuditLog(Database& db, const Clock& clock) : db_(db), clock_(clock) {}
 
     /// @brief Append a record. @p details must not contain floating-point numbers.

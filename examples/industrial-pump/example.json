@@ -77,36 +77,36 @@
   ],
   "history": {"days": 7, "periodSeconds": 30, "seed": 4101},
   "telemetry": [
-    {"id": "pump-p101.bearing_temp", "assetId": "sensor-tt101", "name": "bearing_temp", "valueType": "number", "unit": "degC", "ontologySymbol": "bearing_temp", "source": "simulated:opcua://plc-4/ns=2;s=P101.TT101.PV", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.bearing_temp", "assetId": "sensor-tt101", "name": "bearing_temp", "valueType": "number", "unit": "degC", "ontologySymbol": "bearing_temp", "source": "runtime:pump-p101-dt/telemetry#bearing_temp", "expectedPeriodMs": 5000,
      "presentation": {"label": "Bearing temperature", "category": "Condition monitoring", "precision": 1, "preferredView": "line"},
      "profile": {"base": 72, "dailyAmplitude": 4, "noise": 0.6, "episodes": [
        {"startHoursAgo": 122, "durationMinutes": 150, "value": 108, "rampMinutes": 40, "mode": "set"},
        {"startHoursAgo": 46, "durationMinutes": 55, "value": 21, "rampMinutes": 15, "mode": "offset"},
        {"startHoursAgo": 3, "durationMinutes": 25, "value": 19, "rampMinutes": 10, "mode": "offset"}]}},
-    {"id": "pump-p101.vibration_rms", "assetId": "sensor-vt101", "name": "vibration_rms", "valueType": "number", "unit": "mm/s", "ontologySymbol": "vibration_rms", "source": "simulated:opcua://plc-4/ns=2;s=P101.VT101.RMS", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.vibration_rms", "assetId": "sensor-vt101", "name": "vibration_rms", "valueType": "number", "unit": "mm/s", "ontologySymbol": "vibration_rms", "source": "runtime:pump-p101-dt/telemetry#vibration_rms", "expectedPeriodMs": 5000,
      "presentation": {"label": "Bearing vibration (RMS)", "category": "Condition monitoring", "precision": 2, "preferredView": "line"},
      "profile": {"base": 3.1, "dailyAmplitude": 0.3, "noise": 0.15, "min": 0, "episodes": [
        {"startHoursAgo": 122, "durationMinutes": 150, "value": 2.8, "rampMinutes": 30, "mode": "offset"},
        {"startHoursAgo": 46, "durationMinutes": 55, "value": 4.6, "rampMinutes": 15, "mode": "offset"},
        {"startHoursAgo": 30, "durationMinutes": 20, "gap": true}]}},
-    {"id": "pump-p101.discharge_pressure", "assetId": "sensor-pt101", "name": "discharge_pressure", "valueType": "number", "unit": "bar", "ontologySymbol": "discharge_pressure", "source": "simulated:opcua://plc-4/ns=2;s=P101.PT101.PV", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.discharge_pressure", "assetId": "sensor-pt101", "name": "discharge_pressure", "valueType": "number", "unit": "bar", "ontologySymbol": "discharge_pressure", "source": "runtime:pump-p101-dt/telemetry#discharge_pressure", "expectedPeriodMs": 5000,
      "presentation": {"label": "Discharge pressure", "category": "Process", "precision": 2, "preferredView": "line"},
      "profile": {"base": 11.2, "dailyAmplitude": 0.4, "noise": 0.08, "min": 0, "episodes": [
        {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 2, "mode": "set"}]}},
-    {"id": "pump-p101.shaft_speed", "assetId": "sensor-st101", "name": "shaft_speed", "valueType": "number", "unit": "rpm", "ontologySymbol": "shaft_speed", "source": "simulated:opcua://plc-4/ns=2;s=M12.ST101.PV", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.shaft_speed", "assetId": "sensor-st101", "name": "shaft_speed", "valueType": "number", "unit": "rpm", "ontologySymbol": "shaft_speed", "source": "runtime:pump-p101-dt/telemetry#shaft_speed", "expectedPeriodMs": 5000,
      "presentation": {"label": "Shaft speed", "category": "Drive", "precision": 0, "preferredView": "line"},
      "profile": {"base": 2965, "dailyAmplitude": 6, "noise": 2, "min": 0, "episodes": [
        {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 1, "mode": "set"}]}},
-    {"id": "pump-p101.motor_current", "assetId": "motor-m12", "name": "motor_current", "valueType": "number", "unit": "A", "source": "simulated:opcua://plc-4/ns=2;s=M12.I", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.motor_current", "assetId": "motor-m12", "name": "motor_current", "valueType": "number", "unit": "A", "source": "runtime:pump-p101-dt/telemetry#motor_current", "expectedPeriodMs": 5000,
      "presentation": {"label": "Motor current", "category": "Drive", "precision": 1, "preferredView": "line"},
      "profile": {"base": 118, "dailyAmplitude": 5, "noise": 1.2, "min": 0, "episodes": [
        {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 1, "mode": "set"}]}},
-    {"id": "pump-p101.cooling_active", "assetId": "cooling-cu7", "name": "cooling_active", "valueType": "boolean", "unit": "", "ontologySymbol": "cooling_active", "source": "simulated:opcua://plc-4/ns=2;s=CU7.RUN", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.cooling_active", "assetId": "cooling-cu7", "name": "cooling_active", "valueType": "boolean", "unit": "", "ontologySymbol": "cooling_active", "source": "runtime:pump-p101-dt/telemetry#cooling_active", "expectedPeriodMs": 5000,
      "presentation": {"label": "Bearing cooling running", "category": "Auxiliaries", "preferredView": "state"},
      "profile": {"base": 0, "episodes": [
        {"startHoursAgo": 45.6, "durationMinutes": 30, "value": 1, "mode": "set"},
        {"startHoursAgo": 2.8, "durationMinutes": 18, "value": 1, "mode": "set"}]}},
-    {"id": "pump-p101.motor_running", "assetId": "motor-m12", "name": "motor_running", "valueType": "boolean", "unit": "", "ontologySymbol": "motor_running", "source": "simulated:opcua://plc-4/ns=2;s=M12.RUN", "expectedPeriodMs": 5000,
+    {"id": "pump-p101.motor_running", "assetId": "motor-m12", "name": "motor_running", "valueType": "boolean", "unit": "", "ontologySymbol": "motor_running", "source": "runtime:pump-p101-dt/telemetry#motor_running", "expectedPeriodMs": 5000,
      "presentation": {"label": "Motor running", "category": "Drive", "preferredView": "state"},
      "profile": {"base": 1, "episodes": [
        {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "mode": "set"}]}}

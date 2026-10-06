@@ -6,6 +6,7 @@
 #include <cctype>
 #include <deque>
 #include <map>
+#include <regex>
 
 #include "services_impl.hpp"
 #include "twin/ontology/source.hpp"
@@ -68,6 +69,55 @@ Result<json::Json> Services::assets(const AssetFilter& filter) {
         items.push_back(j);
     }
     return json::Json{{"items", items}, {"total", total.value()}, {"limit", filter.limit}, {"offset", filter.offset}};
+}
+
+Result<json::Json> Services::create_asset(const json::Json& body, const Actor& actor) {
+    Asset a;
+    a.id = body.value("id", std::string());
+    a.name = body.value("name", std::string());
+    a.type = body.value("type", std::string());
+    a.description = body.value("description", std::string());
+    if (body.contains("tags") && body["tags"].is_array()) a.tags = body["tags"];
+    if (body.contains("properties") && body["properties"].is_object()) a.properties = body["properties"];
+    if (body.contains("parentId") && body["parentId"].is_string() && !body["parentId"].get<std::string>().empty()) {
+        a.parent_id = body["parentId"].get<std::string>();
+    }
+    static const std::regex id_re("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$");
+    if (!std::regex_match(a.id, id_re)) {
+        return make_error(ErrorCode::InvalidArgument, "asset id must be 1-64 characters: letters, digits, '.', '_' or '-'")
+            .with("id", a.id);
+    }
+    if (a.name.empty() || a.type.empty()) return make_error(ErrorCode::InvalidArgument, "an asset needs a name and a type");
+    {
+        auto l = impl_->lock();
+        if (impl_->assets->get(a.id)) return make_error(ErrorCode::StateError, "an asset with this id already exists").with("id", a.id);
+        if (a.parent_id && !impl_->assets->get(*a.parent_id)) {
+            return make_error(ErrorCode::NotFound, "the parent asset does not exist").with("parentId", *a.parent_id);
+        }
+        if (auto st = impl_->assets->upsert(a); !st) return st.error();
+        json::Json details = {{"name", a.name}, {"type", a.type}, {"parentId", a.parent_id ? json::Json(*a.parent_id) : json::Json(nullptr)}};
+        if (body.contains("clonedFrom") && body["clonedFrom"].is_string()) details["clonedFrom"] = body["clonedFrom"];
+        impl_->record("asset.create", "success", a.id, details, actor, "asset");
+    }
+    return asset(a.id);
+}
+
+Result<json::Json> Services::link_assets(std::string_view source, std::string_view type, std::string_view target,
+                                         const Actor& actor) {
+    if (type.empty() || type == "contains") {
+        return make_error(ErrorCode::InvalidArgument, "choose a relationship type other than 'contains' (hierarchy is set by the parent)");
+    }
+    if (source == target) return make_error(ErrorCode::InvalidArgument, "an asset cannot be linked to itself");
+    {
+        auto l = impl_->lock();
+        if (!impl_->assets->get(source)) return make_error(ErrorCode::NotFound, "no such asset").with("id", std::string(source));
+        if (!impl_->assets->get(target)) return make_error(ErrorCode::NotFound, "no such asset").with("id", std::string(target));
+        auto r = impl_->assets->relate(source, type, target);
+        if (!r) return std::move(r).error();
+        impl_->record("asset.link", "success", std::string(source),
+                      {{"type", std::string(type)}, {"target", std::string(target)}}, actor, "asset");
+    }
+    return asset(source);
 }
 
 Result<json::Json> Services::asset(std::string_view id) {
@@ -244,6 +294,11 @@ Result<json::Json> Services::ingest(const json::Json& samples) {
         total += n.value();
     }
     return json::Json{{"ingested", total}, {"channels", by_channel.size()}};
+}
+
+Result<std::vector<TelemetryChannel>> Services::telemetry_channels_all() {
+    auto l = impl_->lock();
+    return impl_->telemetry->channels("");
 }
 
 // --- overview ------------------------------------------------------------------------------

@@ -69,6 +69,13 @@ std::string render(const Diagnostic& d) {
     return out;
 }
 
+std::int64_t max_clock_bound() noexcept { return detail::max_constraint_constant(); }
+
+std::recursive_mutex& utap_mutex() noexcept {
+    static std::recursive_mutex m;
+    return m;
+}
+
 bool has_errors(const std::vector<Diagnostic>& diagnostics) noexcept {
     return std::any_of(diagnostics.begin(), diagnostics.end(),
                        [](const Diagnostic& d) { return d.severity == Severity::Error; });
@@ -106,6 +113,7 @@ json::Json to_json(const CompilationManifest& m) {
 
 std::variant<CompileResult, CompileFailure> compile_file(const std::filesystem::path& source,
                                                          const CompileOptions& options) {
+    const std::lock_guard<std::recursive_mutex> utap_lock(utap_mutex());  // UTAP is not thread-safe
     std::vector<Diagnostic> diags;
     auto fail = [&diags]() { return CompileFailure{std::move(diags)}; };
 

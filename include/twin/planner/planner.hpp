@@ -79,9 +79,13 @@ class PathPlanner {
 public:
     virtual ~PathPlanner() = default;
     PathPlanner() = default;
+    /// @brief Copyable (planners hold no state between calls).
     PathPlanner(const PathPlanner&) = default;
+    /// @brief Copy assignment.
     PathPlanner& operator=(const PathPlanner&) = default;
+    /// @brief Movable.
     PathPlanner(PathPlanner&&) = default;
+    /// @brief Move assignment.
     PathPlanner& operator=(PathPlanner&&) = default;
 
     /// @brief Plan a route; never throws.
@@ -97,6 +101,7 @@ public:
  */
 class AStarPlanner final : public PathPlanner {
 public:
+    /// @brief Planner using @p energy for its energy estimates.
     explicit AStarPlanner(EnergyModel energy = {}) : energy_(energy) {}
     [[nodiscard]] Plan plan(const PlanningProblem& problem) override;
     [[nodiscard]] std::string name() const override { return "A*"; }

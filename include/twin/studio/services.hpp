@@ -108,8 +108,11 @@ public:
     [[nodiscard]] Result<json::Json> symbol(const platform::ArtifactRef& ontology, std::string_view name);
     /**
      * @brief Three-valued evaluation of an interpretation version against observations.
+     * @param interpretation The interpretation version to evaluate (its ontology comes from its refs).
      * @param observations {symbol: value-text} pairs, or empty with @p asset_id to use the
      *        latest telemetry of channels bound to ontology symbols under that asset.
+     * @param asset_id Asset whose latest telemetry supplies observations not given explicitly.
+     * @param keys Entries to evaluate (all entries when empty).
      */
     [[nodiscard]] Result<json::Json> evaluate(const platform::ArtifactRef& interpretation,
                                               const std::vector<std::pair<std::string, std::string>>& observations,
@@ -151,18 +154,23 @@ public:
                                                      const std::optional<std::string>& change_id);
 
     // ------------------------------------------------------------------ twins, changes, release
+    /// @brief Every twin with its current deployment (GET /twins).
     [[nodiscard]] Result<json::Json> twins();
     /// @brief A twin: definition, deployment, bindings, trust summary (all evidence-backed).
     [[nodiscard]] Result<json::Json> twin(std::string_view id);
     /// @brief Impact analysis of changing @p ref (relative to what is deployed).
     [[nodiscard]] Result<json::Json> impact(const platform::ArtifactRef& ref);
+    /// @brief Opens a change workspace for a twin.
     [[nodiscard]] Result<json::Json> create_change(std::string_view twin_id, std::string_view title,
                                                    std::string_view description, const Actor& actor);
+    /// @brief Change workspaces, optionally filtered by state.
     [[nodiscard]] Result<json::Json> changes(const std::optional<std::string>& state);
+    /// @brief A change with its artefact versions and twin.
     [[nodiscard]] Result<json::Json> change(std::string_view id);
     /// @brief Add an artefact to a change: creates a draft from the deployed version.
     [[nodiscard]] Result<json::Json> add_to_change(std::string_view change_id, std::string_view artifact_id,
                                                    std::string_view description, const Actor& actor);
+    /// @brief Abandons an open change (reason required); its drafts are kept.
     [[nodiscard]] Result<json::Json> abandon_change(std::string_view change_id, std::string_view reason,
                                                     const Actor& actor);
     /// @brief Release pipeline of a change (computed from evidence on every call).
@@ -171,7 +179,7 @@ public:
     [[nodiscard]] Result<json::Json> run_stage(std::string_view change_id, std::string_view stage, const Actor& actor);
     /// @brief Release a change: publishes its versions and releases its package (blocked unless ready).
     [[nodiscard]] Result<json::Json> release(std::string_view change_id, const Actor& actor);
-    /// @brief Deploy a released package to its twin.
+    /// @brief Deploy a package to a twin after verifying its integrity (a failing package is refused).
     [[nodiscard]] Result<json::Json> deploy(std::string_view twin_id, std::string_view package_id,
                                             std::string_view reason, const Actor& actor);
     /// @brief Compare current deployment with a rollback target.
@@ -188,28 +196,57 @@ public:
      */
     [[nodiscard]] Result<json::Json> bootstrap_twin(std::string_view twin_id, const std::vector<platform::Binding>& bindings,
                                                     const Actor& actor);
+    /// @brief Packages of a twin (all when empty), newest first.
     [[nodiscard]] Result<json::Json> packages(std::string_view twin_id);
+    /// @brief A package with bound versions, build evidence, integrity and deployments.
     [[nodiscard]] Result<json::Json> package(std::string_view id);
+    /// @brief Deployment history of a twin (all when empty), newest first.
     [[nodiscard]] Result<json::Json> deployments(std::string_view twin_id);
 
     // ------------------------------------------------------------------ assets & telemetry
+    /// @brief A page of assets matching @p filter.
     [[nodiscard]] Result<json::Json> assets(const platform::AssetFilter& filter);
+    /// @brief An asset with ancestors, children, relationships and its (possibly inherited) twin.
     [[nodiscard]] Result<json::Json> asset(std::string_view id);
+    /**
+     * @brief Create an asset definition (audited). Refuses an existing id; the parent must exist.
+     * Twin bindings and telemetry channels are never set here: a new asset has no data source
+     * until one is bound explicitly.
+     */
+    [[nodiscard]] Result<json::Json> create_asset(const json::Json& body, const Actor& actor);
+    /**
+     * @brief Link two existing assets with a typed relationship (audited). Hierarchy ("contains")
+     * is expressed by the parent, not by links; linking never duplicates an asset's identity.
+     */
+    [[nodiscard]] Result<json::Json> link_assets(std::string_view source, std::string_view type, std::string_view target,
+                                                 const Actor& actor);
+    /// @brief Bounded knowledge-graph neighbourhood around an asset.
     [[nodiscard]] Result<json::Json> neighborhood(std::string_view id, int depth,
                                                   const std::vector<std::string>& types, std::size_t max_nodes);
+    /// @brief Relationship and asset types with counts, and the hierarchy roots.
     [[nodiscard]] Result<json::Json> graph_facets();
     /// @brief Channels of an asset subtree with freshness and latest value.
     [[nodiscard]] Result<json::Json> telemetry_channels(std::string_view asset_id, bool include_descendants);
+    /// @brief Samples of a channel in [from, to], downsampled to buckets beyond @p max_points.
     [[nodiscard]] Result<json::Json> telemetry_series(std::string_view channel_id, std::int64_t from_ms,
                                                       std::int64_t to_ms, std::int64_t max_points);
+    /// @brief Every telemetry channel (typed; used by the runtime telemetry bridge).
+    [[nodiscard]] Result<std::vector<platform::TelemetryChannel>> telemetry_channels_all();
+    /// @brief The canonical Twin IR stored in a package (renders the behaviour model without a runtime).
+    [[nodiscard]] Result<json::Json> package_ir(std::string_view package_id);
     /// @brief Ingest samples: [{channel, observedAt|observedMs, value, quality}].
     [[nodiscard]] Result<json::Json> ingest(const json::Json& samples);
 
     // ------------------------------------------------------------------ cross-cutting
+    /// @brief Estate overview: assets, telemetry freshness, twins and trust, engineering activity.
     [[nodiscard]] Result<json::Json> overview();
+    /// @brief Global search over assets, twins, symbols, versions, evidence, packages, deployments and changes.
     [[nodiscard]] Result<json::Json> search(std::string_view query, std::size_t limit);
+    /// @brief A page of engineering-audit records, newest first.
     [[nodiscard]] Result<json::Json> audit(const platform::AuditFilter& filter);
+    /// @brief Recomputes the engineering-audit hash chain.
     [[nodiscard]] Result<json::Json> verify_audit();
+    /// @brief Diagnostic application-log entries matching @p filter.
     [[nodiscard]] Result<json::Json> logs(const platform::LogFilter& filter);
     /// @brief Versions of every component (for the About panel and evidence).
     [[nodiscard]] json::Json about() const;
@@ -226,9 +263,13 @@ public:
     [[nodiscard]] Result<platform::Twin> twin_record(std::string_view id);
     /// @brief Upsert raw registry records (seeding/import).
     [[nodiscard]] Status upsert_asset(const platform::Asset& asset);
+    /// @brief Adds a typed relationship between two assets (seeding/import).
     [[nodiscard]] Status relate(std::string_view source, std::string_view type, std::string_view target);
+    /// @brief Creates or updates a twin definition (seeding/import).
     [[nodiscard]] Status upsert_twin(const platform::Twin& twin);
+    /// @brief Creates or updates a telemetry channel (seeding/import).
     [[nodiscard]] Status upsert_channel(const platform::TelemetryChannel& channel);
+    /// @brief Stores samples of one channel; returns how many were stored.
     [[nodiscard]] Result<std::int64_t> ingest_samples(std::string_view channel_id,
                                                       const std::vector<platform::TelemetrySample>& samples);
     /// @brief Current deployed bindings of a twin (empty if never deployed).

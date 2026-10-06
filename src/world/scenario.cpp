@@ -4,6 +4,7 @@
  */
 #include "twin/world/scenario.hpp"
 
+#include <set>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -59,6 +60,48 @@ double number_or(const Json& j, const char* key, double fallback) {
 }
 
 }  // namespace
+
+Result<Scenario> with_mission(Scenario base, const Json& mission) {
+    const Json targets = mission.value("targets", Json::array());
+    if (!targets.is_array() || targets.empty()) return make_error(ErrorCode::ValidationError, "a mission needs at least one target");
+    if (targets.size() > 12) return make_error(ErrorCode::ValidationError, "a mission has at most 12 targets").with("targets", std::to_string(targets.size()));
+    auto check_cell = [&](const geo::Cell c, const std::string& what) -> Status {
+        if (!base.ground_truth.contains(c)) {
+            return make_error(ErrorCode::ValidationError, what + " is outside the building")
+                .with("cell", std::to_string(c.x) + "," + std::to_string(c.y));
+        }
+        if (!geo::is_navigable(base.ground_truth.at(c))) {
+            return make_error(ErrorCode::ValidationError, what + " must be a free cell (not a wall, obstacle or closed door)")
+                .with("cell", std::to_string(c.x) + "," + std::to_string(c.y));
+        }
+        return Status{};
+    };
+    if (mission.contains("home") && !mission["home"].is_null()) {
+        Result<geo::Cell> home = geo::cell_from_json(mission["home"]);
+        if (!home) return std::move(home).error().with("member", "home");
+        if (Status st = check_cell(home.value(), "the home pad"); !st) return st.error();
+        base.home = home.value();
+    }
+    std::vector<TargetSpec> out;
+    std::set<geo::Cell> cells;
+    std::set<std::string> ids;
+    for (std::size_t i = 0; i < targets.size(); ++i) {
+        const Json& t = targets[i];
+        Result<geo::Cell> cell = geo::cell_from_json(t.value("cell", Json()));
+        if (!cell) return std::move(cell).error().with("member", "targets");
+        std::string id = t.value("id", std::string());
+        if (id.empty()) id = "T" + std::to_string(i + 1);
+        const std::string name = t.value("name", std::string());
+        if (name.empty()) return make_error(ErrorCode::ValidationError, "every target needs a name").with("target", id);
+        if (!ids.insert(id).second) return make_error(ErrorCode::ValidationError, "target ids must be unique").with("target", id);
+        if (Status st = check_cell(cell.value(), "target " + id); !st) return st.error();
+        if (cell.value() == base.home) return make_error(ErrorCode::ValidationError, "a target cannot be on the home pad").with("target", id);
+        if (!cells.insert(cell.value()).second) return make_error(ErrorCode::ValidationError, "two targets are on the same cell").with("target", id);
+        out.push_back(TargetSpec{id, name, cell.value()});
+    }
+    base.targets = std::move(out);
+    return base;
+}
 
 Result<Scenario> scenario_from_json(const Json& j) {
     Scenario s;

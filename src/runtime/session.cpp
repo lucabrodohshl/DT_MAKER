@@ -28,6 +28,10 @@ std::string random_session_id() {
 
 }  // namespace
 
+bool is_decision_source(std::string_view source) noexcept {
+    return source == "mission-controller" || source == "operator";
+}
+
 Result<std::unique_ptr<TwinSession>> TwinSession::start(package::LoadedPackage package,
                                                        const SessionOptions& options) {
     Result<std::shared_ptr<const kernel::Model>> model = kernel::Model::create(package.model);
@@ -106,6 +110,26 @@ Result<SubmitResult> TwinSession::submit(const ledger::Input& input) {
     }
     result.ledger_seq = receipt->seq;
     result.ledger_hash = receipt->hash;
+    // Monitoring summary: counts of the kernel's verdicts (no semantic computation here).
+    const bool decision = is_decision_source(input.source);
+    ++(decision ? monitoring_.decisions : monitoring_.observations);
+    if (!result.accepted) {
+        ++(decision ? monitoring_.decisions_rejected : monitoring_.observations_rejected);
+        if (!decision && !monitoring_.first_violation_seq) {
+            monitoring_.first_violation_seq = receipt->seq;
+            monitoring_.first_violation = "observation '" + input.name + "' rejected: " + result.rejection->message;
+        }
+    }
+    if (result.outcome && !result.outcome->branches.empty()) {
+        const ir::Transition& t = model_->transition(result.outcome->branches.front().transition);
+        last_transition_ = LastTransition{receipt->seq,
+                                          t.id,
+                                          t.action.label(),
+                                          model_->ir().locations.at(t.source).id,
+                                          model_->ir().locations.at(t.target).id,
+                                          input.source,
+                                          input.at};
+    }
     lock.unlock();
     notify(kind, *receipt);
     return result;
@@ -118,9 +142,32 @@ Result<SubmitResult> TwinSession::raise_alarm(std::string_view alarm, std::strin
     }
     Result<ledger::Receipt> r = record(ledger::kind::kAlarm, ledger::alarm_fields(*model_, alarm, detail, state_));
     if (!r) return std::move(r).error();
+    ++monitoring_.alarms;
+    if (!monitoring_.first_violation_seq) {
+        monitoring_.first_violation_seq = r.value().seq;
+        monitoring_.first_violation = std::string(alarm) + ": " + std::string(detail);
+    }
     SubmitResult result{true, r.value().seq, r.value().hash, std::nullopt, std::nullopt};
     lock.unlock();
     notify(ledger::kind::kAlarm, r.value());
+    return result;
+}
+
+Result<SubmitResult> TwinSession::record_context(std::string_view topic, Ticks at, const json::Json& data) {
+    std::unique_lock lock(mutex_);
+    if (failed_ || closed_) {
+        return make_error(ErrorCode::Unavailable, "session is not running");
+    }
+    // A malformed payload is the caller's error, not a storage failure: reject it before
+    // the write so that it cannot trigger fail-stop.
+    if (Result<std::string> canonical = json::canonical_dump(data); !canonical) {
+        return std::move(canonical).error().with("topic", std::string(topic));
+    }
+    Result<ledger::Receipt> r = record(ledger::kind::kContext, ledger::context_fields(topic, at, data, state_));
+    if (!r) return std::move(r).error();
+    SubmitResult result{true, r.value().seq, r.value().hash, std::nullopt, std::nullopt};
+    lock.unlock();
+    notify(ledger::kind::kContext, r.value());
     return result;
 }
 
@@ -140,7 +187,8 @@ Result<SubmitResult> TwinSession::close(std::string_view reason) {
 
 Snapshot TwinSession::snapshot() const {
     std::lock_guard lock(mutex_);
-    Snapshot s{state_, {}, {}, std::nullopt, ledger_->next_seq(), ledger_->head_hash(), failed_, closed_};
+    Snapshot s{state_,  {},      {},          std::nullopt, ledger_->next_seq(), ledger_->head_hash(),
+               failed_, closed_, monitoring_, last_transition_};
     bool first = true;
     const auto& members = state_.members();
     for (std::size_t i = 0; i < members.size(); ++i) {
@@ -165,6 +213,11 @@ Snapshot TwinSession::snapshot() const {
         }
     }
     return s;
+}
+
+std::uint64_t TwinSession::record_count() const {
+    std::lock_guard lock(mutex_);
+    return ledger_->next_seq();
 }
 
 Result<kernel::StateSet> TwinSession::projected(Ticks at) const {

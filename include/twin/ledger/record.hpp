@@ -155,6 +155,7 @@ struct InputEffect {
  * @param topic e.g. "knowledge", "map_update", "planning", "command".
  * @param at logical time the information refers to (may be later than the state's time).
  * @param data canonical-safe JSON (integers, strings, arrays, objects).
+ * @param state the (unchanged) semantic state; its time is recorded as time_after.
  */
 [[nodiscard]] json::Json context_fields(std::string_view topic, Ticks at, const json::Json& data,
                                         const kernel::StateSet& state);

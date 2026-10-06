@@ -47,14 +47,19 @@ public:
         }
     }
 
+    /// @brief Parse error, if the command line was malformed.
     [[nodiscard]] const std::optional<std::string>& error() const { return error_; }
+    /// @brief Arguments that are neither options nor flags, in order.
     [[nodiscard]] const std::vector<std::string>& positionals() const { return positionals_; }
+    /// @brief True iff the flag @p name (e.g. "--overwrite") was given.
     [[nodiscard]] bool flag(const std::string& name) const { return flags_.contains(name); }
+    /// @brief Value of option @p name (e.g. "--out"), if given.
     [[nodiscard]] std::optional<std::string> option(const std::string& name) const {
         const auto it = options_.find(name);
         if (it == options_.end()) return std::nullopt;
         return it->second;
     }
+    /// @brief Value of option @p name, or @p fallback.
     [[nodiscard]] std::string option_or(const std::string& name, const std::string& fallback) const {
         return option(name).value_or(fallback);
     }

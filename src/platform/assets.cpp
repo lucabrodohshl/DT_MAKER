@@ -266,13 +266,13 @@ Result<Neighborhood> AssetRepository::neighborhood(std::string_view focus, int d
         }
         if (allowed(kContains)) {
             const Asset& self = nodes[id];
-            if (self.parent_id) next.emplace_back(*self.parent_id, Relationship{0, *self.parent_id, std::string(kContains), id, {}});
+            if (self.parent_id) next.emplace_back(*self.parent_id, Relationship{0, *self.parent_id, std::string(kContains), id, json::Json::object()});
             AssetFilter cf;
             cf.parent_id = id;
             cf.limit = static_cast<std::int64_t>(max_nodes) + 1;
             auto kids = list(cf);
             if (!kids) return std::move(kids).error();
-            for (const auto& k : kids.value()) next.emplace_back(k.id, Relationship{0, id, std::string(kContains), k.id, {}});
+            for (const auto& k : kids.value()) next.emplace_back(k.id, Relationship{0, id, std::string(kContains), k.id, json::Json::object()});
         }
         for (auto& [other, rel] : next) {
             const bool known = nodes.count(other) != 0;

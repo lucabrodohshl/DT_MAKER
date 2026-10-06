@@ -16,11 +16,13 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "twin/compiler/diagnostics.hpp"
 #include "twin/core/result.hpp"
+#include "twin/json/canonical.hpp"
 #include "twin/package/package.hpp"
 
 namespace twin::package {
@@ -38,6 +40,16 @@ struct BuildInputs {
     bool allow_unaligned{false};              ///< Package even if not aligned (development only).
     bool legacy_system_declaration{false};    ///< See compiler::CompileOptions.
     bool overwrite{false};                    ///< Replace an existing output directory.
+    /// Canonical PT model (twin-ta/1 JSON); its toolchain rendering must equal @ref pt_model byte for byte.
+    std::optional<std::filesystem::path> pt_source_model;
+    /// Canonical DT model (twin-ta/1 JSON); its toolchain rendering must equal @ref dt_model byte for byte.
+    std::optional<std::filesystem::path> dt_source_model;
+    /// Monitor document (twin-monitors/1); validated, shipped as monitors/monitors.json.
+    std::optional<std::filesystem::path> monitors;
+    /// Design-time property evidence for these inputs; shipped as evidence/properties.json.
+    std::optional<std::filesystem::path> property_evidence;
+    /// Twin Type metadata (type id, version, name, runtime mode, ...); shipped as meta/type.json.
+    std::optional<json::Json> type_metadata;
 };
 
 /// @brief Result of a successful build.

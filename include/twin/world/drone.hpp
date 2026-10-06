@@ -35,6 +35,7 @@ enum class FcMode { Boot, Idle, Arming, Climb, Auto, Hold, Brake, Survey, Descen
 
 /// @brief A command from the Digital Twin to the drone.
 struct Command {
+    /// @brief Command kinds (the flight controller's command vocabulary).
     enum class Kind { UploadMission, ArmTakeoff, FollowRoute, Hold, Inspect, Land };
     Kind kind{Kind::Hold};                ///< What to do.
     std::vector<geo::Point> waypoints;    ///< FollowRoute: route in metres.
@@ -43,8 +44,9 @@ struct Command {
     std::string target_id;                ///< Inspect: target being inspected.
 };
 
-/// @brief Encode / decode commands (integers and strings only; millimetres).
+/// @brief Encode a command (integers and strings only; millimetres).
 [[nodiscard]] json::Json to_json(const Command& command);
+/// @brief Decode a command (InvalidArgument for unknown kinds or malformed waypoints).
 [[nodiscard]] Result<Command> command_from_json(const json::Json& j);
 
 /// @brief An event emitted by the flight controller (PT vocabulary).
@@ -56,18 +58,18 @@ struct PtEvent {
 
 /// @brief Telemetry sample (integers only on the wire: mm, mm/s, permille, mWh).
 struct Telemetry {
-    Ticks at{0};
-    geo::Point position;
-    geo::Point velocity;
-    double altitude_m{0.0};
-    double battery_pct{100.0};
-    double energy_wh{0.0};
-    double heading_deg{0.0};
-    double gimbal_deg{0.0};
-    FcMode mode{FcMode::Boot};
-    std::int64_t route_id{0};
-    int waypoint_index{0};
-    std::string goal;
+    Ticks at{0};                ///< Logical time of the sample (ticks).
+    geo::Point position;        ///< Position (metres).
+    geo::Point velocity;        ///< Velocity (m/s).
+    double altitude_m{0.0};     ///< Altitude above the floor (m).
+    double battery_pct{100.0};  ///< Remaining battery (%).
+    double energy_wh{0.0};      ///< Remaining energy (Wh).
+    double heading_deg{0.0};    ///< Heading (degrees).
+    double gimbal_deg{0.0};     ///< Gimbal sweep angle (degrees).
+    FcMode mode{FcMode::Boot};  ///< Firmware mode.
+    std::int64_t route_id{0};   ///< Route being flown (0: none).
+    int waypoint_index{0};      ///< Index of the next waypoint of the route.
+    std::string goal;           ///< Goal of the route ("target:<id>", "home").
 };
 
 /// @brief Encode telemetry with integer units.
@@ -79,6 +81,7 @@ struct Telemetry {
  */
 class DroneSimulator {
 public:
+    /// @brief Drone of @p scenario on its home pad, flying in @p ground_truth (not owned; must outlive it).
     DroneSimulator(const Scenario& scenario, const geo::OccupancyGrid* ground_truth);
 
     /// @brief Accept a command (InvalidArgument if not applicable in the current mode).
@@ -94,12 +97,14 @@ public:
     /// their TRUE occupancy. Hazards are invisible to the sensor and omitted.
     [[nodiscard]] std::vector<geo::CellChange> sense() const;
 
+    /// @brief Current firmware mode.
     [[nodiscard]] FcMode mode() const noexcept { return mode_; }
+    /// @brief Current position (metres).
     [[nodiscard]] geo::Point position() const noexcept { return pos_; }
 
 private:
     void fly(Ticks at, double dt_s, std::vector<PtEvent>& events);
-    bool blocked_ahead(geo::Point direction) const;
+    [[nodiscard]] bool blocked_ahead(geo::Point direction, double distance_to_waypoint) const;
     void drain(double dt_s, double speed);
 
     const Scenario& scenario_;

@@ -86,6 +86,7 @@ json::Json to_json(const Telemetry& t) {
                       {"y_mm", mm(t.position.y)},
                       {"vx_mm_s", mm(t.velocity.x)},
                       {"vy_mm_s", mm(t.velocity.y)},
+                      {"speed_mm_s", mm(std::hypot(t.velocity.x, t.velocity.y))},
                       {"alt_mm", mm(t.altitude_m)},
                       {"battery_permille", static_cast<std::int64_t>(std::llround(t.battery_pct * 10.0))},
                       {"energy_mwh", static_cast<std::int64_t>(std::llround(t.energy_wh * 1000.0))},
@@ -154,8 +155,11 @@ void DroneSimulator::drain(double dt_s, double speed) {
     energy_wh_ = std::max(0.0, energy_wh_ - power * dt_s / 3600.0);
 }
 
-bool DroneSimulator::blocked_ahead(geo::Point dir) const {
-    for (double s = 0.1; s <= spec_.proximity_range_m + 1e-9; s += 0.1) {
+bool DroneSimulator::blocked_ahead(geo::Point dir, double distance_to_waypoint) const {
+    // Look ahead along the segment the drone is actually flying: up to the proximity range,
+    // but not beyond the next waypoint, where the path turns (a wall behind a turn is no threat).
+    const double horizon = std::min(spec_.proximity_range_m, distance_to_waypoint);
+    for (double s = 0.1; s <= horizon + 1e-9; s += 0.1) {
         const geo::Point p{pos_.x + dir.x * s, pos_.y + dir.y * s};
         const geo::Occupancy o = truth_->at(truth_->cell_of(p));
         if (geo::blocks_sight(o)) return true;  // walls, obstacles, closed doors (hazards are invisible)
@@ -174,7 +178,7 @@ void DroneSimulator::fly(Ticks at, double dt_s, std::vector<PtEvent>& events) {
     double dy = target.y - pos_.y;
     double dist = std::hypot(dx, dy);
     const geo::Point dir = dist > 1e-9 ? geo::Point{dx / dist, dy / dist} : geo::Point{};
-    if (blocked_ahead(dir)) {
+    if (blocked_ahead(dir, dist)) {
         vel_ = geo::Point{};
         mode_ = FcMode::Brake;
         braked_for_obstacle_ = true;
@@ -262,7 +266,7 @@ std::vector<PtEvent> DroneSimulator::step(Ticks now_after, Ticks dt) {
                 const geo::Point t = route_[next_wp_];
                 const double d = std::hypot(t.x - pos_.x, t.y - pos_.y);
                 const geo::Point dir = d > 1e-9 ? geo::Point{(t.x - pos_.x) / d, (t.y - pos_.y) / d} : geo::Point{};
-                if (!blocked_ahead(dir)) {
+                if (!blocked_ahead(dir, d)) {
                     braked_for_obstacle_ = false;
                     mode_ = FcMode::Auto;
                     events.push_back(PtEvent{now_after, "path_clear!", json::Json::object()});

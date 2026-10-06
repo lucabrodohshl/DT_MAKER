@@ -105,20 +105,28 @@ struct Change {
 /// @brief Twins, packages, deployments and changes (see file documentation).
 class TwinRepository {
 public:
+    /// @brief Repository over @p db; @p clock stamps deployments and changes.
     TwinRepository(Database& db, const Clock& clock) : db_(db), clock_(clock) {}
 
     /// @name Twins
     /// @{
+    /// @brief Creates or updates a twin definition.
     [[nodiscard]] Status upsert_twin(const Twin& twin);
+    /// @brief The twin @p id (NotFound otherwise).
     [[nodiscard]] Result<Twin> twin(std::string_view id) const;
+    /// @brief All twins, ordered by name.
     [[nodiscard]] Result<std::vector<Twin>> twins() const;
     /// @}
 
     /// @name Packages
     /// @{
+    /// @brief Stores a newly built package (state "built"), assigning its id.
     [[nodiscard]] Result<PackageRecord> add_package(PackageRecord record);
+    /// @brief The package @p id (NotFound otherwise).
     [[nodiscard]] Result<PackageRecord> package(std::string_view id) const;
+    /// @brief Packages of a twin (all twins when empty), newest first.
     [[nodiscard]] Result<std::vector<PackageRecord>> packages(std::string_view twin_id) const;
+    /// @brief Marks a built package released (packages are otherwise immutable).
     [[nodiscard]] Result<PackageRecord> mark_released(std::string_view id);
     /// @}
 
@@ -127,18 +135,26 @@ public:
     /// @brief Append a deployment; @p kind "rollback" requires a non-empty reason.
     [[nodiscard]] Result<Deployment> deploy(std::string_view twin_id, std::string_view package_id, std::string_view kind,
                                             std::string_view reason, std::string_view actor);
+    /// @brief The twin's latest deployment, or nullopt if never deployed.
     [[nodiscard]] Result<std::optional<Deployment>> current_deployment(std::string_view twin_id) const;
+    /// @brief Append-only deployment history (all twins when empty), newest first.
     [[nodiscard]] Result<std::vector<Deployment>> deployments(std::string_view twin_id) const;
+    /// @brief The deployment @p id (NotFound otherwise).
     [[nodiscard]] Result<Deployment> deployment(std::string_view id) const;
     /// @}
 
     /// @name Changes
     /// @{
+    /// @brief Opens a change workspace for a twin.
     [[nodiscard]] Result<Change> create_change(std::string_view twin_id, std::string_view title,
                                                std::string_view description, std::string_view actor);
+    /// @brief The change @p id (NotFound otherwise).
     [[nodiscard]] Result<Change> change(std::string_view id) const;
+    /// @brief Changes, optionally only those in @p state (open / released / abandoned).
     [[nodiscard]] Result<std::vector<Change>> changes(std::optional<std::string> state = std::nullopt) const;
+    /// @brief Replaces the artefact versions coordinated by an open change.
     [[nodiscard]] Result<Change> set_change_artifacts(std::string_view id, const std::vector<ArtifactRef>& artifacts);
+    /// @brief Closes an open change as "released" or "abandoned".
     [[nodiscard]] Result<Change> close_change(std::string_view id, std::string_view state);
     /// @}
 
@@ -152,12 +168,19 @@ private:
 
 /// @name JSON
 /// @{
+/// @brief API form of a binding: {role, ref, artifactId, version, sha256}.
 [[nodiscard]] json::Json to_json(const Binding& binding);
+/// @brief API form of a list of bindings.
 [[nodiscard]] json::Json to_json(const std::vector<Binding>& bindings);
+/// @brief Parses bindings from their API form.
 [[nodiscard]] Result<std::vector<Binding>> bindings_from_json(const json::Json& j);
+/// @brief API form of a twin definition (TwinSummary without deployment).
 [[nodiscard]] json::Json to_json(const Twin& twin);
+/// @brief API form of a package record.
 [[nodiscard]] json::Json to_json(const PackageRecord& package);
+/// @brief API form of a deployment record.
 [[nodiscard]] json::Json to_json(const Deployment& deployment);
+/// @brief API form of a change workspace.
 [[nodiscard]] json::Json to_json(const Change& change);
 /// @}
 

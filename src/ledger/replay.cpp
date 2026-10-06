@@ -42,8 +42,8 @@ std::string first_difference(const Json& recorded, const Json& recomputed) {
 
 class Replayer {
 public:
-    Replayer(std::shared_ptr<const kernel::Model> model, kernel::StateSet initial)
-        : model_(std::move(model)), state_(std::move(initial)) {}
+    Replayer(std::shared_ptr<const kernel::Model> model, kernel::StateSet initial, ReplayOptions options)
+        : model_(std::move(model)), state_(std::move(initial)), options_(options) {}
 
     void run(std::string_view text, ReplayReport& report) {
         std::size_t pos = 0;
@@ -53,6 +53,7 @@ public:
             Result<Json> line = json::parse_canonical(text.substr(pos, eol - pos));
             pos = eol + 1;
             if (!line) continue;  // already reported by chain verification
+            hash_ = line.value().value("hash", std::string());
             replay_record(line.value().at("body"), report);
         }
         report.final_state = encode_state(*model_, state_);
@@ -64,10 +65,15 @@ private:
                                               body.value("kind", std::string()), std::move(detail)});
     }
 
-    static void compare(ReplayReport& r, const Json& body, const Json& recomputed) {
+    /// Compare recorded and recomputed fields; keep a frame of the recomputed values.
+    void compare(ReplayReport& r, const Json& body, Json recomputed) const {
         const Json recorded = semantic_fields(body);
         if (recorded != recomputed) {
             mismatch(r, body, first_difference(recorded, recomputed));
+        }
+        if (options_.frames) {
+            r.frames.push_back(ReplayFrame{body.value("seq", std::uint64_t{0}), body.value("kind", std::string()),
+                                           hash_, std::move(recomputed)});
         }
     }
 
@@ -82,6 +88,13 @@ private:
             compare(r, body,
                     alarm_fields(*model_, body.value("alarm", std::string()), body.value("detail", std::string()),
                                  state_));
+            return;
+        }
+        if (kind == kind::kContext) {
+            ++r.contexts;
+            compare(r, body,
+                    context_fields(body.value("topic", std::string()), body.value("at", Ticks{0}),
+                                   body.value("data", Json::object()), state_));
             return;
         }
         if (kind == kind::kEnd) {
@@ -130,6 +143,8 @@ private:
 
     std::shared_ptr<const kernel::Model> model_;
     kernel::StateSet state_;
+    ReplayOptions options_;
+    std::string hash_;  ///< Chain hash of the record being replayed.
 };
 
 }  // namespace
@@ -139,12 +154,21 @@ Json to_json(const ReplayReport& r) {
     for (const ReplayMismatch& m : r.mismatches) {
         mismatches.push_back(Json{{"seq", m.seq}, {"kind", m.kind}, {"detail", m.detail}});
     }
-    return Json{{"chain", to_json(r.chain)}, {"identical", r.identical},     {"steps", r.steps},
-                {"delays", r.delays},        {"rejections", r.rejections},   {"alarms", r.alarms},
-                {"mismatches", mismatches},  {"final_state", r.final_state}};
+    Json out{{"chain", to_json(r.chain)}, {"identical", r.identical},     {"steps", r.steps},
+             {"delays", r.delays},        {"rejections", r.rejections},   {"alarms", r.alarms},
+             {"contexts", r.contexts},    {"mismatches", mismatches},     {"final_state", r.final_state}};
+    if (!r.frames.empty()) {
+        Json frames = Json::array();
+        for (const ReplayFrame& f : r.frames) {
+            frames.push_back(Json{{"seq", f.seq}, {"kind", f.kind}, {"hash", f.hash}, {"fields", f.fields}});
+        }
+        out["frames"] = std::move(frames);
+    }
+    return out;
 }
 
-Result<ReplayReport> replay_text(const package::LoadedPackage& package, std::string_view text) {
+Result<ReplayReport> replay_text(const package::LoadedPackage& package, std::string_view text,
+                                 const ReplayOptions& options) {
     ReplayReport report;
     report.chain = verify_text(text, VerifyOptions{package.package_hash, std::nullopt, false});
     if (!report.chain.valid) {
@@ -154,19 +178,20 @@ Result<ReplayReport> replay_text(const package::LoadedPackage& package, std::str
     if (!model) return std::move(model).error();
     Result<kernel::Configuration> init = kernel::initial_configuration(*model.value());
     if (!init) return std::move(init).error();
-    Replayer(model.value(), kernel::StateSet::of(std::move(init).value())).run(text, report);
+    Replayer(model.value(), kernel::StateSet::of(std::move(init).value()), options).run(text, report);
     report.identical = report.mismatches.empty();
     return report;
 }
 
-Result<ReplayReport> replay_file(const package::LoadedPackage& package, const std::filesystem::path& ledger) {
+Result<ReplayReport> replay_file(const package::LoadedPackage& package, const std::filesystem::path& ledger,
+                                 const ReplayOptions& options) {
     std::ifstream in(ledger, std::ios::binary);
     if (!in) {
         return make_error(ErrorCode::IoError, "cannot read ledger").with("file", ledger.string());
     }
     std::ostringstream buf;
     buf << in.rdbuf();
-    return replay_text(package, buf.str());
+    return replay_text(package, buf.str(), options);
 }
 
 }  // namespace twin::ledger

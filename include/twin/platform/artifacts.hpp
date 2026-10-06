@@ -66,7 +66,9 @@ enum class Lifecycle { Draft, Validating, Verified, Published, Superseded, Rejec
 struct ArtifactRef {
     std::string artifact_id;  ///< Artefact id.
     std::int64_t version{0};  ///< Version number (1-based).
+    /// @brief The reference as text, "<artifactId>@<version>".
     [[nodiscard]] std::string str() const { return artifact_id + "@" + std::to_string(version); }
+    /// @brief Equal when artefact id and version are equal.
     friend bool operator==(const ArtifactRef&, const ArtifactRef&) = default;
 };
 /// @brief Parse "id@n".
@@ -97,6 +99,7 @@ struct ArtifactVersion {
     std::string updated_at;                ///< Last content/state change.
     std::optional<std::string> published_at;  ///< When published.
     std::optional<std::string> published_by;  ///< Who published.
+    /// @brief The reference of this version.
     [[nodiscard]] ArtifactRef ref() const { return {artifact_id, version}; }
     /// @brief DRAFT, VALIDATING or VERIFIED.
     [[nodiscard]] bool is_open() const noexcept;
@@ -105,6 +108,7 @@ struct ArtifactVersion {
 /// @brief Repository of artefacts and versions (see file documentation).
 class ArtifactRepository {
 public:
+    /// @brief Repository over @p db; contents live in @p store; @p clock stamps lifecycle changes.
     ArtifactRepository(Database& db, const ObjectStore& store, const Clock& clock)
         : db_(db), store_(store), clock_(clock) {}
 

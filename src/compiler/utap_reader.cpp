@@ -11,6 +11,8 @@
  */
 #include "utap_reader.hpp"
 
+#include "twin/compiler/compiler.hpp"
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -171,6 +173,7 @@ private:
                     continue;
                 }
                 constants_[name] = *value;
+                model_.constants.emplace_back(name, *value);
                 continue;
             }
             error("TWC014", at,
@@ -304,7 +307,9 @@ private:
                       "the aligner would treat it as infinity");
                 return -1;
             }
-            out.push_back(SourceAtom{ir::ClockConstraint{lhs, rhs, cmp, *c}, e.str()});
+            std::optional<std::string> named;
+            if (const_side.get_kind() == Kind::IDENTIFIER) named = const_side.get_symbol().get_name();
+            out.push_back(SourceAtom{ir::ClockConstraint{lhs, rhs, cmp, *c}, e.str(), std::move(named)});
             return 1;
         };
         int r = try_side(e[0], e[1], *op);
@@ -518,6 +523,28 @@ std::optional<SourceModel> read_strict(UTAP::Document& doc, const ReaderOptions&
                                        std::vector<Diagnostic>& diagnostics) {
     return StrictReader(doc, options, diagnostics).run();
 }
+
+}  // namespace twin::compiler::detail
+
+namespace twin::compiler {
+
+ReadResult read_uppaal(std::string_view xml, const ReaderOptions& options) {
+    const std::lock_guard<std::recursive_mutex> utap_lock(utap_mutex());  // UTAP is not thread-safe
+    ReadResult out;
+    UTAP::Document doc;
+    const std::string buffer(xml);
+    if (parse_XML_buffer(buffer.c_str(), doc, true) != 0 && doc.get_errors().empty()) {
+        out.diagnostics.push_back(Diagnostic{Severity::Error, "TWC000", "UTAP cannot parse the document", "document",
+                                             "check that the file is a UPPAAL XML (flat) document"});
+        return out;
+    }
+    out.model = detail::read_strict(doc, options, out.diagnostics);
+    return out;
+}
+
+}  // namespace twin::compiler
+
+namespace twin::compiler::detail {
 
 const std::set<std::string>& utap_builtin_names() {
     // Parse a minimal document with the same UTAP and record its globals: robust

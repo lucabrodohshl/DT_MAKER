@@ -1,0 +1,162 @@
+/*
+ * Verified Twin Studio — design tokens.
+ *
+ * Colour is never the only carrier of meaning: every status token is used together
+ * with an icon and a text label (see components/StatusBadge.tsx).
+ * Status hues are reserved for status; the brand colour is a restrained steel blue.
+ * Contrast: text tokens meet WCAG 2.2 AA (>= 4.5:1) against --surface and --bg.
+ */
+:root {
+  color-scheme: light;
+
+  /* Neutrals */
+  --bg: #f4f6f8;
+  --bg-sunken: #eceff3;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f2f5f8;
+  --surface-selected: #e8f0fb;
+  --border: #d9dee5;
+  --border-strong: #b9c1cc;
+  --divider: #e7eaee;
+  --text: #16202b;
+  --text-muted: #4f5b69;
+  --text-subtle: #66717e;
+  --text-inverse: #ffffff;
+
+  /* Brand / interactive */
+  --accent: #1d4f91;
+  --accent-hover: #173f75;
+  --accent-soft: #e6eef9;
+  --accent-text: #1b4b8a;
+  --focus: #2f6fd1;
+
+  /* Status: ok / warning / critical / info / neutral / formal (evidence) */
+  --ok: #1a7146;
+  --ok-soft: #e5f3eb;
+  --ok-border: #a9d5bc;
+  --warn: #8a5300;
+  --warn-soft: #fdf2e0;
+  --warn-border: #ecc98c;
+  --crit: #b0261b;
+  --crit-soft: #fbe9e7;
+  --crit-border: #eeb1ab;
+  --info: #1d4f91;
+  --info-soft: #e6eef9;
+  --info-border: #aac2e6;
+  --neutral: #4f5b69;
+  --neutral-soft: #edf0f3;
+  --neutral-border: #cbd2da;
+  --formal: #5a3d99;
+  --formal-soft: #efeaf8;
+  --formal-border: #c9b9e8;
+
+  /* Simulation / replay mode framing (never confused with live) */
+  --sim: #7a4a00;
+  --sim-soft: #fff4dc;
+  --replay: #3d2c80;
+  --replay-soft: #eeebfb;
+
+  /* Charts: categorical series (CVD-safe order) */
+  --series-1: #1d4f91;
+  --series-2: #c35a00;
+  --series-3: #2f8f6b;
+  --series-4: #7b4fbf;
+  --series-5: #b03a6e;
+  --series-6: #5f6b78;
+
+  /* Typography */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --text-xs: 0.72rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --leading: 1.45;
+
+  /* Spacing (4px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  /* Shape & depth */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%);
+  --shadow: 0 1px 3px rgb(16 24 40 / 8%), 0 1px 2px rgb(16 24 40 / 5%);
+  --shadow-lg: 0 12px 32px rgb(16 24 40 / 16%), 0 2px 6px rgb(16 24 40 / 8%);
+
+  /* Layout */
+  --sidebar-width: 232px;
+  --topbar-height: 52px;
+  --target-min: 32px;
+
+  --duration: 140ms;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f141a;
+  --bg-sunken: #0b0f14;
+  --surface: #161d25;
+  --surface-raised: #1b232d;
+  --surface-hover: #1f2832;
+  --surface-selected: #1d2b3e;
+  --border: #2b3542;
+  --border-strong: #3d4a5a;
+  --divider: #232c37;
+  --text: #e6ebf1;
+  --text-muted: #a8b3c0;
+  --text-subtle: #8f9aa8;
+  --text-inverse: #0f141a;
+  --accent: #6aa2ea;
+  --accent-hover: #8ab7f0;
+  --accent-soft: #1b2a3e;
+  --accent-text: #8ab7f0;
+  --focus: #8ab7f0;
+  --ok: #5cc28f;
+  --ok-soft: #13291f;
+  --ok-border: #24563d;
+  --warn: #e7b25a;
+  --warn-soft: #2e2311;
+  --warn-border: #5f4519;
+  --crit: #f08479;
+  --crit-soft: #321715;
+  --crit-border: #6b2a24;
+  --info: #6aa2ea;
+  --info-soft: #172537;
+  --info-border: #2c4769;
+  --neutral: #a8b3c0;
+  --neutral-soft: #1d252e;
+  --neutral-border: #3a4655;
+  --formal: #b49af0;
+  --formal-soft: #241d38;
+  --formal-border: #4b3d78;
+  --sim: #f0c060;
+  --sim-soft: #2c2410;
+  --replay: #b8a8ff;
+  --replay-soft: #221d3d;
+  --series-1: #6aa2ea;
+  --series-2: #f0a35c;
+  --series-3: #5cc28f;
+  --series-4: #b49af0;
+  --series-5: #ef8ab8;
+  --series-6: #a8b3c0;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow: 0 1px 3px rgb(0 0 0 / 35%);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 45%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration: 0ms;
+  }
+}

@@ -1,0 +1,929 @@
+openapi: 3.1.0
+info:
+  title: twin-runtime API
+  version: 1.0.0
+  summary: REST and Server-Sent-Events API of the production Digital Twin runtime (K_prod).
+  description: |
+    Machine-readable contract of `twin-runtime`. The narrative documentation, with real
+    payload examples, is docs/runtime-api.md; the implementation is src/runtime/api_server.cpp
+    and src/runtime/views.cpp.
+
+    Verified Twin Studio forwards these routes unchanged under
+    `/api/v1/twins/{twinId}/{runtime|simulation|planner|mission|world}/...`.
+
+    Conventions:
+    - Logical times are integers in ticks, or exact decimal strings in model units. JSON
+      floating-point numbers are never accepted for times.
+    - Positions are in mm, energy in mWh, battery in permille, angles in centidegrees.
+    - Every semantic input goes through the session: the kernel decides and the ledger records.
+    - POST bodies must be JSON objects (send `{}` when empty).
+servers:
+  - url: http://127.0.0.1:8090
+    description: drone twin (co-simulation mode)
+  - url: http://127.0.0.1:8092
+    description: pump twin (monitor mode)
+tags:
+  - name: state
+  - name: inputs
+  - name: prediction
+  - name: evidence
+  - name: stream
+  - name: simulation
+  - name: mission
+  - name: monitor
+paths:
+  /health:
+    get:
+      tags: [state]
+      summary: Identity and liveness.
+      responses:
+        '200':
+          description: Runtime identity.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /runtime/state:
+    get:
+      tags: [state]
+      summary: Committed semantic state with kernel-derived facts.
+      responses:
+        '200': { description: State., content: { application/json: { schema: { $ref: '#/components/schemas/RuntimeState' } } } }
+        '409': { $ref: '#/components/responses/Error' }
+  /runtime/enabled-transitions:
+    get:
+      tags: [state]
+      summary: Outgoing transitions of every possible configuration with exact delay windows.
+      responses:
+        '200':
+          description: Enabled transitions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled: { type: array, items: { $ref: '#/components/schemas/EnabledTransition' } }
+  /runtime/propositions:
+    get:
+      tags: [state]
+      summary: Propositions holding in every possible configuration, with their I_D interpretations.
+      responses:
+        '200':
+          description: Propositions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [propositions]
+                properties:
+                  propositions: { type: array, items: { $ref: '#/components/schemas/Proposition' } }
+  /runtime/package:
+    get:
+      tags: [state]
+      summary: The verified package being executed (verified at start-up).
+      responses:
+        '200': { description: Package., content: { application/json: { schema: { $ref: '#/components/schemas/PackageInfo' } } } }
+  /runtime/package/verify:
+    post:
+      tags: [evidence]
+      summary: Re-run every integrity check on the package directory now.
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { description: Live verification., content: { application/json: { schema: { $ref: '#/components/schemas/PackageVerification' } } } }
+  /runtime/model:
+    get:
+      tags: [state]
+      summary: The Twin IR (twin-ir/1) for rendering the behaviour graph.
+      responses:
+        '200': { description: IR., content: { application/json: { schema: { $ref: '#/components/schemas/TwinIr' } } } }
+  /runtime/event:
+    post:
+      tags: [inputs]
+      summary: Submit an observation or decision; the kernel decides, the ledger records.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/EventRequest' } } }
+      responses:
+        '200': { description: Accepted., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '422': { description: Refused by the kernel (recorded as a reject record)., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /runtime/advance:
+    post:
+      tags: [inputs]
+      summary: Let logical time pass (pure delay); refused if an invariant forbids it.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TimeRequest' } } }
+      responses:
+        '200': { description: Accepted., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '422': { description: Refused., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+  /runtime/predict:
+    post:
+      tags: [prediction]
+      summary: Bounded exploration of model-permitted behaviour, on copies of the state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                depth: { type: integer, minimum: 1, maximum: 8, default: 3 }
+                horizon_ticks: { type: integer }
+                max_nodes: { type: integer, minimum: 1, maximum: 4000, default: 400 }
+      responses:
+        '200': { description: Exploration., content: { application/json: { schema: { $ref: '#/components/schemas/PredictionResult' } } } }
+  /runtime/simulate:
+    post:
+      tags: [prediction]
+      summary: What-if simulation of an event schedule on a copy of the state (nothing recorded).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schedule]
+              properties:
+                schedule: { type: array, items: { $ref: '#/components/schemas/EventRequest' } }
+      responses:
+        '200': { description: Verdict., content: { application/json: { schema: { $ref: '#/components/schemas/SimulateResult' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+  /runtime/executions:
+    get:
+      tags: [evidence]
+      summary: Recorded executions (ledgers), newest first.
+      responses:
+        '200':
+          description: Executions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [executions]
+                properties:
+                  executions: { type: array, items: { $ref: '#/components/schemas/Execution' } }
+  /runtime/executions/{session}:
+    get:
+      tags: [evidence]
+      parameters: [{ $ref: '#/components/parameters/Session' }]
+      responses:
+        '200': { description: Execution., content: { application/json: { schema: { $ref: '#/components/schemas/Execution' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+  /runtime/executions/{session}/telemetry:
+    get:
+      tags: [evidence]
+      summary: Recorded telemetry of an execution, evenly thinned (first and last kept).
+      parameters:
+        - { $ref: '#/components/parameters/Session' }
+        - { name: max, in: query, schema: { type: integer, default: 2000 } }
+      responses:
+        '200':
+          description: Samples.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session, samples, total]
+                properties:
+                  session: { type: string }
+                  samples: { type: array, items: { $ref: '#/components/schemas/Telemetry' } }
+                  total: { type: integer }
+  /runtime/ledger:
+    get:
+      tags: [evidence]
+      summary: Ledger records of an execution (default the current one).
+      parameters:
+        - { name: session, in: query, schema: { type: string } }
+        - { name: since, in: query, schema: { type: integer, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, default: 200 } }
+        - { name: tail, in: query, schema: { type: integer }, description: Return the last N matching records instead. }
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/RecordKind' } }
+      responses:
+        '200': { description: Records., content: { application/json: { schema: { $ref: '#/components/schemas/LedgerPage' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+  /runtime/ledger/verify:
+    post:
+      tags: [evidence]
+      summary: Verify the hash chain (and optionally replay).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session: { type: string }
+                replay: { type: boolean, default: false }
+      responses:
+        '200': { description: Report., content: { application/json: { schema: { $ref: '#/components/schemas/LedgerVerification' } } } }
+  /runtime/ledger/tamper-drill:
+    post:
+      tags: [evidence]
+      summary: Alter one field in a COPY of the ledger and verify the copy (the ledger is untouched).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session: { type: string }
+                line: { type: integer }
+      responses:
+        '200': { description: Report of the copy., content: { application/json: { schema: { $ref: '#/components/schemas/LedgerVerification' } } } }
+  /runtime/replay:
+    post:
+      tags: [evidence]
+      summary: Re-execute a recorded execution with the package recorded in its ledger.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session: { type: string }
+                frames: { type: boolean, default: true }
+                telemetry_max: { type: integer }
+      responses:
+        '200': { description: Replay report., content: { application/json: { schema: { $ref: '#/components/schemas/ReplayReport' } } } }
+        '404': { description: The recorded package is not available (the execution is never reinterpreted)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /runtime/stream:
+    get:
+      tags: [stream]
+      summary: Server-Sent Events (id = monotone sequence number; resume with Last-Event-ID or ?after=).
+      parameters:
+        - { name: after, in: query, schema: { type: integer } }
+        - { name: Last-Event-ID, in: header, schema: { type: string } }
+      responses:
+        '200':
+          description: |
+            text/event-stream. Event names and payloads: see components/schemas/StreamEvent.
+            An id lower than the last one seen means the runtime restarted (treat as a gap).
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /simulation/state:
+    get:
+      tags: [simulation]
+      responses:
+        '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } }
+  /simulation/reset:
+    post:
+      tags: [simulation]
+      summary: New session and ledger (and, in co-simulation mode, a restarted Physical Twin).
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses:
+        '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } }
+  /simulation/start:
+    post:
+      tags: [simulation]
+      summary: (co-simulation) Request the mission start (idempotent) and run.
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } } }
+  /simulation/pause:
+    post:
+      tags: [simulation]
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } } }
+  /simulation/step:
+    post:
+      tags: [simulation]
+      summary: (co-simulation) One tick (100 ms of logical time).
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } } }
+  /simulation/speed:
+    post:
+      tags: [simulation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [speed_permille]
+              properties:
+                speed_permille: { type: integer, description: Logical seconds per wall-clock second x 1000. }
+      responses: { '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } } }
+  /mission:
+    get:
+      tags: [mission]
+      responses: { '200': { description: Mission., content: { application/json: { schema: { $ref: '#/components/schemas/Mission' } } } } }
+  /mission/start:
+    post:
+      tags: [mission]
+      requestBody: { $ref: '#/components/requestBodies/Empty' }
+      responses: { '200': { description: Lifecycle., content: { application/json: { schema: { $ref: '#/components/schemas/SimulationState' } } } } }
+  /planner/current-plan:
+    get:
+      tags: [mission]
+      responses:
+        '200':
+          description: The active plan or null.
+          content: { application/json: { schema: { oneOf: [ { $ref: '#/components/schemas/Plan' }, { type: 'null' } ] } } }
+  /planner/history:
+    get:
+      tags: [mission]
+      responses:
+        '200':
+          description: Active plan and ended plans.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { oneOf: [ { $ref: '#/components/schemas/Plan' }, { type: 'null' } ] }
+                  history: { type: array, items: { $ref: '#/components/schemas/Plan' } }
+  /planner/episodes:
+    get:
+      tags: [mission]
+      summary: Planning episodes with candidates and their geometric and behavioural verdicts.
+      responses:
+        '200':
+          description: Episodes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodes: { type: array, items: { $ref: '#/components/schemas/PlanningEpisode' } }
+  /world/known:
+    get:
+      tags: [mission]
+      summary: The twin's KNOWN world (belief), never the ground truth.
+      responses:
+        '200':
+          description: Known map.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [map, seq, unknown_cells]
+                properties:
+                  map: { $ref: '#/components/schemas/Grid' }
+                  seq: { type: integer }
+                  unknown_cells: { type: integer }
+  /world/telemetry:
+    get:
+      tags: [mission]
+      responses: { '200': { description: Latest telemetry., content: { application/json: { schema: { $ref: '#/components/schemas/Telemetry' } } } } }
+  /runtime/pt-event:
+    post:
+      tags: [monitor]
+      summary: (monitor mode) A Physical-Twin event, translated through E, decided by the kernel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label: { type: string, description: PT label, e.g. "alarm_raise!" }
+                ticks: { type: integer }
+                time: { type: string }
+                detail: { type: object }
+      responses:
+        '200': { description: Accepted., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '422': { description: Refused by the kernel., content: { application/json: { schema: { $ref: '#/components/schemas/Submission' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+  /runtime/telemetry:
+    post:
+      tags: [monitor]
+      summary: (monitor mode) A telemetry sample; logged and streamed, never interpreted here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [at]
+              properties:
+                at: { type: integer, description: Logical timestamp (ticks). }
+              additionalProperties: true
+      responses:
+        '200': { description: Logged., content: { application/json: { schema: { type: object, properties: { logged: { type: boolean } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+components:
+  parameters:
+    Session:
+      name: session
+      in: path
+      required: true
+      schema: { type: string }
+  requestBodies:
+    Empty:
+      content:
+        application/json:
+          schema: { type: object }
+  responses:
+    Error:
+      description: Structured error.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, context]
+          properties:
+            code:
+              type: string
+              enum: [invalid_argument, parse_error, validation_error, unsupported_construct, not_found, io_error,
+                     integrity_error, arithmetic_overflow, time_not_representable, time_regression,
+                     invariant_violation, transition_not_enabled, incompatible_observation, state_error,
+                     unavailable, internal]
+            message: { type: string }
+            context:
+              type: array
+              items:
+                type: object
+                required: [key, value]
+                properties: { key: { type: string }, value: { type: string } }
+    LogicalTime:
+      type: object
+      required: [ticks, text]
+      properties:
+        ticks: { type: integer }
+        text: { type: string, description: Exact decimal in model time units. }
+    DelayWindow:
+      type: object
+      required: [earliest, latest]
+      properties:
+        earliest: { $ref: '#/components/schemas/LogicalTime' }
+        latest: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ], description: null = unbounded }
+    Configuration:
+      type: object
+      required: [location, clocks, time]
+      properties:
+        location: { type: string }
+        clocks: { type: object, additionalProperties: { $ref: '#/components/schemas/LogicalTime' } }
+        time: { $ref: '#/components/schemas/LogicalTime' }
+    EnabledTransition:
+      type: object
+      required: [member, transition, label, source, target, guard, resets, window, enabled_now]
+      properties:
+        member: { type: integer }
+        transition: { type: string }
+        label: { type: string }
+        source: { type: string }
+        target: { type: string }
+        guard: { type: string }
+        resets: { type: array, items: { type: string } }
+        interpretation: { type: string, description: I_D of the label (may be empty). }
+        window: { $ref: '#/components/schemas/DelayWindow' }
+        enabled_now: { type: boolean }
+    Proposition:
+      type: object
+      required: [id, interpretation]
+      properties:
+        id: { type: string, examples: ['at(REPLANNING)'] }
+        location: { type: string }
+        interpretation: { type: string }
+    Conformance:
+      type: object
+      required: [status, observations, observations_rejected, decisions, decisions_rejected, alarms, definition, first_violation, first_violation_seq]
+      properties:
+        status: { type: string, enum: [conformant, violated] }
+        observations: { type: integer }
+        observations_rejected: { type: integer }
+        decisions: { type: integer }
+        decisions_rejected: { type: integer }
+        alarms: { type: integer }
+        first_violation_seq: { type: [integer, 'null'] }
+        first_violation: { type: string }
+        definition: { type: string }
+    LastTransition:
+      type: object
+      required: [seq, transition, label, from, to, source, at]
+      properties:
+        seq: { type: integer }
+        transition: { type: string }
+        label: { type: string }
+        from: { type: string }
+        to: { type: string }
+        source: { type: string, description: Who submitted the input. }
+        at: { $ref: '#/components/schemas/LogicalTime' }
+    RuntimeState:
+      type: object
+      required: [session, time, configurations, deterministic, propositions, enabled, deadline, ledger, failed, closed]
+      properties:
+        session: { type: string }
+        package_hash: { type: string }
+        model:
+          type: object
+          required: [id, version, ir_sha256]
+          properties: { id: { type: string }, version: { type: string }, ir_sha256: { type: string } }
+        time: { $ref: '#/components/schemas/LogicalTime' }
+        configurations: { type: array, items: { $ref: '#/components/schemas/Configuration' } }
+        locations: { type: array, items: { type: string } }
+        deterministic: { type: boolean }
+        propositions: { type: array, items: { $ref: '#/components/schemas/Proposition' } }
+        enabled: { type: array, items: { $ref: '#/components/schemas/EnabledTransition' } }
+        deadline: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        last_transition: { oneOf: [ { $ref: '#/components/schemas/LastTransition' }, { type: 'null' } ] }
+        conformance: { $ref: '#/components/schemas/Conformance' }
+        ledger:
+          type: object
+          required: [records, head]
+          properties: { records: { type: integer }, head: { type: string } }
+        failed: { type: boolean }
+        closed: { type: boolean }
+    Health:
+      type: object
+      required: [status, service, kernel_version, package_hash, session, mode, simulation]
+      properties:
+        status: { type: string }
+        service: { type: string, const: twin-runtime }
+        kernel_version: { type: string }
+        package_hash: { type: string }
+        session: { type: string }
+        mode: { type: string, enum: [cosimulation, monitor] }
+        simulation: { $ref: '#/components/schemas/SimulationState' }
+    TimeRequest:
+      type: object
+      properties:
+        ticks: { type: integer }
+        time: { type: string, description: Exact decimal string, e.g. "16.8". }
+        source: { type: string, default: api }
+    EventRequest:
+      allOf:
+        - { $ref: '#/components/schemas/TimeRequest' }
+        - type: object
+          properties:
+            label: { type: string }
+            transition: { type: string }
+    Submission:
+      type: object
+      required: [source, label, kind, at, accepted, ledger_seq, ledger_hash]
+      properties:
+        source: { type: string }
+        label: { type: string }
+        pt_label: { type: string }
+        kind: { type: string, enum: [event, advance] }
+        at: { $ref: '#/components/schemas/LogicalTime' }
+        accepted: { type: boolean }
+        ledger_seq: { type: integer }
+        ledger_hash: { type: string }
+        transition: { type: string }
+        from: { type: string }
+        to: { type: string }
+        error: { $ref: '#/components/schemas/Error/properties/error' }
+    TrajectoryStep:
+      type: object
+      required: [transition, label, window, state]
+      properties:
+        transition: { type: string }
+        label: { type: string }
+        window: { $ref: '#/components/schemas/DelayWindow' }
+        state: { $ref: '#/components/schemas/Configuration' }
+    PredictionResult:
+      type: object
+      required: [from, limits, exploration, note]
+      properties:
+        from: { $ref: '#/components/schemas/RuntimeState' }
+        limits: { type: object }
+        note: { type: string }
+        exploration:
+          type: array
+          items:
+            type: object
+            required: [root, nodes, truncated, trajectories]
+            properties:
+              root: { $ref: '#/components/schemas/Configuration' }
+              nodes: { type: integer }
+              truncated: { type: boolean }
+              trajectories: { type: array, items: { type: array, items: { $ref: '#/components/schemas/TrajectoryStep' } } }
+    SimulateResult:
+      type: object
+      required: [admissible, steps, refusal, note]
+      properties:
+        admissible: { type: boolean }
+        steps: { type: array, items: { type: object } }
+        refusal: { oneOf: [ { $ref: '#/components/schemas/Error/properties/error' }, { type: 'null' } ] }
+        note: { type: string }
+    RecordKind:
+      type: string
+      enum: [genesis, step, delay, reject, alarm, context, end]
+    LedgerRecord:
+      type: object
+      required: [seq, kind, hash, body]
+      properties:
+        seq: { type: integer }
+        kind: { $ref: '#/components/schemas/RecordKind' }
+        hash: { type: string }
+        body: { type: object, description: The record body exactly as recorded (see include/twin/ledger/record.hpp). }
+    LedgerPage:
+      type: object
+      required: [session, ledger, total_records, matched, records]
+      properties:
+        session: { type: string }
+        ledger: { type: string }
+        total_records: { type: integer }
+        matched: { type: integer }
+        records: { type: array, items: { $ref: '#/components/schemas/LedgerRecord' } }
+    LedgerVerification:
+      type: object
+      required: [valid, records, session, package_hash, head_seq, head_hash, has_end_record, issues]
+      properties:
+        valid: { type: boolean }
+        records: { type: integer }
+        head_seq: { type: integer }
+        head_hash: { type: string }
+        has_end_record: { type: boolean }
+        issues:
+          type: array
+          items:
+            type: object
+            required: [code, line, message]
+            properties: { code: { type: string }, line: { type: integer }, message: { type: string } }
+        session: { type: string }
+        package_hash: { type: string }
+        running_package: { type: boolean }
+        tampered_line: { type: integer }
+        replay: { $ref: '#/components/schemas/ReplayReport' }
+    ReplayFrame:
+      type: object
+      required: [seq, kind, hash, fields]
+      properties:
+        seq: { type: integer }
+        kind: { $ref: '#/components/schemas/RecordKind' }
+        hash: { type: string }
+        fields: { type: object, description: Kind-specific fields as recomputed by the replay (table in docs/runtime-api.md). }
+    ReplayReport:
+      type: object
+      required: [chain, identical, steps, delays, rejections, alarms, contexts, mismatches, final_state, session, package]
+      properties:
+        chain: { $ref: '#/components/schemas/LedgerVerification' }
+        identical: { type: boolean }
+        steps: { type: integer }
+        delays: { type: integer }
+        rejections: { type: integer }
+        alarms: { type: integer }
+        contexts: { type: integer }
+        mismatches: { type: array, items: { type: object, properties: { seq: { type: integer }, kind: { type: string }, detail: { type: string } } } }
+        final_state: { type: array, items: { type: object } }
+        frames: { type: array, items: { $ref: '#/components/schemas/ReplayFrame' } }
+        session: { type: string }
+        package:
+          type: object
+          required: [package_hash, model_id, model_version, ir_sha256, running]
+          properties:
+            package_hash: { type: string }
+            model_id: { type: string }
+            model_version: { type: string }
+            ir_sha256: { type: string }
+            running: { type: boolean }
+        telemetry: { type: array, items: { $ref: '#/components/schemas/Telemetry' } }
+    Execution:
+      type: object
+      required: [session, ledger, telemetry, package_hash, model_id, model_version, records, ended, started, ended_at, last_time_ticks, last_location, current, replayable]
+      properties:
+        session: { type: string }
+        ledger: { type: string }
+        telemetry: { type: [string, 'null'] }
+        package_hash: { type: string }
+        model_id: { type: string }
+        model_version: { type: string }
+        records: { type: integer }
+        ended: { type: boolean }
+        started: { type: string }
+        ended_at: { type: string }
+        last_time_ticks: { type: integer }
+        last_location: { type: string }
+        current: { type: boolean }
+        replayable: { type: boolean }
+    PackageInfo:
+      type: object
+      required: [package_hash, directory, manifest, ir_sha256, source_sha256, checks, alignment]
+      properties:
+        package_hash: { type: string }
+        directory: { type: string }
+        manifest: { type: object }
+        ir_sha256: { type: string }
+        source_sha256: { type: string }
+        checks: { type: array, items: { type: object, required: [name, passed], properties: { name: { type: string }, passed: { type: boolean } } } }
+        alignment:
+          type: object
+          required: [aligned, lint_clean, verdict, label_equivalence, location_consistency, aligner, syntactic_baseline]
+          properties:
+            aligned: { type: boolean }
+            lint_clean: { type: boolean }
+            verdict: { type: object }
+            label_equivalence: { type: array, items: { type: object } }
+            location_consistency: { type: array, items: { type: object } }
+            aligner: { type: object }
+            syntactic_baseline: { type: object }
+    PackageVerification:
+      type: object
+      required: [package_hash, directory, valid, checks, note]
+      properties:
+        package_hash: { type: string }
+        directory: { type: string }
+        valid: { type: boolean }
+        checks: { type: array, items: { type: object, properties: { name: { type: string }, passed: { type: boolean }, detail: { type: string } } } }
+        note: { type: string }
+    TwinIr:
+      type: object
+      description: Canonical Twin IR (format twin-ir/1); see include/twin/ir/model.hpp.
+    SimulationState:
+      type: object
+      required: [status, mode, now, session, ledger]
+      properties:
+        status: { type: string, enum: [paused, running, finished, failed, monitoring] }
+        mode: { type: string, enum: [cosimulation, monitor] }
+        mission_started: { type: boolean }
+        speed_permille: { type: integer }
+        now: { $ref: '#/components/schemas/LogicalTime' }
+        ticks: { type: integer }
+        session: { type: string }
+        ledger: { type: string }
+        error: { type: string }
+        pt_events: { type: integer, description: Monitor mode only. }
+        telemetry_samples: { type: integer, description: Monitor mode only. }
+        last_telemetry: { $ref: '#/components/schemas/LogicalTime' }
+    Mission:
+      type: object
+      required: [mission, home, goal, targets, planning, finished, planner, episodes]
+      properties:
+        mission: { type: string }
+        home: { type: array, items: { type: integer }, minItems: 2, maxItems: 2 }
+        goal: { type: string }
+        targets:
+          type: array
+          items:
+            type: object
+            required: [id, name, cell, status]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              cell: { type: array, items: { type: integer } }
+              status: { type: string, enum: [pending, current, inspected, unreachable] }
+        planning: { type: boolean }
+        finished: { type: boolean }
+        planner: { type: string }
+        episodes: { type: integer }
+    Plan:
+      type: object
+      required: [id, episode, candidate, profile, goal, status, reason, start_mm, waypoints_mm, cost_mm, objective_mm, length_mm, unknown_mm, energy_mwh, expanded, created_at, ended_at]
+      properties:
+        id: { type: integer }
+        episode: { type: integer }
+        candidate: { type: string }
+        profile: { type: string }
+        goal: { type: string }
+        status: { type: string, enum: [candidate, proposed, active, invalidated, superseded, completed, rejected] }
+        reason: { type: string }
+        start_mm: { type: array, items: { type: integer } }
+        waypoints_mm: { type: array, items: { type: array, items: { type: integer } } }
+        cost_mm: { type: integer }
+        objective_mm: { type: integer }
+        length_mm: { type: integer }
+        unknown_mm: { type: integer }
+        energy_mwh: { type: integer }
+        expanded: { type: integer }
+        created_at: { type: integer }
+        ended_at: { type: integer }
+    Candidate:
+      type: object
+      required: [label, profile, found, failure, duplicate_of, plan, geometric, behavioural, selected]
+      properties:
+        label: { type: string }
+        profile: { type: string }
+        found: { type: boolean }
+        failure: { type: string }
+        duplicate_of: { type: string }
+        plan:
+          description: The route; an empty object when the planner found none (see failure).
+          oneOf:
+            - { $ref: '#/components/schemas/Plan' }
+            - { type: object, maxProperties: 0 }
+        geometric:
+          type: object
+          required: [ok, issues]
+          properties: { ok: { type: boolean }, issues: { type: array, items: { type: string } } }
+        behavioural:
+          type: object
+          required: [checked, ok, detail, schedule]
+          properties:
+            checked: { type: boolean }
+            ok: { type: boolean }
+            detail: { type: string }
+            schedule: { type: array, items: { type: object, properties: { label: { type: string }, at: { type: integer } } } }
+        selected: { type: boolean }
+    PlanningEpisode:
+      type: object
+      required: [id, at, goal, reason, decision, candidates, selected]
+      properties:
+        id: { type: integer }
+        at: { type: integer }
+        goal: { type: string }
+        reason: { type: string }
+        decision: { type: string }
+        candidates: { type: array, items: { $ref: '#/components/schemas/Candidate' } }
+        selected: { type: string }
+    Grid:
+      type: object
+      required: [width, height, cell_size_mm, rows]
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        cell_size_mm: { type: integer }
+        rows: { type: array, items: { type: string }, description: "Characters: ? unknown, . free, # wall, o obstacle, D open door, d closed door, ! no-fly." }
+    MapUpdate:
+      type: object
+      required: [seq, at, kind, description, cells]
+      properties:
+        seq: { type: integer }
+        at: { type: integer }
+        kind: { type: string, enum: [sensor_observation, facility_notice] }
+        description: { type: string }
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              cell: { type: array, items: { type: integer } }
+              occupancy: { type: string }
+        unknown_cells: { type: integer }
+    Telemetry:
+      type: object
+      required: [at]
+      description: Drone telemetry fields shown; monitor-mode twins publish their own fields (e.g. bearing_temp).
+      properties:
+        at: { type: integer, description: PT logical observation time (ticks). }
+        x_mm: { type: integer }
+        y_mm: { type: integer }
+        alt_mm: { type: integer }
+        vx_mm_s: { type: integer }
+        vy_mm_s: { type: integer }
+        speed_mm_s: { type: integer }
+        battery_permille: { type: integer }
+        energy_mwh: { type: integer }
+        heading_cdeg: { type: integer }
+        gimbal_cdeg: { type: integer }
+        mode: { type: string }
+        route_id: { type: integer }
+        waypoint_index: { type: integer }
+        goal: { type: string }
+        ledger_seq: { type: integer, description: Only in recorded telemetry. }
+      additionalProperties: true
+    StreamEvent:
+      description: |
+        Payloads of the SSE events of /runtime/stream, by event name:
+        state = RuntimeState; ledger = LedgerEventSummary; telemetry = Telemetry;
+        pt_event = PtEvent; observation = Submission; decision = Decision;
+        planning = PlanningEpisode; plan = {plan: Plan}; map = MapUpdate;
+        map_reset = {map: Grid, seq}; command = {command, accepted, error};
+        facility = {at, text}; sim = {status|speed_permille, session?, ledger?};
+        alarm = {at, text}; mission = {text, at}.
+      oneOf:
+        - { $ref: '#/components/schemas/RuntimeState' }
+        - { $ref: '#/components/schemas/LedgerEventSummary' }
+        - { $ref: '#/components/schemas/Telemetry' }
+        - { $ref: '#/components/schemas/PtEvent' }
+        - { $ref: '#/components/schemas/Submission' }
+        - { $ref: '#/components/schemas/Decision' }
+        - { $ref: '#/components/schemas/PlanningEpisode' }
+        - { $ref: '#/components/schemas/MapUpdate' }
+    LedgerEventSummary:
+      type: object
+      required: [seq, kind, time_after, prev_hash, hash]
+      properties:
+        seq: { type: integer }
+        kind: { $ref: '#/components/schemas/RecordKind' }
+        time_after: { type: integer }
+        prev_hash: { type: string }
+        hash: { type: string }
+        transition: { type: string }
+        label: { type: string }
+        from: { type: string }
+        to: { type: string }
+        input: { type: string }
+        source: { type: string }
+        error: { type: string }
+        alarm: { type: string }
+        topic: { type: string }
+    PtEvent:
+      type: object
+      required: [at, pt_label, dt_label, note, detail]
+      properties:
+        at: { type: integer }
+        pt_label: { type: string }
+        dt_label: { type: string, description: Empty if E has no unique translation. }
+        note: { type: string }
+        detail: { type: object }
+    Decision:
+      type: object
+      required: [label, accepted, reason, at, ledger_seq]
+      properties:
+        type: { type: string, const: decision }
+        label: { type: string }
+        accepted: { type: boolean }
+        reason: { type: string }
+        at: { type: integer }
+        ledger_seq: { type: integer }

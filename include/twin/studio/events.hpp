@@ -46,6 +46,7 @@ struct EventBatch {
 /// @brief See file documentation.
 class EventHub {
 public:
+    /// @brief Hub keeping the last @p capacity events for resumption; older resumes get a resync.
     explicit EventHub(std::size_t capacity = 2048);
 
     /// @brief Publish an event; returns its seq.

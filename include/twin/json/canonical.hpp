@@ -3,6 +3,9 @@
  * @brief Canonical JSON serialisation and typed, error-returning JSON access.
  * @ingroup json
  *
+ * @defgroup json Canonical JSON
+ * @brief Byte-exact serialisation of everything that is hashed (IR, manifests, ledger records).
+ *
  * Everything that is hashed in this project (Twin IR, package manifests,
  * ledger records) is serialised in **canonical JSON**:
  *
@@ -59,6 +62,7 @@ using Json = nlohmann::json;
 
 /// @name Typed member access returning structured errors (no exceptions).
 /// @{
+/// @brief Typed access to member @p key of @p object (ValidationError if absent or of another type).
 [[nodiscard]] Result<const Json*> member(const Json& object, std::string_view key);
 [[nodiscard]] Result<std::string> get_string(const Json& object, std::string_view key);
 [[nodiscard]] Result<std::int64_t> get_int(const Json& object, std::string_view key);

@@ -1,0 +1,3405 @@
+openapi: 3.1.0
+info:
+  title: Verified Twin Studio API
+  version: 1.0.0
+  summary: Platform and engineering-lifecycle API of twin-studio, served under /api/v1.
+  description: |
+    Machine-readable contract of `twin-studio` (src/studio/server.cpp, services_*.cpp).
+    The product manual is docs/studio/README.md; the runtime API that Studio proxies is
+    api/runtime.openapi.yaml.
+
+    Conventions:
+    - Every payload is a backend conclusion. Clients render it; they never derive
+      behavioural or formal verdicts themselves.
+    - Artefact versions are addressed as `<artifactId>@<version>` (for example
+      `process-pump@1`).
+    - Times are ISO 8601 UTC strings (`...Z`). Telemetry also carries epoch milliseconds.
+    - POST bodies must be JSON objects (send `{}` when empty). Requests that change state
+      should carry `X-Twin-Actor`, which attributes the change in the engineering audit
+      (attribution only, not authentication).
+    - Errors use the `Error` schema. Status codes: 400 invalid argument / parse error,
+      404 not found, 409 lifecycle state or integrity conflict, 422 rejected by validation
+      or by the kernel, 503 upstream runtime unavailable, 500 internal error.
+
+    Maintenance: the paths below are hand-written. `components.schemas` below the
+    "generated" marker is produced from web/studio/src/api/types.ts by
+    `python3 scripts/openapi/studio_components.py` (`--check` fails on drift), and
+    `python3 scripts/openapi/check_studio_contract.py` validates live responses of a
+    running twin-studio against this document.
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+    description: local demo (scripts/start-demo.sh)
+tags:
+  - name: system
+  - name: assets
+  - name: telemetry
+  - name: twins
+  - name: artifacts
+  - name: checks
+  - name: evidence
+  - name: changes
+  - name: packages
+  - name: deployments
+  - name: audit
+  - name: stream
+  - name: proxy
+
+paths:
+  /about:
+    get:
+      tags: [system]
+      summary: Product, compiler, kernel, aligner and checker identities.
+      operationId: getAbout
+      responses:
+        '200': { description: Identities, content: { application/json: { schema: { $ref: '#/components/schemas/About' } } } }
+  /overview:
+    get:
+      tags: [system]
+      summary: Estate overview (assets, telemetry freshness, twins and trust, engineering activity).
+      operationId: getOverview
+      responses:
+        '200': { description: Overview, content: { application/json: { schema: { $ref: '#/components/schemas/Overview' } } } }
+  /search:
+    get:
+      tags: [system]
+      summary: Global search over assets, twins, symbols, versions, evidence, packages, deployments and changes.
+      operationId: search
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        '200': { description: Hits, content: { application/json: { schema: { $ref: '#/components/schemas/SearchResult' } } } }
+  /logs:
+    get:
+      tags: [system]
+      summary: Diagnostic application log (not evidence; secrets redacted).
+      operationId: getLogs
+      parameters:
+        - { name: level, in: query, schema: { enum: [debug, info, warn, error] }, description: Minimum level }
+        - { name: component, in: query, schema: { type: string }, description: Component prefix }
+        - { name: correlation, in: query, schema: { type: string } }
+        - { name: execution, in: query, schema: { type: string } }
+        - { name: asset, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string }, description: Message substring }
+        - { name: since, in: query, schema: { type: string, format: date-time } }
+        - { name: until, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 2000, default: 200 } }
+      responses:
+        '200': { description: Entries, newest first, content: { application/json: { schema: { $ref: '#/components/schemas/LogPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /assets:
+    get:
+      tags: [assets]
+      summary: Assets (paged).
+      operationId: listAssets
+      parameters:
+        - { name: type, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: parent, in: query, schema: { type: string }, description: Children of this asset (empty for roots) }
+        - { $ref: '#/components/parameters/limit' }
+        - { $ref: '#/components/parameters/offset' }
+      responses:
+        '200': { description: Page of assets, content: { application/json: { schema: { $ref: '#/components/schemas/AssetPage' } } } }
+  /assets/{assetId}:
+    parameters: [{ $ref: '#/components/parameters/assetId' }]
+    get:
+      tags: [assets]
+      summary: Asset with ancestors, children, relationships and its (possibly inherited) twin.
+      operationId: getAsset
+      responses:
+        '200': { description: Asset, content: { application/json: { schema: { $ref: '#/components/schemas/AssetDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /assets/{assetId}/neighborhood:
+    parameters: [{ $ref: '#/components/parameters/assetId' }]
+    get:
+      tags: [assets]
+      summary: Knowledge-graph neighbourhood around an asset (bounded; never the whole estate).
+      operationId: getNeighborhood
+      parameters:
+        - { name: depth, in: query, schema: { type: integer, minimum: 0, default: 1 } }
+        - { name: types, in: query, schema: { type: string }, description: Comma-separated relationship types }
+        - { name: max, in: query, schema: { type: integer }, description: Node cap; `truncated` reports when it was hit }
+      responses:
+        '200': { description: Neighbourhood, content: { application/json: { schema: { $ref: '#/components/schemas/Neighborhood' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /graph/facets:
+    get:
+      tags: [assets]
+      summary: Relationship and asset types with counts, and the hierarchy roots.
+      operationId: getGraphFacets
+      responses:
+        '200': { description: Facets, content: { application/json: { schema: { $ref: '#/components/schemas/GraphFacets' } } } }
+
+  /assets/{assetId}/telemetry:
+    parameters: [{ $ref: '#/components/parameters/assetId' }]
+    get:
+      tags: [telemetry]
+      summary: Telemetry channels of an asset with latest sample and freshness.
+      operationId: getAssetTelemetry
+      parameters:
+        - { name: descendants, in: query, schema: { type: boolean }, description: Include channels of descendant assets }
+      responses:
+        '200': { description: Channels, content: { application/json: { schema: { $ref: '#/components/schemas/TelemetryChannels' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /telemetry/{channelId}/series:
+    parameters: [{ name: channelId, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [telemetry]
+      summary: Historical samples; downsampled server-side to buckets (min/max/avg/quality counts) when dense.
+      operationId: getSeries
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: maxPoints, in: query, schema: { type: integer } }
+      responses:
+        '200': { description: Series, content: { application/json: { schema: { $ref: '#/components/schemas/TelemetrySeries' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /telemetry/ingest:
+    post:
+      tags: [telemetry]
+      summary: Ingest observations (observation time from the source; ingestion time is stamped by Studio).
+      operationId: ingestTelemetry
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/IngestSample' } } } }
+      responses:
+        '200': { description: Ingested, content: { application/json: { schema: { $ref: '#/components/schemas/IngestResult' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /twins:
+    get:
+      tags: [twins]
+      summary: Registered twins with their current deployment.
+      operationId: listTwins
+      responses:
+        '200': { description: Twins, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TwinSummary' } } } } }
+  /twins/{twinId}:
+    parameters: [{ $ref: '#/components/parameters/twinId' }]
+    get:
+      tags: [twins]
+      summary: Twin with deployed package, bound artefact versions and trust summary (computed from evidence on every request).
+      operationId: getTwin
+      responses:
+        '200': { description: Twin, content: { application/json: { schema: { $ref: '#/components/schemas/TwinDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /twins/{twinId}/{family}/{path}:
+    parameters:
+      - { $ref: '#/components/parameters/twinId' }
+      - { name: family, in: path, required: true, schema: { enum: [runtime, simulation, planner, world, mission, observer, scenario] } }
+      - { name: path, in: path, required: true, schema: { type: string }, description: Remainder of the runtime route (may contain slashes) }
+    get:
+      tags: [proxy]
+      summary: Proxy to the twin's runtime (observer/scenario go to the world simulator). See api/runtime.openapi.yaml.
+      operationId: proxyGet
+      responses:
+        '200': { description: Upstream response, unchanged }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [proxy]
+      summary: Proxy to the twin's runtime. See api/runtime.openapi.yaml.
+      operationId: proxyPost
+      responses:
+        '200': { description: Upstream response, unchanged }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /artifacts:
+    get:
+      tags: [artifacts]
+      summary: Artefacts with their latest, published and open versions.
+      operationId: listArtifacts
+      parameters:
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/ArtifactKind' } }
+      responses:
+        '200': { description: Artefacts, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ArtifactSummary' } } } } }
+    post:
+      tags: [artifacts]
+      summary: Create an artefact with its first (draft) version.
+      operationId: createArtifact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, id, name, content]
+              properties:
+                kind: { $ref: '#/components/schemas/ArtifactKind' }
+                id: { type: string }
+                name: { type: string }
+                description: { type: string }
+                content: { type: string }
+                refs: { type: object, additionalProperties: { type: string }, description: 'e.g. {"ontology": "process-pump@1"} for an interpretation' }
+      responses:
+        '200': { description: Created version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }]
+    get:
+      tags: [artifacts]
+      summary: Artefact with all versions, interpretations over it and deployments using it.
+      operationId: getArtifact
+      responses:
+        '200': { description: Artefact, content: { application/json: { schema: { $ref: '#/components/schemas/ArtifactDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /artifacts/{artifactId}/versions/{version}:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    get:
+      tags: [artifacts]
+      summary: Version with content, parsed structure, strict-parser diagnostics and latest validation.
+      operationId: getVersion
+      responses:
+        '200': { description: Version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [artifacts]
+      summary: Save a draft. Never validates, publishes or deploys. A content change returns a VERIFIED draft to DRAFT.
+      operationId: saveDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                refs: { type: object, additionalProperties: { type: string } }
+                changeDescription: { type: string }
+      responses:
+        '200': { description: Saved version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}/versions/{version}/drafts:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    post:
+      tags: [artifacts]
+      summary: Create a new draft whose parent is this version (one open draft per artefact).
+      operationId: createDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: { type: string }
+                changeId: { type: string, description: Attach the draft to this change workspace }
+      responses:
+        '200': { description: New draft, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}/versions/{version}/validate:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    post:
+      tags: [checks]
+      summary: Validate (strict parser, aligner parser cross-check, Z3 consistency); stores validation evidence; DRAFT → VERIFIED on success.
+      operationId: validateVersion
+      responses:
+        '200': { description: Validated version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}/versions/{version}/publish:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    post:
+      tags: [artifacts]
+      summary: Publish a VERIFIED version (immutable from then on). 409 for any other state.
+      operationId: publishVersion
+      responses:
+        '200': { description: Published version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}/versions/{version}/reject:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    post:
+      tags: [artifacts]
+      summary: Reject an unpublished version (kept for the record; evidence on it becomes INVALIDATED).
+      operationId: rejectVersion
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1 } } } } }
+      responses:
+        '200': { description: Rejected version, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /artifacts/{artifactId}/versions/{version}/symbols/{symbol}:
+    parameters:
+      - { $ref: '#/components/parameters/artifactId' }
+      - { $ref: '#/components/parameters/version' }
+      - { name: symbol, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [artifacts]
+      summary: Declaration of an ontology symbol, axioms using it, interpretation entries using it and channels observing it.
+      operationId: getSymbol
+      responses:
+        '200': { description: Symbol, content: { application/json: { schema: { $ref: '#/components/schemas/SymbolInfo' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /artifacts/{artifactId}/versions/{version}/evaluate:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    post:
+      tags: [checks]
+      summary: Evaluate an interpretation (three-valued, Z3) against given observations and/or an asset's latest telemetry.
+      operationId: evaluateInterpretation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                observations: { type: object, additionalProperties: { type: [string, boolean] }, description: Symbol → exact decimal string or boolean }
+                assetId: { type: string, description: Use this asset's latest telemetry for observed symbols }
+                keys: { type: array, items: { type: string }, description: Only these entries }
+      responses:
+        '200': { description: Evaluation, content: { application/json: { schema: { $ref: '#/components/schemas/EvaluationResult' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /artifacts/{artifactId}/versions/{version}/impact:
+    parameters: [{ $ref: '#/components/parameters/artifactId' }, { $ref: '#/components/parameters/version' }]
+    get:
+      tags: [checks]
+      summary: Impact of this version replacing what each twin deploys (classifications with evidence-based reasons).
+      operationId: getImpact
+      responses:
+        '200': { description: Impact report, content: { application/json: { schema: { $ref: '#/components/schemas/ImpactReport' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /artifacts-impact:
+    get:
+      tags: [checks]
+      summary: Same as /artifacts/{id}/versions/{v}/impact, addressed by reference.
+      operationId: getImpactByRef
+      parameters: [{ name: ref, in: query, required: true, schema: { type: string, examples: [process-pump@3] } }]
+      responses:
+        '200': { description: Impact report, content: { application/json: { schema: { $ref: '#/components/schemas/ImpactReport' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /diff:
+    get:
+      tags: [artifacts]
+      summary: Structural (semantic) and source diff between two versions of an artefact, with affected interpretation entries.
+      operationId: getDiff
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string } }
+        - { name: to, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Diff, content: { application/json: { schema: { $ref: '#/components/schemas/DiffResult' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /refinement-checks:
+    post:
+      tags: [checks]
+      summary: Run the Definition 4 refinement check (candidate ⊑ base); stores refinement evidence.
+      description: |
+        The verdict is one of valid_refinement, not_a_refinement, unknown, check_failed.
+        Invalid input and checker failures are check_failed, never not_a_refinement.
+        Condition (c) is evaluated only when the base interpretations are given.
+      operationId: runRefinementCheck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [base, candidate]
+              properties:
+                base: { $ref: '#/components/schemas/RefinementSide' }
+                candidate: { $ref: '#/components/schemas/RefinementSide' }
+                changeId: { type: string }
+      responses:
+        '200': { description: Refinement evidence (document is a RefinementDocument), content: { application/json: { schema: { $ref: '#/components/schemas/EvidenceRecord' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /evidence:
+    get:
+      tags: [evidence]
+      summary: Verification history (never overwritten), newest first.
+      operationId: listEvidence
+      parameters:
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/EvidenceKind' } }
+        - { name: artifact, in: query, schema: { type: string } }
+        - { name: version, in: query, schema: { type: integer } }
+        - { name: change, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/limit' }
+        - { $ref: '#/components/parameters/offset' }
+      responses:
+        '200': { description: Page of evidence, content: { application/json: { schema: { $ref: '#/components/schemas/EvidencePage' } } } }
+  /evidence/{evidenceId}:
+    parameters: [{ $ref: '#/components/parameters/evidenceId' }]
+    get:
+      tags: [evidence]
+      summary: Evidence record with its full document; documentIntegrity re-verifies the stored hash.
+      operationId: getEvidence
+      responses:
+        '200': { description: Evidence, content: { application/json: { schema: { $ref: '#/components/schemas/EvidenceRecord' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /evidence/{evidenceId}/status:
+    parameters: [{ $ref: '#/components/parameters/evidenceId' }]
+    get:
+      tags: [evidence]
+      summary: Applicability (VALID / STALE / INVALIDATED / UNKNOWN) for a twin's deployment or a change's candidates, with the structured "why".
+      description: Exactly one of `twin` or `change` is required (400 otherwise).
+      operationId: getEvidenceStatus
+      parameters:
+        - { name: twin, in: query, schema: { type: string }, description: Judge against this twin's current deployment }
+        - { name: change, in: query, schema: { type: string }, description: Judge against this change's candidate artefacts }
+      responses:
+        '200': { description: Applicability, content: { application/json: { schema: { $ref: '#/components/schemas/ApplicabilityReport' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /changes:
+    get:
+      tags: [changes]
+      summary: Change workspaces.
+      operationId: listChanges
+      parameters: [{ name: state, in: query, schema: { enum: [open, released, abandoned] } }]
+      responses:
+        '200': { description: Changes, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Change' } } } } }
+    post:
+      tags: [changes]
+      summary: Open a change workspace for a twin.
+      operationId: createChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [twinId, title], properties: { twinId: { type: string }, title: { type: string }, description: { type: string } } }
+      responses:
+        '200': { description: Change, content: { application/json: { schema: { $ref: '#/components/schemas/Change' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /changes/{changeId}:
+    parameters: [{ $ref: '#/components/parameters/changeId' }]
+    get:
+      tags: [changes]
+      summary: Change with its artefact versions and twin.
+      operationId: getChange
+      responses:
+        '200': { description: Change, content: { application/json: { schema: { $ref: '#/components/schemas/Change' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /changes/{changeId}/artifacts:
+    parameters: [{ $ref: '#/components/parameters/changeId' }]
+    post:
+      tags: [changes]
+      summary: Add an artefact to the change (creates a draft from the version the twin deploys).
+      operationId: addChangeArtifact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [artifactId], properties: { artifactId: { type: string }, description: { type: string } } }
+      responses:
+        '200': { description: New draft, content: { application/json: { schema: { $ref: '#/components/schemas/VersionDetail' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /changes/{changeId}/pipeline:
+    parameters: [{ $ref: '#/components/parameters/changeId' }]
+    get:
+      tags: [changes]
+      summary: Release pipeline computed from stored evidence for exactly the candidate artefacts.
+      operationId: getPipeline
+      responses:
+        '200': { description: Pipeline, content: { application/json: { schema: { $ref: '#/components/schemas/Pipeline' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /changes/{changeId}/stages/{stage}/run:
+    parameters:
+      - { $ref: '#/components/parameters/changeId' }
+      - { name: stage, in: path, required: true, schema: { enum: [validate, refinement, alignment, compile, package, verify] } }
+    post:
+      tags: [changes]
+      summary: Run one pipeline stage through the real backend (aligner, compiler, package builder/verifier).
+      operationId: runStage
+      responses:
+        '200': { description: Stage result (shape depends on the stage; evidence or package integrity) }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /changes/{changeId}/release:
+    parameters: [{ $ref: '#/components/parameters/changeId' }]
+    post:
+      tags: [changes]
+      summary: Release (publishes every VERIFIED version, marks the package released, closes the change). 409 lists the blocking stages.
+      operationId: releaseChange
+      responses:
+        '200': { description: Released, content: { application/json: { schema: { $ref: '#/components/schemas/ReleaseResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /changes/{changeId}/abandon:
+    parameters: [{ $ref: '#/components/parameters/changeId' }]
+    post:
+      tags: [changes]
+      summary: Abandon a change (reason required).
+      operationId: abandonChange
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1 } } } } }
+      responses:
+        '200': { description: Change, content: { application/json: { schema: { $ref: '#/components/schemas/Change' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /packages:
+    get:
+      tags: [packages]
+      summary: Verified packages (immutable once built).
+      operationId: listPackages
+      parameters: [{ name: twin, in: query, schema: { type: string } }]
+      responses:
+        '200': { description: Packages, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PackageRecord' } } } } }
+  /packages/{packageId}:
+    parameters: [{ $ref: '#/components/parameters/packageId' }]
+    get:
+      tags: [packages]
+      summary: Package with bound versions, build evidence, integrity and deployments.
+      operationId: getPackage
+      responses:
+        '200': { description: Package, content: { application/json: { schema: { $ref: '#/components/schemas/PackageDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /packages/{packageId}/ir:
+    parameters: [{ $ref: '#/components/parameters/packageId' }]
+    get:
+      tags: [packages]
+      summary: The package's Twin IR (same format as the runtime's GET /runtime/model).
+      operationId: getPackageIr
+      responses:
+        '200': { description: Twin IR, content: { application/json: { schema: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /packages/{packageId}/verify:
+    parameters: [{ $ref: '#/components/parameters/packageId' }]
+    post:
+      tags: [packages]
+      summary: Verify package integrity now (every content hash, manifest and package hash).
+      operationId: verifyPackage
+      responses:
+        '200': { description: Integrity, content: { application/json: { schema: { $ref: '#/components/schemas/PackageIntegrity' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /deployments:
+    get:
+      tags: [deployments]
+      summary: Append-only deployment history, newest first.
+      operationId: listDeployments
+      parameters: [{ name: twin, in: query, schema: { type: string } }]
+      responses:
+        '200': { description: Deployments, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Deployment' } } } } }
+    post:
+      tags: [deployments]
+      summary: Deploy a package to a twin (integrity is verified first; a failing package is refused).
+      operationId: deploy
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeploymentRequest' } } }
+      responses:
+        '200': { description: Deployment, content: { application/json: { schema: { $ref: '#/components/schemas/Deployment' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /deployments/rollback-preview:
+    get:
+      tags: [deployments]
+      summary: What a rollback to a package would change, with the target's evidence and fresh integrity.
+      operationId: rollbackPreview
+      parameters:
+        - { name: twin, in: query, required: true, schema: { type: string } }
+        - { name: package, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/RollbackPreview' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /deployments/rollback:
+    post:
+      tags: [deployments]
+      summary: Roll back to a previously released package (reason required; nothing newer is deleted).
+      operationId: rollback
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DeploymentRequest' } } }
+      responses:
+        '200': { description: Deployment of kind rollback, content: { application/json: { schema: { $ref: '#/components/schemas/Deployment' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /audit:
+    get:
+      tags: [audit]
+      summary: Engineering audit trail (hash-chained), newest first.
+      operationId: listAudit
+      parameters:
+        - { name: operation, in: query, schema: { type: string }, description: 'e.g. artifact.publish, refinement.run, deployment.rollback' }
+        - { name: subject, in: query, schema: { type: string } }
+        - { name: actor, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/limit' }
+        - { $ref: '#/components/parameters/offset' }
+      responses:
+        '200': { description: Page of records, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPage' } } } }
+  /audit/verify:
+    post:
+      tags: [audit]
+      summary: Recompute the engineering audit chain; reports the first invalid record.
+      operationId: verifyAudit
+      responses:
+        '200': { description: Verification, content: { application/json: { schema: { $ref: '#/components/schemas/AuditVerification' } } } }
+
+  /stream:
+    get:
+      tags: [stream]
+      summary: Server-Sent Events of platform changes.
+      description: |
+        Events: `hello` ({epoch, head}) on connect; then topic events `artifact`, `evidence`,
+        `telemetry`, `change`, `package`, `deployment`, each with `id` = seq and data
+        {seq, topic, at, data}. A `resync` event (buffer overrun) or a different `epoch`
+        (server restart) means the client must refetch authoritative state. Resume with the
+        `Last-Event-ID` header or `?lastEventId=`.
+      operationId: stream
+      parameters:
+        - { name: lastEventId, in: query, schema: { type: integer } }
+        - { name: Last-Event-ID, in: header, schema: { type: integer } }
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/StreamEvent' }
+
+components:
+  parameters:
+    limit: { name: limit, in: query, schema: { type: integer, minimum: 1 } }
+    offset: { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+    assetId: { name: assetId, in: path, required: true, schema: { type: string } }
+    twinId: { name: twinId, in: path, required: true, schema: { type: string } }
+    artifactId: { name: artifactId, in: path, required: true, schema: { type: string } }
+    version: { name: version, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    evidenceId: { name: evidenceId, in: path, required: true, schema: { type: string, pattern: '^EV-[0-9]+$' } }
+    changeId: { name: changeId, in: path, required: true, schema: { type: string, pattern: '^CHG-[0-9]+$' } }
+    packageId: { name: packageId, in: path, required: true, schema: { type: string, pattern: '^PKG-[0-9]+$' } }
+  responses:
+    BadRequest: { description: Invalid argument or parse error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Not allowed in the current lifecycle state, or integrity conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unavailable: { description: The twin's runtime is not connected or not reachable, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, context]
+          properties:
+            code: { type: string, examples: [state_error, not_found, invalid_argument, runtime_not_connected] }
+            message: { type: string }
+            context: { type: array, items: { type: object, required: [key, value], properties: { key: { type: string }, value: { type: string } } } }
+    AssetPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Asset' } }, total: { type: integer }, limit: { type: integer }, offset: { type: integer } }
+    EvidencePage:
+      type: object
+      required: [items, total, limit, offset]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/EvidenceRecord' } }, total: { type: integer }, limit: { type: integer }, offset: { type: integer } }
+    AuditPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditRecord' } }, total: { type: integer }, limit: { type: integer }, offset: { type: integer } }
+    LogPage:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/LogEntry' } } }
+    SearchResult:
+      type: object
+      required: [query, hits]
+      properties: { query: { type: string }, hits: { type: array, items: { $ref: '#/components/schemas/SearchHit' } } }
+    IngestSample:
+      type: object
+      required: [channel, value]
+      description: Exactly one of observedAt / observedMs.
+      properties:
+        channel: { type: string }
+        observedAt: { type: string, format: date-time }
+        observedMs: { type: integer }
+        value: { type: [number, boolean, string] }
+        quality: { $ref: '#/components/schemas/Quality' }
+    IngestResult:
+      type: object
+      required: [ingested, channels]
+      properties: { ingested: { type: integer }, channels: { type: integer } }
+    RefinementSide:
+      type: object
+      required: [ontology]
+      properties:
+        ontology: { type: string, examples: [process-pump@1] }
+        ptInterpretation: { type: string }
+        dtInterpretation: { type: string }
+    DeploymentRequest:
+      type: object
+      required: [twinId, packageId]
+      properties: { twinId: { type: string }, packageId: { type: string }, reason: { type: string, description: Required for rollback } }
+    ReleaseResult:
+      type: object
+      required: [change, package, published]
+      properties:
+        change: { $ref: '#/components/schemas/Change' }
+        package: { $ref: '#/components/schemas/PackageRecord' }
+        published: { type: array, items: { type: string } }
+    StreamEvent:
+      type: object
+      required: [seq, topic, at, data]
+      properties:
+        seq: { type: integer }
+        topic: { enum: [artifact, evidence, telemetry, change, package, deployment] }
+        at: { type: string, format: date-time }
+        data: { type: object }
+    # --- generated from web/studio/src/api/types.ts by scripts/openapi/studio_components.py; do not edit below ---
+    About:
+      properties:
+        aligner:
+          type: string
+        alignerDigest:
+          type: string
+        compilerVersion:
+          type: string
+        epoch:
+          type: string
+        irFormat:
+          type: string
+        kernelCompat:
+          type: string
+        kernelVersion:
+          type: string
+        ledgerSchema:
+          type: string
+        ontologyChecker:
+          type: string
+        ontologyServices:
+          type: string
+        packageFormat:
+          type: string
+        product:
+          type: string
+        version:
+          type: string
+      required:
+      - product
+      - version
+      - compilerVersion
+      - kernelVersion
+      - kernelCompat
+      - irFormat
+      - packageFormat
+      - ledgerSchema
+      - aligner
+      - alignerDigest
+      - ontologyServices
+      - ontologyChecker
+      - epoch
+      type: object
+    ApiErrorBody:
+      properties:
+        error:
+          properties:
+            code:
+              type: string
+            context:
+              items:
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+                required:
+                - key
+                - value
+                type: object
+              type: array
+            message:
+              type: string
+          required:
+          - code
+          - message
+          - context
+          type: object
+      required:
+      - error
+      type: object
+    ApplicabilityReport:
+      properties:
+        changed:
+          items:
+            properties:
+              currentRef:
+                type: string
+              currentSha256:
+                type: string
+              evidenceRef:
+                type: string
+              evidenceSha256:
+                type: string
+              role:
+                type: string
+            required:
+            - role
+            - evidenceRef
+            - evidenceSha256
+            - currentRef
+            - currentSha256
+            type: object
+          type: array
+        context:
+          type: string
+        evaluatedAt:
+          type: string
+        evidenceId:
+          type: string
+        reasons:
+          items:
+            type: string
+          type: array
+        state:
+          enum:
+          - unknown
+          - stale
+          - invalidated
+          - valid
+      required:
+      - state
+      - changed
+      - reasons
+      - evidenceId
+      - context
+      - evaluatedAt
+      type: object
+    ArtifactDetail:
+      properties:
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        deployedIn:
+          items:
+            properties:
+              deploymentId:
+                type: string
+              packageId:
+                type: string
+              ref:
+                type: string
+              role:
+                type: string
+              twinId:
+                type: string
+              twinName:
+                type: string
+            required:
+            - twinId
+            - twinName
+            - role
+            - ref
+            - packageId
+            - deploymentId
+            type: object
+          type: array
+        description:
+          type: string
+        id:
+          type: string
+        interpretations:
+          items:
+            properties:
+              name:
+                type: string
+              ontologyRef:
+                type: string
+              ref:
+                type: string
+              state:
+                $ref: '#/components/schemas/Lifecycle'
+            required:
+            - ref
+            - name
+            - state
+            - ontologyRef
+            type: object
+          type: array
+        kind:
+          $ref: '#/components/schemas/ArtifactKind'
+        name:
+          type: string
+        versions:
+          items:
+            $ref: '#/components/schemas/ArtifactVersion'
+          type: array
+      required:
+      - id
+      - kind
+      - name
+      - description
+      - createdAt
+      - createdBy
+      - versions
+      - interpretations
+      - deployedIn
+      type: object
+    ArtifactKind:
+      enum:
+      - ontology
+      - interpretation
+      - pt_model
+      - dt_model
+    ArtifactSummary:
+      properties:
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ArtifactKind'
+        latest:
+          anyOf:
+          - $ref: '#/components/schemas/ArtifactVersion'
+          - type: 'null'
+        name:
+          type: string
+        open:
+          anyOf:
+          - $ref: '#/components/schemas/ArtifactVersion'
+          - type: 'null'
+        published:
+          anyOf:
+          - $ref: '#/components/schemas/ArtifactVersion'
+          - type: 'null'
+        versionCount:
+          type: number
+      required:
+      - id
+      - kind
+      - name
+      - description
+      - createdAt
+      - createdBy
+      - versionCount
+      - latest
+      - published
+      - open
+      type: object
+    ArtifactVersion:
+      properties:
+        artifactId:
+          type: string
+        changeDescription:
+          type: string
+        contentSha256:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ArtifactKind'
+        name:
+          type: string
+        parentVersion:
+          type:
+          - number
+          - 'null'
+        publishedAt:
+          type:
+          - string
+          - 'null'
+        publishedBy:
+          type:
+          - string
+          - 'null'
+        ref:
+          type: string
+        refs:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        state:
+          $ref: '#/components/schemas/Lifecycle'
+        updatedAt:
+          type: string
+        version:
+          type: number
+      required:
+      - artifactId
+      - kind
+      - version
+      - ref
+      - state
+      - contentSha256
+      - refs
+      - changeDescription
+      - createdAt
+      - createdBy
+      - updatedAt
+      - parentVersion
+      - publishedAt
+      - publishedBy
+      type: object
+    Asset:
+      properties:
+        childCount:
+          type: number
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        parentId:
+          type:
+          - string
+          - 'null'
+        properties:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        tags:
+          items:
+            type: string
+          type: array
+        twinId:
+          type:
+          - string
+          - 'null'
+        type:
+          type: string
+      required:
+      - id
+      - name
+      - type
+      - parentId
+      - description
+      - tags
+      - properties
+      - twinId
+      type: object
+    AssetDetail:
+      properties:
+        ancestors:
+          items:
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+            required:
+            - id
+            - name
+            - type
+            type: object
+          type: array
+        childCount:
+          type: number
+        children:
+          items:
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              twinId:
+                type:
+                - string
+                - 'null'
+              type:
+                type: string
+            required:
+            - id
+            - name
+            - type
+            - twinId
+            type: object
+          type: array
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        parentId:
+          type:
+          - string
+          - 'null'
+        properties:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        relationships:
+          items:
+            $ref: '#/components/schemas/Relationship'
+          type: array
+        tags:
+          items:
+            type: string
+          type: array
+        twin:
+          anyOf:
+          - $ref: '#/components/schemas/TwinDetail'
+          - type: 'null'
+        twinAssetId:
+          type: string
+        twinId:
+          type:
+          - string
+          - 'null'
+        twinInherited:
+          type: boolean
+        type:
+          type: string
+      required:
+      - ancestors
+      - children
+      - relationships
+      - twin
+      - twinInherited
+      - id
+      - name
+      - type
+      - parentId
+      - description
+      - tags
+      - properties
+      - twinId
+      type: object
+    AuditRecord:
+      properties:
+        actor:
+          type: string
+        at:
+          type: string
+        details:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        hash:
+          type: string
+        operation:
+          type: string
+        outcome:
+          type: string
+        prevHash:
+          type: string
+        seq:
+          type: number
+        subject:
+          type: string
+      required:
+      - seq
+      - at
+      - actor
+      - operation
+      - outcome
+      - subject
+      - details
+      - prevHash
+      - hash
+      type: object
+    AuditVerification:
+      properties:
+        firstInvalidSeq:
+          type:
+          - number
+          - 'null'
+        headHash:
+          type: string
+        reason:
+          type: string
+        records:
+          type: number
+        valid:
+          type: boolean
+        verifiedAt:
+          type: string
+      required:
+      - valid
+      - records
+      - firstInvalidSeq
+      - reason
+      - headHash
+      - verifiedAt
+      type: object
+    Binding:
+      properties:
+        artifactId:
+          type: string
+        ref:
+          type: string
+        role:
+          type: string
+        sha256:
+          type: string
+        version:
+          type: number
+      required:
+      - role
+      - ref
+      - artifactId
+      - version
+      - sha256
+      type: object
+    Change:
+      properties:
+        artifactVersions:
+          items:
+            properties:
+              artifactId:
+                type: string
+              changeDescription:
+                type: string
+              contentSha256:
+                type: string
+              createdAt:
+                type: string
+              createdBy:
+                type: string
+              deployedRef:
+                type:
+                - string
+                - 'null'
+              kind:
+                $ref: '#/components/schemas/ArtifactKind'
+              name:
+                type: string
+              parentVersion:
+                type:
+                - number
+                - 'null'
+              publishedAt:
+                type:
+                - string
+                - 'null'
+              publishedBy:
+                type:
+                - string
+                - 'null'
+              ref:
+                type: string
+              refs:
+                additionalProperties:
+                  type: string
+                properties: {}
+                type: object
+              role:
+                type: string
+              state:
+                $ref: '#/components/schemas/Lifecycle'
+              updatedAt:
+                type: string
+              version:
+                type: number
+            required:
+            - artifactId
+            - kind
+            - version
+            - ref
+            - state
+            - contentSha256
+            - refs
+            - changeDescription
+            - createdAt
+            - createdBy
+            - updatedAt
+            - parentVersion
+            - publishedAt
+            - publishedBy
+            - deployedRef
+            type: object
+          type: array
+        artifacts:
+          items:
+            type: string
+          type: array
+        closedAt:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        state:
+          enum:
+          - released
+          - open
+          - abandoned
+        title:
+          type: string
+        twin:
+          anyOf:
+          - $ref: '#/components/schemas/TwinSummary'
+          - type: 'null'
+        twinId:
+          type: string
+      required:
+      - id
+      - twinId
+      - title
+      - description
+      - state
+      - artifacts
+      - createdAt
+      - createdBy
+      - closedAt
+      type: object
+    ConditionStatus:
+      enum:
+      - unknown
+      - holds
+      - violated
+      - not_evaluated
+    Deployment:
+      properties:
+        artifacts:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        current:
+          type: boolean
+        deployedAt:
+          type: string
+        deployedBy:
+          type: string
+        id:
+          type: string
+        irSha256:
+          type: string
+        kind:
+          enum:
+          - deploy
+          - rollback
+        packageHash:
+          type: string
+        packageId:
+          type: string
+        previousPackageId:
+          type:
+          - string
+          - 'null'
+        reason:
+          type: string
+        seq:
+          type: number
+        twinId:
+          type: string
+      required:
+      - seq
+      - id
+      - twinId
+      - packageId
+      - previousPackageId
+      - kind
+      - reason
+      - deployedAt
+      - deployedBy
+      type: object
+    DiffResult:
+      properties:
+        affectedInterpretations:
+          items:
+            properties:
+              entries:
+                items:
+                  type: string
+                type: array
+              name:
+                type: string
+              ref:
+                type: string
+              state:
+                $ref: '#/components/schemas/Lifecycle'
+            required:
+            - ref
+            - name
+            - state
+            - entries
+            type: object
+          type: array
+        from:
+          properties:
+            artifactId:
+              type: string
+            changeDescription:
+              type: string
+            content:
+              type: string
+            contentSha256:
+              type: string
+            createdAt:
+              type: string
+            createdBy:
+              type: string
+            kind:
+              $ref: '#/components/schemas/ArtifactKind'
+            name:
+              type: string
+            parentVersion:
+              type:
+              - number
+              - 'null'
+            publishedAt:
+              type:
+              - string
+              - 'null'
+            publishedBy:
+              type:
+              - string
+              - 'null'
+            ref:
+              type: string
+            refs:
+              additionalProperties:
+                type: string
+              properties: {}
+              type: object
+            state:
+              $ref: '#/components/schemas/Lifecycle'
+            updatedAt:
+              type: string
+            version:
+              type: number
+          required:
+          - artifactId
+          - kind
+          - version
+          - ref
+          - state
+          - contentSha256
+          - refs
+          - changeDescription
+          - createdAt
+          - createdBy
+          - updatedAt
+          - parentVersion
+          - publishedAt
+          - publishedBy
+          - content
+          type: object
+        kind:
+          $ref: '#/components/schemas/ArtifactKind'
+        structural:
+          anyOf:
+          - properties:
+              affectedSymbols:
+                items:
+                  type: string
+                type: array
+              changes:
+                items:
+                  $ref: '#/components/schemas/StructuralChange'
+                type: array
+            required:
+            - changes
+            type: object
+          - type: 'null'
+        to:
+          properties:
+            artifactId:
+              type: string
+            changeDescription:
+              type: string
+            content:
+              type: string
+            contentSha256:
+              type: string
+            createdAt:
+              type: string
+            createdBy:
+              type: string
+            kind:
+              $ref: '#/components/schemas/ArtifactKind'
+            name:
+              type: string
+            parentVersion:
+              type:
+              - number
+              - 'null'
+            publishedAt:
+              type:
+              - string
+              - 'null'
+            publishedBy:
+              type:
+              - string
+              - 'null'
+            ref:
+              type: string
+            refs:
+              additionalProperties:
+                type: string
+              properties: {}
+              type: object
+            state:
+              $ref: '#/components/schemas/Lifecycle'
+            updatedAt:
+              type: string
+            version:
+              type: number
+          required:
+          - artifactId
+          - kind
+          - version
+          - ref
+          - state
+          - contentSha256
+          - refs
+          - changeDescription
+          - createdAt
+          - createdBy
+          - updatedAt
+          - parentVersion
+          - publishedAt
+          - publishedBy
+          - content
+          type: object
+      required:
+      - kind
+      - from
+      - to
+      - structural
+      - affectedInterpretations
+      type: object
+    EvaluationResult:
+      properties:
+        checker:
+          type: string
+        entries:
+          items:
+            properties:
+              formula:
+                type: string
+              isEvent:
+                type: boolean
+              key:
+                type: string
+              solverNote:
+                type: string
+              symbols:
+                items:
+                  type: string
+                type: array
+              truth:
+                $ref: '#/components/schemas/Truth'
+              unobserved:
+                items:
+                  type: string
+                type: array
+            required:
+            - key
+            - isEvent
+            - formula
+            - truth
+            - symbols
+            - unobserved
+            - solverNote
+            type: object
+          type: array
+        evaluatedAt:
+          type: string
+        interpretationRef:
+          type: string
+        interpretationSha256:
+          type: string
+        observations:
+          items:
+            properties:
+              assetId:
+                type: string
+              channelId:
+                type: string
+              freshness:
+                enum:
+                - stale
+                - fresh
+                - missing
+                - invalid
+              ingestedAt:
+                type: string
+              observedAt:
+                type: string
+              quality:
+                enum:
+                - good
+                - uncertain
+                - bad
+              source:
+                type: string
+              symbol:
+                type: string
+              unit:
+                type: string
+              value:
+                type: string
+            required:
+            - symbol
+            - value
+            type: object
+          type: array
+        observationsConsistent:
+          enum:
+          - unknown
+          - 'true'
+          - 'false'
+        ontologyRef:
+          type: string
+        ontologySha256:
+          type: string
+        warnings:
+          items:
+            type: string
+          type: array
+      required:
+      - interpretationRef
+      - ontologyRef
+      - observationsConsistent
+      - entries
+      - observations
+      - warnings
+      - evaluatedAt
+      - checker
+      - ontologySha256
+      - interpretationSha256
+      type: object
+    EvidenceInput:
+      properties:
+        artifactId:
+          type: string
+        ref:
+          type: string
+        role:
+          type: string
+        sha256:
+          type: string
+        version:
+          type: number
+      required:
+      - role
+      - ref
+      - artifactId
+      - version
+      - sha256
+      type: object
+    EvidenceKind:
+      enum:
+      - validation
+      - refinement
+      - alignment
+      - compilation
+      - package
+    EvidenceRecord:
+      properties:
+        changeId:
+          type:
+          - string
+          - 'null'
+        checker:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        document:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        documentIntegrity:
+          enum:
+          - pass
+          - fail
+          - unknown
+        evidenceSha256:
+          type: string
+        id:
+          type: string
+        inputs:
+          items:
+            $ref: '#/components/schemas/EvidenceInput'
+          type: array
+        kind:
+          $ref: '#/components/schemas/EvidenceKind'
+        outcome:
+          $ref: '#/components/schemas/Outcome'
+        summary:
+          type: string
+        verdict:
+          type: string
+      required:
+      - id
+      - kind
+      - outcome
+      - verdict
+      - summary
+      - checker
+      - evidenceSha256
+      - createdAt
+      - createdBy
+      - changeId
+      - inputs
+      type: object
+    Freshness:
+      enum:
+      - stale
+      - fresh
+      - missing
+      - invalid
+    GraphFacets:
+      properties:
+        assetTypes:
+          items:
+            properties:
+              count:
+                type: number
+              type:
+                type: string
+            required:
+            - type
+            - count
+            type: object
+          type: array
+        relationshipTypes:
+          items:
+            properties:
+              count:
+                type:
+                - number
+                - 'null'
+              hierarchy:
+                type: boolean
+              type:
+                type: string
+            required:
+            - type
+            - count
+            - hierarchy
+            type: object
+          type: array
+        roots:
+          items:
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+            required:
+            - id
+            - name
+            - type
+            type: object
+          type: array
+      required:
+      - relationshipTypes
+      - assetTypes
+      - roots
+      type: object
+    ImpactClassification:
+      enum:
+      - changed
+      - definitely_stale
+      - requires_verification
+      - preserved
+      - potentially_affected
+      - unaffected
+    ImpactReport:
+      properties:
+        analyzedAt:
+          type: string
+        edges:
+          items:
+            properties:
+              from:
+                type: string
+              label:
+                type: string
+              to:
+                type: string
+            required:
+            - from
+            - to
+            - label
+            type: object
+          type: array
+        legend:
+          properties:
+            changed:
+              type: string
+            definitely_stale:
+              type: string
+            potentially_affected:
+              type: string
+            preserved:
+              type: string
+            requires_verification:
+              type: string
+            unaffected:
+              type: string
+          required:
+          - changed
+          - definitely_stale
+          - requires_verification
+          - preserved
+          - potentially_affected
+          - unaffected
+          type: object
+        nodes:
+          items:
+            properties:
+              classification:
+                $ref: '#/components/schemas/ImpactClassification'
+              deploymentId:
+                type: string
+              entries:
+                items:
+                  type: string
+                type: array
+              evidenceId:
+                type:
+                - string
+                - 'null'
+              id:
+                type: string
+              label:
+                type: string
+              packageId:
+                type: string
+              reason:
+                type: string
+              ref:
+                type: string
+              refinementEvidenceId:
+                type: string
+              twinId:
+                type: string
+              type:
+                type: string
+            required:
+            - id
+            - type
+            - label
+            - classification
+            - reason
+            type: object
+          type: array
+        requiredActions:
+          items:
+            properties:
+              action:
+                type: string
+              stage:
+                type: string
+            required:
+            - stage
+            - action
+            type: object
+          type: array
+        subject:
+          $ref: '#/components/schemas/ArtifactVersion'
+        twins:
+          items:
+            properties:
+              deployedRef:
+                type: string
+              identicalToDeployed:
+                type: boolean
+              name:
+                type: string
+              role:
+                type: string
+              structural: {}
+              twinId:
+                type: string
+            required:
+            - twinId
+            - name
+            - deployedRef
+            - role
+            - identicalToDeployed
+            - structural
+            type: object
+          type: array
+      required:
+      - subject
+      - twins
+      - nodes
+      - edges
+      - requiredActions
+      - analyzedAt
+      - legend
+      type: object
+    InterpretationStructure:
+      properties:
+        entries:
+          items:
+            properties:
+              comment:
+                type: string
+              formula:
+                type: string
+              formulaSpan:
+                $ref: '#/components/schemas/Span'
+              isEvent:
+                type: boolean
+              key:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+              symbols:
+                items:
+                  type: string
+                type: array
+            required:
+            - key
+            - isEvent
+            - formula
+            - comment
+            - symbols
+            - span
+            - formulaSpan
+            type: object
+          type: array
+        headerComment:
+          type: string
+      required:
+      - headerComment
+      - entries
+      type: object
+    Lifecycle:
+      enum:
+      - draft
+      - validating
+      - verified
+      - published
+      - superseded
+      - rejected
+    LogEntry:
+      properties:
+        assetId:
+          type:
+          - string
+          - 'null'
+        component:
+          type: string
+        correlationId:
+          type:
+          - string
+          - 'null'
+        executionId:
+          type:
+          - string
+          - 'null'
+        fields:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        level:
+          enum:
+          - error
+          - info
+          - debug
+          - warn
+        message:
+          type: string
+        ts:
+          type: string
+      required:
+      - ts
+      - level
+      - component
+      - message
+      - fields
+      - correlationId
+      - executionId
+      - assetId
+      type: object
+    Neighborhood:
+      properties:
+        edges:
+          items:
+            $ref: '#/components/schemas/Relationship'
+          type: array
+        focus:
+          type: string
+        frontier:
+          items:
+            type: string
+          type: array
+        nodes:
+          items:
+            $ref: '#/components/schemas/Asset'
+          type: array
+        truncated:
+          type: boolean
+      required:
+      - focus
+      - nodes
+      - edges
+      - frontier
+      - truncated
+      type: object
+    OntologyStructure:
+      properties:
+        axioms:
+          items:
+            properties:
+              comment:
+                type: string
+              formula:
+                type: string
+              formulaSpan:
+                $ref: '#/components/schemas/Span'
+              id:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+              symbols:
+                items:
+                  type: string
+                type: array
+            required:
+            - id
+            - formula
+            - comment
+            - symbols
+            - span
+            - formulaSpan
+            type: object
+          type: array
+        functions:
+          items:
+            properties:
+              argSorts:
+                items:
+                  type: string
+                type: array
+              comment:
+                type: string
+              name:
+                type: string
+              returnSort:
+                type: string
+              signature:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+            required:
+            - name
+            - argSorts
+            - returnSort
+            - signature
+            - comment
+            - span
+            type: object
+          type: array
+        headerComment:
+          type: string
+        relations:
+          items:
+            properties:
+              argSorts:
+                items:
+                  type: string
+                type: array
+              comment:
+                type: string
+              name:
+                type: string
+              signature:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+            required:
+            - name
+            - argSorts
+            - signature
+            - comment
+            - span
+            type: object
+          type: array
+        sorts:
+          items:
+            properties:
+              comment:
+                type: string
+              name:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+            required:
+            - name
+            - comment
+            - span
+            type: object
+          type: array
+      required:
+      - headerComment
+      - sorts
+      - functions
+      - relations
+      - axioms
+      type: object
+    Outcome:
+      enum:
+      - pass
+      - fail
+      - unknown
+      - error
+    Overview:
+      properties:
+        assets:
+          properties:
+            byType:
+              items:
+                properties:
+                  count:
+                    type: number
+                  type:
+                    type: string
+                required:
+                - type
+                - count
+                type: object
+              type: array
+            total:
+              type: number
+          required:
+          - total
+          - byType
+          type: object
+        engineering:
+          properties:
+            openChanges:
+              items:
+                $ref: '#/components/schemas/Change'
+              type: array
+            openDrafts:
+              type: number
+          required:
+          - openChanges
+          - openDrafts
+          type: object
+        generatedAt:
+          type: string
+        recentEngineeringEvents:
+          items:
+            $ref: '#/components/schemas/AuditRecord'
+          type: array
+        runtime:
+          properties:
+            connectedTwins:
+              type: number
+            note:
+              type: string
+            totalTwins:
+              type: number
+          required:
+          - connectedTwins
+          - totalTwins
+          - note
+          type: object
+        telemetry:
+          properties:
+            attention:
+              items:
+                properties:
+                  assetId:
+                    type: string
+                  channelId:
+                    type: string
+                  freshness:
+                    $ref: '#/components/schemas/Freshness'
+                  label:
+                    type: string
+                  lastObservedAt:
+                    type:
+                    - string
+                    - 'null'
+                required:
+                - channelId
+                - assetId
+                - label
+                - freshness
+                - lastObservedAt
+                type: object
+              type: array
+            channels:
+              type: number
+            freshness:
+              properties:
+                fresh:
+                  type: number
+                invalid:
+                  type: number
+                missing:
+                  type: number
+                stale:
+                  type: number
+              required:
+              - stale
+              - fresh
+              - missing
+              - invalid
+              type: object
+          required:
+          - channels
+          - freshness
+          - attention
+          type: object
+        twins:
+          items:
+            properties:
+              assetId:
+                type:
+                - string
+                - 'null'
+              deployment:
+                anyOf:
+                - $ref: '#/components/schemas/Deployment'
+                - type: 'null'
+              id:
+                type: string
+              name:
+                type: string
+              runtimeConnected:
+                type: boolean
+              trust:
+                properties:
+                  alignment:
+                    $ref: '#/components/schemas/TrustItem'
+                  compilation:
+                    $ref: '#/components/schemas/TrustItem'
+                  ontologyRefinement:
+                    $ref: '#/components/schemas/TrustItem'
+                  packageIntegrity:
+                    $ref: '#/components/schemas/TrustItem'
+                  runtimeCompatibility:
+                    $ref: '#/components/schemas/TrustItem'
+                required:
+                - alignment
+                - compilation
+                - ontologyRefinement
+                - packageIntegrity
+                - runtimeCompatibility
+                type: object
+            required:
+            - id
+            - name
+            - assetId
+            - deployment
+            - trust
+            - runtimeConnected
+            type: object
+          type: array
+        verificationIssues:
+          type: number
+      required:
+      - assets
+      - telemetry
+      - twins
+      - runtime
+      - verificationIssues
+      - engineering
+      - recentEngineeringEvents
+      - generatedAt
+      type: object
+    PackageDetail:
+      properties:
+        bindings:
+          items:
+            properties:
+              artifactId:
+                type: string
+              ref:
+                type: string
+              role:
+                type: string
+              sha256:
+                type: string
+              version:
+                type: number
+              versionInfo:
+                $ref: '#/components/schemas/ArtifactVersion'
+            required:
+            - role
+            - ref
+            - artifactId
+            - version
+            - sha256
+            type: object
+          type: array
+        buildEvidence:
+          anyOf:
+          - $ref: '#/components/schemas/EvidenceRecord'
+          - type: 'null'
+        changeId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        deployments:
+          items:
+            $ref: '#/components/schemas/Deployment'
+          type: array
+        evidenceId:
+          type:
+          - string
+          - 'null'
+        id:
+          type: string
+        integrity:
+          anyOf:
+          - $ref: '#/components/schemas/PackageIntegrity'
+          - type: 'null'
+        irSha256:
+          type: string
+        modelVersion:
+          type: string
+        packageHash:
+          type: string
+        releasedAt:
+          type:
+          - string
+          - 'null'
+        state:
+          enum:
+          - built
+          - released
+        twinId:
+          type: string
+      required:
+      - bindings
+      - integrity
+      - deployments
+      - id
+      - twinId
+      - packageHash
+      - irSha256
+      - modelVersion
+      - evidenceId
+      - state
+      - createdAt
+      - createdBy
+      - releasedAt
+      - changeId
+      type: object
+    PackageIntegrity:
+      properties:
+        checks:
+          items:
+            properties:
+              detail:
+                type: string
+              name:
+                type: string
+              passed:
+                type: boolean
+            required:
+            - name
+            - passed
+            - detail
+            type: object
+          type: array
+        firstFailure:
+          type: string
+        integrity:
+          enum:
+          - pass
+          - fail
+        packageHash:
+          type: string
+        packageId:
+          type: string
+        verifiedAt:
+          type: string
+        verifier:
+          type: string
+      required:
+      - packageId
+      - packageHash
+      - integrity
+      - firstFailure
+      - checks
+      - verifiedAt
+      - verifier
+      type: object
+    PackageRecord:
+      properties:
+        bindings:
+          items:
+            $ref: '#/components/schemas/Binding'
+          type: array
+        changeId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        evidenceId:
+          type:
+          - string
+          - 'null'
+        id:
+          type: string
+        irSha256:
+          type: string
+        modelVersion:
+          type: string
+        packageHash:
+          type: string
+        releasedAt:
+          type:
+          - string
+          - 'null'
+        state:
+          enum:
+          - built
+          - released
+        twinId:
+          type: string
+      required:
+      - id
+      - twinId
+      - packageHash
+      - irSha256
+      - modelVersion
+      - bindings
+      - evidenceId
+      - state
+      - createdAt
+      - createdBy
+      - releasedAt
+      - changeId
+      type: object
+    Pipeline:
+      properties:
+        blocking:
+          items:
+            type: string
+          type: array
+        candidateBindings:
+          items:
+            $ref: '#/components/schemas/Binding'
+          type: array
+        changeId:
+          type: string
+        changeState:
+          enum:
+          - released
+          - open
+          - abandoned
+        computedAt:
+          type: string
+        deployedBindings:
+          items:
+            $ref: '#/components/schemas/Binding'
+          type: array
+        packageId:
+          type:
+          - string
+          - 'null'
+        releaseReady:
+          type: boolean
+        stages:
+          items:
+            $ref: '#/components/schemas/PipelineStage'
+          type: array
+      required:
+      - changeId
+      - stages
+      - releaseReady
+      - computedAt
+      type: object
+    PipelineStage:
+      properties:
+        detail:
+          type: string
+        evidence:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        mandatory:
+          type: boolean
+        packageId:
+          type:
+          - string
+          - 'null'
+        route:
+          enum:
+          - alignment
+          - theorem3
+        state:
+          $ref: '#/components/schemas/TrustState'
+        title:
+          type: string
+      required:
+      - id
+      - title
+      - state
+      - mandatory
+      - detail
+      - evidence
+      type: object
+    Presentation:
+      additionalProperties: {}
+      properties:
+        category:
+          type: string
+        label:
+          type: string
+        precision:
+          type: number
+        preferredView:
+          enum:
+          - line
+          - state
+          - table
+      type: object
+    Quality:
+      enum:
+      - good
+      - uncertain
+      - bad
+    RefinementDocument:
+      properties:
+        assumptions:
+          items:
+            type: string
+          type: array
+        base:
+          properties:
+            dtInterpretation:
+              type:
+              - string
+              - 'null'
+            ontology:
+              type: string
+            ptInterpretation:
+              type:
+              - string
+              - 'null'
+          required:
+          - ontology
+          - ptInterpretation
+          - dtInterpretation
+          type: object
+        candidate:
+          properties:
+            dtInterpretation:
+              type:
+              - string
+              - 'null'
+            ontology:
+              type: string
+            ptInterpretation:
+              type:
+              - string
+              - 'null'
+          required:
+          - ontology
+          - ptInterpretation
+          - dtInterpretation
+          type: object
+        checker:
+          type: string
+        conditions:
+          items:
+            properties:
+              condition:
+                type: string
+              details:
+                items:
+                  type: string
+                type: array
+              status:
+                $ref: '#/components/schemas/ConditionStatus'
+              title:
+                type: string
+            required:
+            - condition
+            - title
+            - status
+            - details
+            type: object
+          type: array
+        definition:
+          type: string
+        failureReasons:
+          items:
+            type: string
+          type: array
+        format:
+          type: string
+        hashes:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        obligations:
+          items:
+            properties:
+              condition:
+                type: string
+              counterModel:
+                items:
+                  properties:
+                    symbol:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - symbol
+                  - value
+                  type: object
+                type: array
+              note:
+                type: string
+              statement:
+                type: string
+              status:
+                $ref: '#/components/schemas/ConditionStatus'
+              subject:
+                type: string
+            required:
+            - condition
+            - subject
+            - statement
+            - status
+            - counterModel
+            - note
+            type: object
+          type: array
+        summary:
+          type: string
+        timeoutMs:
+          type: number
+        verdict:
+          $ref: '#/components/schemas/RefinementVerdict'
+      required:
+      - format
+      - definition
+      - verdict
+      - summary
+      - conditions
+      - obligations
+      - assumptions
+      - failureReasons
+      - checker
+      - timeoutMs
+      - hashes
+      - base
+      - candidate
+      type: object
+    RefinementVerdict:
+      enum:
+      - unknown
+      - valid_refinement
+      - not_a_refinement
+      - check_failed
+    Relationship:
+      properties:
+        direction:
+          enum:
+          - incoming
+          - outgoing
+        id:
+          type: number
+        other:
+          anyOf:
+          - properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+            required:
+            - id
+            - name
+            - type
+            type: object
+          - type: 'null'
+        properties:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        sourceId:
+          type: string
+        targetId:
+          type: string
+        type:
+          type: string
+      required:
+      - id
+      - sourceId
+      - type
+      - targetId
+      - properties
+      type: object
+    RollbackPreview:
+      properties:
+        allowed:
+          type: boolean
+        current:
+          $ref: '#/components/schemas/PackageRecord'
+        roles:
+          items:
+            properties:
+              current:
+                type:
+                - string
+                - 'null'
+              role:
+                type: string
+              same:
+                type: boolean
+              target:
+                type:
+                - string
+                - 'null'
+            required:
+            - role
+            - current
+            - target
+            - same
+            type: object
+          type: array
+        target:
+          $ref: '#/components/schemas/PackageRecord'
+        targetEvidence:
+          anyOf:
+          - $ref: '#/components/schemas/EvidenceRecord'
+          - type: 'null'
+        targetIntegrity:
+          anyOf:
+          - $ref: '#/components/schemas/PackageIntegrity'
+          - type: 'null'
+      required:
+      - current
+      - target
+      - roles
+      - targetIntegrity
+      - targetEvidence
+      - allowed
+      type: object
+    SearchHit:
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        route:
+          type: string
+        subtitle:
+          type: string
+        title:
+          type: string
+      required:
+      - kind
+      - id
+      - title
+      - subtitle
+      - route
+      type: object
+    SourceDiagnostic:
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        severity:
+          enum:
+          - error
+          - warning
+          - note
+        span:
+          $ref: '#/components/schemas/Span'
+      required:
+      - code
+      - severity
+      - message
+      - span
+      type: object
+    Span:
+      properties:
+        column:
+          type: number
+        length:
+          type: number
+        line:
+          type: number
+      required:
+      - line
+      - column
+      - length
+      type: object
+    StructuralChange:
+      properties:
+        after:
+          type: string
+        before:
+          type: string
+        element:
+          type: string
+        kind:
+          enum:
+          - added
+          - removed
+          - modified
+          - renamed
+        name:
+          type: string
+        previousName:
+          type: string
+      required:
+      - kind
+      - element
+      - name
+      - previousName
+      - before
+      - after
+      type: object
+    SymbolInfo:
+      properties:
+        axioms:
+          items:
+            properties:
+              formula:
+                type: string
+              id:
+                type: string
+              span:
+                $ref: '#/components/schemas/Span'
+            required:
+            - id
+            - formula
+            - span
+            type: object
+          type: array
+        declaration:
+          properties:
+            comment:
+              type: string
+            kind:
+              enum:
+              - function
+              - sort
+              - relation
+            name:
+              type: string
+            signature:
+              type: string
+            span:
+              $ref: '#/components/schemas/Span'
+          required:
+          - kind
+          - name
+          - signature
+          - comment
+          - span
+          type: object
+        interpretations:
+          items:
+            properties:
+              entries:
+                items:
+                  properties:
+                    formula:
+                      type: string
+                    isEvent:
+                      type: boolean
+                    key:
+                      type: string
+                  required:
+                  - key
+                  - isEvent
+                  - formula
+                  type: object
+                type: array
+              name:
+                type: string
+              ref:
+                type: string
+              state:
+                $ref: '#/components/schemas/Lifecycle'
+            required:
+            - ref
+            - name
+            - state
+            - entries
+            type: object
+          type: array
+        ontologyRef:
+          type: string
+        telemetryChannels:
+          items:
+            $ref: '#/components/schemas/TelemetryChannel'
+          type: array
+      required:
+      - ontologyRef
+      - declaration
+      - axioms
+      - interpretations
+      - telemetryChannels
+      type: object
+    TelemetryBucket:
+      properties:
+        avg:
+          type: number
+        bad:
+          type: number
+        count:
+          type: number
+        endMs:
+          type: number
+        max:
+          type: number
+        min:
+          type: number
+        startMs:
+          type: number
+        uncertain:
+          type: number
+      required:
+      - startMs
+      - endMs
+      - count
+      - min
+      - max
+      - avg
+      - bad
+      - uncertain
+      type: object
+    TelemetryChannel:
+      properties:
+        ageMs:
+          type:
+          - number
+          - 'null'
+        assetId:
+          type: string
+        expectedPeriodMs:
+          type: number
+        freshness:
+          enum:
+          - stale
+          - fresh
+          - missing
+          - invalid
+        id:
+          type: string
+        latest:
+          anyOf:
+          - $ref: '#/components/schemas/TelemetrySample'
+          - type: 'null'
+        name:
+          type: string
+        ontologySymbol:
+          type:
+          - string
+          - 'null'
+        presentation:
+          $ref: '#/components/schemas/Presentation'
+        source:
+          type: string
+        unit:
+          type: string
+        valueType:
+          enum:
+          - string
+          - number
+          - boolean
+          - category
+      required:
+      - id
+      - assetId
+      - name
+      - valueType
+      - unit
+      - ontologySymbol
+      - source
+      - expectedPeriodMs
+      - presentation
+      type: object
+    TelemetryChannels:
+      properties:
+        assetId:
+          type: string
+        channels:
+          items:
+            $ref: '#/components/schemas/TelemetryChannel'
+          type: array
+        now:
+          type: string
+      required:
+      - assetId
+      - channels
+      - now
+      type: object
+    TelemetrySample:
+      properties:
+        ingestedAt:
+          type: string
+        observedAt:
+          type: string
+        observedMs:
+          type: number
+        quality:
+          $ref: '#/components/schemas/Quality'
+        value:
+          type:
+          - string
+          - number
+          - 'null'
+      required:
+      - observedAt
+      - observedMs
+      - ingestedAt
+      - quality
+      - value
+      type: object
+    TelemetrySeries:
+      properties:
+        bucketMs:
+          type: number
+        buckets:
+          items:
+            $ref: '#/components/schemas/TelemetryBucket'
+          type: array
+        channel:
+          $ref: '#/components/schemas/TelemetryChannel'
+        channelId:
+          type: string
+        downsampled:
+          type: boolean
+        from:
+          type: string
+        samples:
+          items:
+            $ref: '#/components/schemas/TelemetrySample'
+          type: array
+        to:
+          type: string
+        totalSamples:
+          type: number
+      required:
+      - channelId
+      - channel
+      - from
+      - to
+      - totalSamples
+      - downsampled
+      type: object
+    Tone:
+      enum:
+      - warning
+      - ok
+      - critical
+      - info
+      - neutral
+      - formal
+    TrustItem:
+      properties:
+        at:
+          type: string
+        detail:
+          type: string
+        evidenceId:
+          type: string
+        state:
+          $ref: '#/components/schemas/TrustState'
+        verdict:
+          type: string
+      required:
+      - state
+      - detail
+      type: object
+    TrustState:
+      description: Normalised trust/evidence states shared by every trust badge.
+      enum:
+      - pass
+      - fail
+      - unknown
+      - not_checked
+      - stale
+      - invalidated
+      - check_running
+      - unavailable
+      - error
+      - blocked
+      - not_applicable
+    Truth:
+      enum:
+      - unknown
+      - 'true'
+      - 'false'
+      - inconsistent_observation
+    TwinDetail:
+      properties:
+        assetId:
+          type:
+          - string
+          - 'null'
+        bindings:
+          items:
+            properties:
+              artifactId:
+                type: string
+              ref:
+                type: string
+              role:
+                type: string
+              sha256:
+                type: string
+              version:
+                type: number
+              versionInfo:
+                anyOf:
+                - $ref: '#/components/schemas/ArtifactVersion'
+                - type: 'null'
+            required:
+            - role
+            - ref
+            - artifactId
+            - version
+            - sha256
+            - versionInfo
+            type: object
+          type: array
+        createdAt:
+          type: string
+        deployment:
+          anyOf:
+          - $ref: '#/components/schemas/Deployment'
+          - type: 'null'
+        description:
+          type: string
+        id:
+          type: string
+        modelId:
+          type: string
+        name:
+          type: string
+        package:
+          anyOf:
+          - $ref: '#/components/schemas/PackageRecord'
+          - type: 'null'
+        presentation:
+          $ref: '#/components/schemas/TwinPresentation'
+        runtimeConnected:
+          type: boolean
+        runtimeUrl:
+          type:
+          - string
+          - 'null'
+        ticksPerUnit:
+          type: number
+        trust:
+          properties:
+            alignment:
+              $ref: '#/components/schemas/TrustItem'
+            compilation:
+              $ref: '#/components/schemas/TrustItem'
+            ontologyRefinement:
+              $ref: '#/components/schemas/TrustItem'
+            packageIntegrity:
+              $ref: '#/components/schemas/TrustItem'
+            runtimeCompatibility:
+              $ref: '#/components/schemas/TrustItem'
+          required:
+          - alignment
+          - compilation
+          - ontologyRefinement
+          - packageIntegrity
+          - runtimeCompatibility
+          type: object
+      required:
+      - package
+      - bindings
+      - trust
+      - id
+      - name
+      - assetId
+      - description
+      - modelId
+      - ticksPerUnit
+      - runtimeUrl
+      - presentation
+      - createdAt
+      - deployment
+      type: object
+    TwinPresentation:
+      additionalProperties: {}
+      properties:
+        events:
+          additionalProperties:
+            properties:
+              label:
+                type: string
+            type: object
+          properties: {}
+          type: object
+        keyTelemetry:
+          items:
+            type: string
+          type: array
+        plugin:
+          type: string
+        states:
+          additionalProperties:
+            properties:
+              label:
+                type: string
+              summary:
+                type: string
+              tone:
+                enum:
+                - warning
+                - ok
+                - critical
+                - info
+                - neutral
+                - formal
+            type: object
+          properties: {}
+          type: object
+        timeUnit:
+          type: string
+      type: object
+    TwinSummary:
+      properties:
+        assetId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        deployment:
+          anyOf:
+          - $ref: '#/components/schemas/Deployment'
+          - type: 'null'
+        description:
+          type: string
+        id:
+          type: string
+        modelId:
+          type: string
+        name:
+          type: string
+        presentation:
+          $ref: '#/components/schemas/TwinPresentation'
+        runtimeUrl:
+          type:
+          - string
+          - 'null'
+        ticksPerUnit:
+          type: number
+      required:
+      - id
+      - name
+      - assetId
+      - description
+      - modelId
+      - ticksPerUnit
+      - runtimeUrl
+      - presentation
+      - createdAt
+      - deployment
+      type: object
+    VersionDetail:
+      properties:
+        artifactId:
+          type: string
+        changeDescription:
+          type: string
+        content:
+          type: string
+        contentSha256:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/SourceDiagnostic'
+          type: array
+        kind:
+          $ref: '#/components/schemas/ArtifactKind'
+        name:
+          type: string
+        ontologyRef:
+          type: string
+        parentSummary:
+          anyOf:
+          - $ref: '#/components/schemas/ArtifactVersion'
+          - type: 'null'
+        parentVersion:
+          type:
+          - number
+          - 'null'
+        publishedAt:
+          type:
+          - string
+          - 'null'
+        publishedBy:
+          type:
+          - string
+          - 'null'
+        ref:
+          type: string
+        refs:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        state:
+          $ref: '#/components/schemas/Lifecycle'
+        structure:
+          anyOf:
+          - $ref: '#/components/schemas/OntologyStructure'
+          - $ref: '#/components/schemas/InterpretationStructure'
+          - type: 'null'
+        updatedAt:
+          type: string
+        validation:
+          anyOf:
+          - $ref: '#/components/schemas/EvidenceRecord'
+          - type: 'null'
+        validationRunning:
+          type: boolean
+        version:
+          type: number
+      required:
+      - content
+      - structure
+      - diagnostics
+      - validation
+      - validationRunning
+      - parentSummary
+      - artifactId
+      - kind
+      - version
+      - ref
+      - state
+      - contentSha256
+      - refs
+      - changeDescription
+      - createdAt
+      - createdBy
+      - updatedAt
+      - parentVersion
+      - publishedAt
+      - publishedBy
+      type: object

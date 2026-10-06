@@ -72,6 +72,7 @@ struct Services::Impl {
 /// @brief RAII marker for a running check (CHECK_RUNNING in the UI); refuses concurrent duplicates.
 class RunningCheck {
 public:
+    /// @brief Marks @p key as running until destruction; acquired() is false if it was already running.
     RunningCheck(Services::Impl& impl, std::string key);
     ~RunningCheck();
     RunningCheck(const RunningCheck&) = delete;

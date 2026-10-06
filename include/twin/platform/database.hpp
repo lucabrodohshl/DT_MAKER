@@ -40,20 +40,30 @@ class Database;
 class Statement {
 public:
     ~Statement();
+    /// @brief Move-constructs; @p other no longer owns the prepared statement.
     Statement(Statement&& other) noexcept;
+    /// @brief Move-assigns, finalizing the statement currently owned.
     Statement& operator=(Statement&& other) noexcept;
     Statement(const Statement&) = delete;
     Statement& operator=(const Statement&) = delete;
 
     /// @name Binding (chainable; indices are 1-based)
     /// @{
+    /// @brief Binds UTF-8 text to parameter @p index (1-based).
     Statement& bind(int index, std::string_view text);
+    /// @brief Binds UTF-8 text (overload resolving std::string unambiguously).
     Statement& bind(int index, const std::string& text) { return bind(index, std::string_view(text)); }
+    /// @brief Binds UTF-8 text (overload resolving string literals unambiguously).
     Statement& bind(int index, const char* text) { return bind(index, std::string_view(text)); }
+    /// @brief Binds a 64-bit integer.
     Statement& bind(int index, std::int64_t value);
+    /// @brief Binds a double.
     Statement& bind(int index, double value);
+    /// @brief Binds SQL NULL.
     Statement& bind_null(int index);
+    /// @brief Binds text, or NULL when empty.
     Statement& bind(int index, const std::optional<std::string>& text);
+    /// @brief Binds an integer, or NULL when empty.
     Statement& bind(int index, const std::optional<std::int64_t>& value);
     /// @}
 
@@ -66,12 +76,19 @@ public:
 
     /// @name Column access (0-based)
     /// @{
+    /// @brief Column @p column (0-based) as text ("" for NULL).
     [[nodiscard]] std::string text(int column) const;
+    /// @brief Column as a 64-bit integer (0 for NULL).
     [[nodiscard]] std::int64_t integer(int column) const;
+    /// @brief Column as a double (0.0 for NULL).
     [[nodiscard]] double real(int column) const;
+    /// @brief Whether the column is SQL NULL.
     [[nodiscard]] bool is_null(int column) const;
+    /// @brief Column as text, or nullopt for NULL.
     [[nodiscard]] std::optional<std::string> opt_text(int column) const;
+    /// @brief Column as an integer, or nullopt for NULL.
     [[nodiscard]] std::optional<std::int64_t> opt_integer(int column) const;
+    /// @brief Column as a double, or nullopt for NULL.
     [[nodiscard]] std::optional<double> opt_real(int column) const;
     /// @}
 
@@ -130,6 +147,7 @@ private:
  */
 class Transaction {
 public:
+    /// @brief Begins a transaction on @p db, or joins the one already open.
     explicit Transaction(Database& db);
     ~Transaction();
     Transaction(const Transaction&) = delete;

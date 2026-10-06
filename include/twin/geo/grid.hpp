@@ -79,9 +79,13 @@ public:
     /// @brief Rows of characters (inverse of from_rows).
     [[nodiscard]] std::vector<std::string> to_rows() const;
 
+    /// @brief Number of columns.
     [[nodiscard]] int width() const noexcept { return width_; }
+    /// @brief Number of rows.
     [[nodiscard]] int height() const noexcept { return height_; }
+    /// @brief Edge length of a cell in metres.
     [[nodiscard]] double cell_size() const noexcept { return cell_size_; }
+    /// @brief True iff @p c lies inside the grid.
     [[nodiscard]] bool contains(Cell c) const noexcept {
         return c.x >= 0 && c.y >= 0 && c.x < width_ && c.y < height_;
     }
@@ -125,12 +129,17 @@ struct MapUpdate {
     std::vector<CellChange> cells;  ///< Changed cells.
 };
 
-/// @brief JSON encodings (integers and strings only; positions as cells).
+/// @brief Encode a map update (cells as [x, y] plus an occupancy name).
 [[nodiscard]] json::Json to_json(const MapUpdate& update);
+/// @brief Decode and validate a map update.
 [[nodiscard]] Result<MapUpdate> map_update_from_json(const json::Json& j);
+/// @brief Encode a grid as rows of occupancy characters.
 [[nodiscard]] json::Json to_json(const OccupancyGrid& grid);
+/// @brief Decode and validate a grid.
 [[nodiscard]] Result<OccupancyGrid> grid_from_json(const json::Json& j);
+/// @brief Encode a cell as [x, y].
 [[nodiscard]] json::Json to_json(Cell c);
+/// @brief Decode a cell from [x, y] (integers).
 [[nodiscard]] Result<Cell> cell_from_json(const json::Json& j);
 
 /// @brief Euclidean distance in metres.

@@ -343,6 +343,53 @@ std::optional<Ticks> max_delay(const Model& model, const Configuration& c) {
     return iv.hi;
 }
 
+WindowExplanation explain_window(const Model& model, const Configuration& c, ir::TransitionIndex transition) {
+    WindowExplanation out;
+    if (transition >= model.transition_count()) {
+        return out;
+    }
+    const ir::Transition& t = model.transition(transition);
+    if (c.location != t.source) {
+        out.wrong_location = true;
+        return out;
+    }
+    out.window = enabling_window(model, c, transition);
+
+    // Each atom on its own, intersected with "every delay", by restrict_by_atom (the arithmetic
+    // of enabling_window()). The horizon is kept out of the factors; only atoms are reported.
+    auto factor = [&](WindowOrigin origin, const ir::ClockConstraint& atom, const TickConstraint& a, auto base, auto slope) {
+        Interval iv{0, kMaxTicks, false};
+        restrict_by_atom(iv, a, base, slope);
+        WindowFactor f;
+        f.origin = origin;
+        f.atom = atom;
+        f.value_now = base(a.lhs) - base(a.rhs);
+        f.bound = a.bound;
+        f.depends_on_delay = (slope(a.lhs) - slope(a.rhs)) != 0;
+        if (iv.empty()) {
+            f.never = true;
+        } else {
+            if (iv.lo > 0) f.min_delay = iv.lo;
+            if (iv.upper_constrained) f.max_delay = iv.hi;
+        }
+        out.factors.push_back(f);
+    };
+    auto base = [&c](ir::ClockIndex x) { return clock_value(c, x); };
+    auto slope = [](ir::ClockIndex x) { return x == ir::kReferenceClock ? 0 : 1; };
+    const auto inv_src = model.invariant(c.location);
+    const ir::Conjunction& inv_src_atoms = model.ir().locations[c.location].invariant;
+    for (std::size_t i = 0; i < inv_src.size(); ++i) factor(WindowOrigin::SourceInvariant, inv_src_atoms[i], inv_src[i], base, slope);
+    const auto g = model.guard(transition);
+    for (std::size_t i = 0; i < g.size(); ++i) factor(WindowOrigin::Guard, t.guard[i], g[i], base, slope);
+    auto is_reset = [&t](ir::ClockIndex x) { return std::binary_search(t.resets.begin(), t.resets.end(), x); };
+    auto base_after = [&](ir::ClockIndex x) { return is_reset(x) ? Ticks{0} : clock_value(c, x); };
+    auto slope_after = [&](ir::ClockIndex x) { return (x == ir::kReferenceClock || is_reset(x)) ? 0 : 1; };
+    const auto inv_tgt = model.invariant(t.target);
+    const ir::Conjunction& inv_tgt_atoms = model.ir().locations[t.target].invariant;
+    for (std::size_t i = 0; i < inv_tgt.size(); ++i) factor(WindowOrigin::TargetInvariant, inv_tgt_atoms[i], inv_tgt[i], base_after, slope_after);
+    return out;
+}
+
 std::vector<AtomEvaluation> explain_guard(const Model& model, const Configuration& c,
                                           ir::TransitionIndex transition) {
     std::vector<AtomEvaluation> out;

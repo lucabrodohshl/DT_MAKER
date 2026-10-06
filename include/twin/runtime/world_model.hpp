@@ -47,7 +47,9 @@ public:
     /// @brief Apply an update; returns the cells whose belief changed.
     std::vector<geo::CellChange> apply(const geo::MapUpdate& update);
 
+    /// @brief The twin's current belief about the building.
     [[nodiscard]] const geo::OccupancyGrid& map() const noexcept { return map_; }
+    /// @brief Sequence number of the last applied update of the environment feed.
     [[nodiscard]] std::uint64_t last_seq() const noexcept { return last_seq_; }
     /// @brief Number of cells still unknown.
     [[nodiscard]] std::size_t unknown_cells() const;

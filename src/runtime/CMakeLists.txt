@@ -10,6 +10,10 @@ twin_add_library(runtime
 twin_add_library(runtime_shell
     SOURCES
         views.cpp
+    what_if.cpp
+        executions.cpp
+        host.cpp
+        monitor_host.cpp
         world_model.cpp
         pt_adapter.cpp
         plan_validator.cpp

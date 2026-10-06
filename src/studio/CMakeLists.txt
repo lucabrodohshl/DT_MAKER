@@ -13,7 +13,8 @@ twin_add_library(studio
         services_ops.cpp
         seed.cpp
         server.cpp
+        runtime_bridge.cpp
     PUBLIC_DEPS twin::platform twin::ontology
-    PRIVATE_DEPS twin::compiler twin::alignment twin::package_builder httplib::httplib)
+    PRIVATE_DEPS twin::compiler twin::alignment twin::package_builder twin::studio_engine httplib::httplib)
 target_include_directories(twin_studio PRIVATE
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/include>)

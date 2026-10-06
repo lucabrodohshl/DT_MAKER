@@ -3,34 +3,49 @@
  * @brief The runtime's REST + Server-Sent-Events API.
  * @ingroup runtime
  *
- * Routes (documented with payloads in docs/runtime-api.md):
+ * Routes (payloads documented in docs/runtime-api.md):
  * @code
- *   GET  /runtime/state                 committed semantic state, propositions, enabled transitions
+ *   GET  /health
+ *   GET  /runtime/state                     committed semantic state, propositions, enabled transitions,
+ *                                           last transition, conformance, package/model identity
  *   GET  /runtime/enabled-transitions
  *   GET  /runtime/propositions
- *   POST /runtime/event                 {"label"|"transition", "time"|"ticks"}  -> kernel decides
- *   POST /runtime/advance               {"time"|"ticks"}                        -> pure delay
- *   POST /runtime/predict               {"depth", "horizon", "schedule": [...]} -> on copies
- *   GET  /runtime/ledger?since=&limit=  ledger records
- *   POST /runtime/ledger/verify         full chain verification (+ replay if "replay": true)
- *   POST /runtime/ledger/tamper-drill   verify a modified COPY (never the real ledger)
- *   GET  /runtime/package               package identity, checks, alignment evidence
- *   GET  /runtime/model                 the IR (for rendering the automaton)
- *   GET  /runtime/stream                SSE (id = monotone seq; Last-Event-ID resume)
- *   GET  /simulation/state  POST /simulation/{start,pause,step,reset,speed}
- *   GET  /planner/current-plan  GET /planner/history  GET /mission  GET /world/known
+ *   POST /runtime/event                     {"label"|"transition", "time"|"ticks", "source"} -> kernel decides
+ *   POST /runtime/advance                   {"time"|"ticks"}                                 -> pure delay
+ *   POST /runtime/predict                   {"depth", "horizon_ticks", "max_nodes"}  (on copies)
+ *   POST /runtime/simulate                  {"schedule": [{"label", "time"|"ticks"}]} (what-if, on a copy)
+ *   GET  /runtime/executions                recorded executions (ledgers), newest first
+ *   GET  /runtime/executions/{session}      one execution
+ *   GET  /runtime/executions/{session}/telemetry?max=
+ *   GET  /runtime/ledger?session=&since=&limit=&kind=
+ *   POST /runtime/ledger/verify             {"session"?, "replay"?}
+ *   POST /runtime/ledger/tamper-drill       {"session"?, "line"?}  (verifies a modified COPY)
+ *   POST /runtime/replay                    {"session"?, "frames"?} (re-execution with the recorded package)
+ *   GET  /runtime/package                   package identity, live verification checks, alignment evidence
+ *   GET  /runtime/model                     the IR (for rendering the behaviour graph)
+ *   GET  /runtime/stream                    SSE (id = monotone seq; Last-Event-ID / ?after= resume)
+ *   GET  /simulation/state      POST /simulation/reset
+ *   co-simulation mode only:
+ *   POST /simulation/{start,pause,step,speed}
+ *   GET  /mission               POST /mission/start
+ *   GET  /planner/current-plan  GET /planner/history  GET /planner/episodes
+ *   GET  /world/known           GET /world/telemetry   (the twin's KNOWN world and latest telemetry)
+ *   monitor mode only:
+ *   POST /runtime/pt-event      {"label": "<PT label>", "ticks"|"time", "detail"}  (E-translated)
+ *   POST /runtime/telemetry     {"at": ticks, ...}                                  (logged, streamed)
  * @endcode
  * Every semantic request goes through TwinSession::submit — there is no
- * other write path to semantic state.
+ * other write path to semantic state. Errors are
+ * `{"error": {"code", "message", "context": [{"key", "value"}]}}`.
  */
 #pragma once
 
 #include <filesystem>
-#include <memory>
-#include <string>
 
 #include "twin/runtime/cosim_driver.hpp"
 #include "twin/runtime/event_hub.hpp"
+#include "twin/runtime/executions.hpp"
+#include "twin/runtime/monitor_host.hpp"
 
 namespace httplib {
 class Server;
@@ -38,8 +53,17 @@ class Server;
 
 namespace twin::runtime {
 
-/// @brief Register all routes on @p server; optionally serve the web UI from @p ui_dir.
-void register_routes(httplib::Server& server, CoSimDriver& driver, EventHub& hub,
-                     const std::filesystem::path& ui_dir);
+/// @brief Everything the routes need (non-owning, non-null; must outlive the server).
+struct ApiContext {
+    RuntimeHost* host{nullptr};            ///< Owner of the current session (either mode).
+    CoSimDriver* cosim{nullptr};           ///< Set in co-simulation mode.
+    MonitorHost* monitor{nullptr};         ///< Set in monitor mode.
+    EventHub* hub{nullptr};                ///< Live events.
+    ExecutionStore* executions{nullptr};   ///< Recorded executions.
+    PackageRegistry* packages{nullptr};    ///< Verified packages by hash (replay/verify of past executions).
+};
+
+/// @brief Register all routes on @p server; optionally serve static files from @p static_dir.
+void register_routes(httplib::Server& server, ApiContext& context, const std::filesystem::path& static_dir);
 
 }  // namespace twin::runtime

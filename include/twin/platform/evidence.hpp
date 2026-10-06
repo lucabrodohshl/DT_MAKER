@@ -86,6 +86,7 @@ struct EvidenceFilter {
 /// @brief Evidence store (see file documentation).
 class EvidenceRepository {
 public:
+    /// @brief Repository over @p db; evidence documents live in @p store; @p clock stamps records.
     EvidenceRepository(Database& db, const ObjectStore& store, const Clock& clock)
         : db_(db), store_(store), clock_(clock) {}
 

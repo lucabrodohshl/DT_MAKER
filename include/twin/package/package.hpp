@@ -19,6 +19,18 @@
  *   evidence/compilation.json     compilation manifest                 role "compilation_manifest"
  * @endcode
  *
+ * Optional files (Studio Mode; older packages simply lack them):
+ * @code
+ *   model/dt_view.tta.json        canonical DT model (twin-ta/1)       role "dt_source_model"
+ *   semantics/pt_view.tta.json    canonical PT model (twin-ta/1)       role "pt_source_model"
+ *   monitors/monitors.json        monitors (twin-monitors/1)           role "monitors"
+ *   evidence/properties.json      design-time property evidence        role "property_evidence"
+ *   meta/type.json                Twin Type metadata                   role "type_metadata"
+ * @endcode
+ * The builder checks that each canonical model renders to the shipped view
+ * byte for byte; the loader checks hashes (as for every file) and that the
+ * monitor document is structurally valid.
+ *
  * Verification (load_and_verify) is what the runtime does at start-up; it
  * refuses a package whose bytes no longer match the manifest. Hashes give
  * provenance and integrity — they do NOT by themselves prove correctness; the
@@ -29,6 +41,8 @@
  * without linking the compiler, UTAP or Z3.
  */
 #pragma once
+
+#include <optional>
 
 #include <filesystem>
 #include <string>
@@ -86,6 +100,8 @@ struct LoadedPackage {
     std::string ir_sha256;            ///< SHA-256 of the canonical IR.
     std::string source_sha256;        ///< SHA-256 of V_D.
     json::Json alignment_evidence;    ///< The evidence document.
+    std::optional<json::Json> monitors;       ///< Monitor document (role "monitors"), if shipped.
+    std::optional<json::Json> type_metadata;  ///< Twin Type metadata (role "type_metadata"), if shipped.
     std::vector<Check> checks;        ///< Every check performed (all passed).
 };
 

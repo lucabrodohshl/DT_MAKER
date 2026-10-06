@@ -3,6 +3,7 @@
  * @brief Studio HTTP server (see server.hpp). Routes are thin adapters onto Services.
  */
 #include "twin/studio/server.hpp"
+#include "twin/studio_engine/engine.hpp"
 
 #include <httplib.h>
 
@@ -165,7 +166,10 @@ std::string content_type_for(const fs::path& p) {
         {".json", "application/json"},          {".svg", "image/svg+xml"},
         {".png", "image/png"},                  {".ico", "image/x-icon"},
         {".woff2", "font/woff2"},               {".woff", "font/woff"},
-        {".map", "application/json"},           {".txt", "text/plain; charset=utf-8"}};
+        {".map", "application/json"},           {".txt", "text/plain; charset=utf-8"},
+        // Sources linked from the documentation site are shown, not downloaded.
+        {".md", "text/plain; charset=utf-8"},   {".yaml", "text/plain; charset=utf-8"},
+        {".cpp", "text/plain; charset=utf-8"},  {".hpp", "text/plain; charset=utf-8"}};
     auto it = kTypes.find(p.extension().string());
     return it == kTypes.end() ? "application/octet-stream" : it->second;
 }
@@ -177,8 +181,11 @@ struct StudioServer::Impl {
     ServerOptions options;
     httplib::Server server;
     std::atomic<bool> stopping{false};
+    /// Engine operations behind Studio authoring (parse, import, render, diff, compile, ...).
+    studio_engine::Engine engine;
 
-    Impl(Services& s, ServerOptions o) : services(s), options(std::move(o)) {}
+    Impl(Services& s, ServerOptions o)
+        : services(s), options(std::move(o)), engine(studio_engine::EngineConfig{s.config().data_dir / "engine"}) {}
 
     using Handler = std::function<Result<Json>(const httplib::Request&, const Actor&)>;
 
@@ -226,9 +233,10 @@ struct StudioServer::Impl {
 };
 
 std::optional<std::string> StudioServer::Impl::upstream_for(const std::string& twin_id, const std::string& family) {
-    if (family == "world") {
+    if (family == "observer" || family == "scenario") {
         auto it = options.world_urls.find(twin_id);
         if (it != options.world_urls.end()) return it->second;
+        return std::nullopt;  // ground truth is never substituted by the twin's belief
     }
     auto it = options.runtime_urls.find(twin_id);
     if (it != options.runtime_urls.end()) return it->second;
@@ -240,6 +248,19 @@ std::optional<std::string> StudioServer::Impl::upstream_for(const std::string& t
 void StudioServer::Impl::routes() {
     Services& s = services;
     const std::string p = "/api/v1";
+    // Engine route table (twin::studio_engine), registered with this server's uniform handling.
+    for (studio_engine::Route& er : engine.routes()) {
+        route(er.method, er.pattern, [h = er.handler](const httplib::Request& r, const Actor& a) -> Result<Json> {
+            studio_engine::Request q;
+            for (const auto& [k, v] : r.path_params) q.path[k] = v;
+            for (const auto& [k, v] : r.params) q.query[k] = v;
+            auto b = body_json(r);
+            if (!b) return std::move(b).error();
+            q.body = std::move(b).value();
+            q.actor = a.name;
+            return h(q);
+        }, er.ok_status);
+    }
     route("GET", p + "/about", [&](const auto&, const auto&) -> Result<Json> { return s.about(); });
     route("GET", p + "/overview", [&](const auto&, const auto&) { return s.overview(); });
     route("GET", p + "/search", [&](const httplib::Request& r, const auto&) {
@@ -257,6 +278,16 @@ void StudioServer::Impl::routes() {
         return s.assets(f);
     });
     route("GET", p + "/assets/:id", [&](const httplib::Request& r, const auto&) { return s.asset(r.path_params.at("id")); });
+    route("POST", p + "/assets", [&](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto b = body_json(r);
+        if (!b) return std::move(b).error();
+        return s.create_asset(b.value(), a);
+    });
+    route("POST", p + "/assets/:id/relationships", [&](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto b = body_json(r);
+        if (!b) return std::move(b).error();
+        return s.link_assets(r.path_params.at("id"), b.value().value("type", std::string()), b.value().value("targetId", std::string()), a);
+    });
     route("GET", p + "/assets/:id/neighborhood", [&](const httplib::Request& r, const auto&) {
         return s.neighborhood(r.path_params.at("id"), static_cast<int>(int_param(r, "depth", 1)),
                               split_csv(param(r, "types").value_or("")),
@@ -457,6 +488,7 @@ void StudioServer::Impl::routes() {
     // Packages & deployments.
     route("GET", p + "/packages", [&](const httplib::Request& r, const auto&) { return s.packages(param(r, "twin").value_or("")); });
     route("GET", p + "/packages/:id", [&](const httplib::Request& r, const auto&) { return s.package(r.path_params.at("id")); });
+    route("GET", p + "/packages/:id/ir", [&](const httplib::Request& r, const auto&) { return s.package_ir(r.path_params.at("id")); });
     route("POST", p + "/packages/:id/verify", [&](const httplib::Request& r, const auto&) { return s.verify_package(r.path_params.at("id")); });
     route("GET", p + "/deployments", [&](const httplib::Request& r, const auto&) { return s.deployments(param(r, "twin").value_or("")); });
     route("POST", p + "/deployments", [&](const httplib::Request& r, const Actor& a) -> Result<Json> {
@@ -511,9 +543,12 @@ void StudioServer::Impl::stream_route() {
     server.Get("/api/v1/stream", [this](const httplib::Request& req, httplib::Response& res) {
         std::uint64_t cursor = 0;
         bool resumed = false;
-        if (req.has_header("Last-Event-ID")) {
+        // Resume point: the standard header (EventSource auto-reconnect) or ?lastEventId= (manual reconnect).
+        const std::string resume_from = req.has_header("Last-Event-ID") ? req.get_header_value("Last-Event-ID")
+                                                                          : req.get_param_value("lastEventId");
+        if (!resume_from.empty()) {
             try {
-                cursor = std::stoull(req.get_header_value("Last-Event-ID"));
+                cursor = std::stoull(resume_from);
                 resumed = true;
             } catch (const std::exception&) {
                 cursor = 0;
@@ -571,10 +606,11 @@ void StudioServer::Impl::proxy_routes() {
             return;
         }
         httplib::Client cli(*upstream);
-        cli.set_connection_timeout(0, options.runtime_timeout_ms * 1000);
-        cli.set_read_timeout(options.runtime_timeout_ms / 1000 + 1, 0);
-        std::string path = (family == "world" ? "/" : "/" + family + "/") + rest;
-        if (family == "world" && rest.empty()) path = "/";
+        cli.set_connection_timeout(std::chrono::milliseconds(options.runtime_timeout_ms));
+        cli.set_read_timeout(std::chrono::milliseconds(options.runtime_timeout_ms + 25000));  // predictions/replays can take a while
+        // runtime, simulation, planner, world (the twin's KNOWN world) and mission are served by
+        // twin-runtime; observer and scenario (physical ground truth, visualisation only) by twin-world.
+        const std::string path = "/" + family + (rest.empty() ? "" : "/" + rest);
         std::string query;
         for (const auto& [k, v] : req.params) query += (query.empty() ? "?" : "&") + url_encode(k) + "=" + url_encode(v);
         httplib::Headers headers;
@@ -585,7 +621,7 @@ void StudioServer::Impl::proxy_routes() {
             auto client = std::make_shared<httplib::Client>(*upstream);
             res.set_header("Cache-Control", "no-cache");
             res.set_chunked_content_provider("text/event-stream", [this, client, path, query, headers](std::size_t, httplib::DataSink& sink) {
-                client->set_read_timeout(3600, 0);
+                client->set_read_timeout(std::chrono::hours(1));
                 auto r = client->Get(path + query, headers, [&](const char* data, std::size_t len) {
                     return !stopping.load() && sink.write(data, len);
                 });
@@ -609,7 +645,7 @@ void StudioServer::Impl::proxy_routes() {
         res.status = r->status;
         res.set_content(r->body, r->has_header("Content-Type") ? r->get_header_value("Content-Type") : "application/json");
     };
-    const std::string pattern = R"(/api/v1/twins/([^/]+)/(runtime|simulation|planner|world)/?(.*))";
+    const std::string pattern = R"(/api/v1/twins/([^/]+)/(runtime|simulation|planner|world|mission|observer|scenario)/?(.*))";
     server.Get(pattern, handler);
     server.Post(pattern, handler);
 }
@@ -623,6 +659,15 @@ void StudioServer::Impl::static_routes() {
         // Never serve outside the web root; unknown paths fall back to index.html (SPA routing).
         const bool inside = std::mismatch(root.begin(), root.end(), file.begin()).first == root.end();
         std::error_code ec;
+        // A static site inside the web root (the documentation at /docs/) serves its own index.html;
+        // "/docs" is redirected to "/docs/" so the site's relative links resolve.
+        if (inside && !rel.empty() && fs::is_directory(file, ec) && fs::is_regular_file(file / "index.html", ec)) {
+            if (req.path.back() != '/') {
+                res.set_redirect(req.path + "/");
+                return;
+            }
+            file /= "index.html";
+        }
         if (!inside || rel.empty() || !fs::is_regular_file(file, ec)) file = root / "index.html";
         std::ifstream in(file, std::ios::binary);
         if (!in) {
@@ -644,16 +689,22 @@ StudioServer::StudioServer(Services& services, ServerOptions options)
     : impl_(std::make_unique<Impl>(services, std::move(options))) {
     Impl& i = *impl_;
     i.server.new_task_queue = [] { return new httplib::ThreadPool(48); };
+    // Request timing: pre-routing and the logger run on the same worker thread.
+    static thread_local std::chrono::steady_clock::time_point request_started{};
     i.server.set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
+        request_started = std::chrono::steady_clock::now();
         const std::string id = req.has_header("X-Request-Id") ? req.get_header_value("X-Request-Id").substr(0, 64) : random_id();
         res.set_header("X-Request-Id", id);
         return httplib::Server::HandlerResponse::Unhandled;
     });
     i.server.set_logger([&i](const httplib::Request& req, const httplib::Response& res) {
         if (req.path == "/api/v1/stream" || req.path.rfind("/api/", 0) != 0) return;
-        i.services.app_log().write(res.status >= 500 ? LogLevel::Error : (res.status >= 400 ? LogLevel::Warn : LogLevel::Debug),
-                                   "studio.http", req.method + " " + req.path,
-                                   {{"status", res.status}, {"actor", req.get_header_value("X-Twin-Actor")}},
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - request_started).count();
+        const bool streaming = res.get_header_value("Content-Type") == "text/event-stream";
+        const bool slow = !streaming && ms >= 2000;
+        i.services.app_log().write(res.status >= 500 ? LogLevel::Error : ((res.status >= 400 || slow) ? LogLevel::Warn : LogLevel::Debug),
+                                   "studio.http", req.method + " " + req.path + (slow ? " (slow)" : ""),
+                                   {{"status", res.status}, {"actor", req.get_header_value("X-Twin-Actor")}, {"durationMs", ms}},
                                    res.get_header_value("X-Request-Id"));
     });
     i.routes();

@@ -27,6 +27,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <vector>
@@ -128,6 +129,46 @@ struct DelayWindow {
  * invariant (for an invalid configuration the result is 0).
  */
 [[nodiscard]] std::optional<Ticks> max_delay(const Model& model, const Configuration& c);
+
+/// @brief Where an atom constraining a transition's delay window comes from.
+enum class WindowOrigin : std::uint8_t {
+    SourceInvariant,  ///< Inv(l) must hold throughout the delay.
+    Guard,            ///< The guard must hold after the delay.
+    TargetInvariant   ///< Inv(l') must hold after the delay and the resets.
+};
+
+/**
+ * @brief One atom's contribution to a delay window: the set of delays it alone admits.
+ *
+ * With d the delay, the atom evaluates (w_l + s_l d) - (w_r + s_r d) ~ b (s = 0 for the
+ * reference clock and for clocks the transition resets). It therefore admits either every
+ * delay or none (no dependence on d), or a half-line, or a single point (for ==).
+ */
+struct WindowFactor {
+    WindowOrigin origin{WindowOrigin::Guard};  ///< Source of the atom.
+    ir::ClockConstraint atom;                  ///< The atom in model units.
+    Ticks value_now{0};                        ///< v(lhs) - v(rhs) at d = 0 (after resets for the target invariant).
+    Ticks bound{0};                            ///< Scaled bound, in ticks.
+    bool depends_on_delay{false};              ///< Whether the atom's value changes with d.
+    std::optional<Ticks> min_delay;            ///< The atom requires d >= min_delay.
+    std::optional<Ticks> max_delay;            ///< The atom requires d <= max_delay.
+    bool never{false};                         ///< No delay satisfies the atom.
+};
+
+/// @brief A transition's delay window together with the atoms that determine it.
+struct WindowExplanation {
+    std::optional<DelayWindow> window;   ///< Exactly enabling_window() for the same arguments.
+    std::vector<WindowFactor> factors;   ///< Every atom involved, in rule order.
+    bool wrong_location{false};          ///< The configuration is not in the transition's source.
+};
+
+/**
+ * @brief enabling_window() with its derivation: the window is the intersection of the
+ * factors' delay sets (and of the execution horizon). Computed by the same arithmetic as
+ * enabling_window(), so the explanation and the window always agree.
+ */
+[[nodiscard]] WindowExplanation explain_window(const Model& model, const Configuration& c,
+                                               ir::TransitionIndex transition);
 
 /// @brief Evaluation of one atom, for explanations in ledgers and APIs.
 struct AtomEvaluation {

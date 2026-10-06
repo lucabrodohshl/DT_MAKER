@@ -72,6 +72,8 @@ struct AlignmentEvidence {
     std::size_t fixpoint_iterations{0};        ///< Worklist iterations.
     std::size_t pt_zones{0};                   ///< Zone-graph size of V_P.
     std::size_t dt_zones{0};                   ///< Zone-graph size of V_D.
+    std::size_t pt_internal_transitions{0};    ///< Internal (tau) transitions of V_P.
+    std::size_t dt_internal_transitions{0};    ///< Internal (tau) transitions of V_D.
     bool syntactic_baseline_aligned{false};    ///< Classical WTB with syntactic labels.
     std::vector<LabelEquivalence> label_equivalence;      ///< E.
     std::vector<LocationCorrespondence> location_consistency;  ///< Condition I table.

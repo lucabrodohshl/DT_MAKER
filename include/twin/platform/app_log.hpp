@@ -61,6 +61,7 @@ struct LogFilter {
 /// @brief Append-only JSONL logger (thread-safe) and reader.
 class AppLog {
 public:
+    /// @brief Log appending JSON lines to @p file (created if missing); @p clock stamps entries.
     AppLog(std::filesystem::path file, const Clock& clock);
 
     /// @brief Write an entry (ts is filled in; fields are redacted). Never fails the caller.

@@ -110,6 +110,17 @@ model the aligner analysed.
     never compared. *`twin align`* reports such labels as lint errors; the
     project's models interpret every synchronised label and use unsynchronised
     edges for internal moves.
+14. **Guard bounds of equivalent labels are not compared.** Conditions II/III match
+    weak observable successors by label existence on zone pairs; the delays that
+    lead to a label are folded into the zones and are not compared across the two
+    views (finding 12). For example, changing the pump DT's `cooling_complete!`
+    guard from `t >= 30` to `t >= 40`, against the PT's `aux_cooling_done!` with
+    `t >= 30`, still yields ALIGNED (pinned by
+    `AlignmentDiagnostics.AlignerDoesNotCompareGuardBoundsOfEquivalentLabels`).
+    Branching differences are detected: removing the DT's `DEGRADED -> STOPPING`
+    edge yields NOT ALIGNED with counterexample `(ramp_down_cmd!, ?)`. Studio's
+    alignment workspace therefore reports a mismatch between equivalent labels as
+    "timing or branching" and never claims that alignment verified timing bounds.
 
 ### 3.4 Observed on the paper's running example (`assets/UseCase_Drone`)
 

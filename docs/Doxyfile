@@ -1,0 +1,65 @@
+# Doxygen configuration of the Verified Twin Execution Kernel and Studio C++ code.
+# Generate with:  make docs   (or: cmake --build build/<preset> --target docs, or: doxygen docs/Doxyfile)
+# Output: build/docs/html/index.html. Paths are relative to the repository root (the working directory).
+PROJECT_NAME           = "Verified Twin Studio — C++ engine"
+PROJECT_BRIEF          = "Verified Digital Twin execution: compiler, semantic kernel, runtime, ledger, platform"
+OUTPUT_DIRECTORY       = build/docs
+CREATE_SUBDIRS         = NO
+INPUT                  = docs/mainpage.md \
+                         include \
+                         src \
+                         apps \
+                         docs/architecture.md \
+                         docs/runtime-api.md \
+                         docs/trusted-computing-base.md \
+                         docs/logical-time-model.md \
+                         docs/supported-model-fragment.md \
+                         docs/compiler-diagnostics.md \
+                         docs/existing-aligner-integration.md
+FILE_PATTERNS          = *.hpp *.cpp *.md
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */node_modules/* */build/* */third_party/*
+# Private implementation (pimpl state and internal helpers) is not part of the documented API.
+EXCLUDE_SYMBOLS        = *::Impl twin::studio::trust
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_ANON_NSPACES   = NO
+HIDE_UNDOC_MEMBERS     = NO
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+JAVADOC_AUTOBRIEF      = YES
+DISTRIBUTE_GROUP_DOC   = YES
+QT_AUTOBRIEF           = NO
+BUILTIN_STL_SUPPORT    = YES
+INCLUDE_PATH           = include
+FULL_PATH_NAMES        = YES
+STRIP_FROM_PATH        = .
+STRIP_FROM_INC_PATH    = include
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+HTML_COLORSTYLE        = LIGHT
+GENERATE_LATEX         = NO
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+UML_LOOK               = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = NO
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DOT_GRAPH_MAX_NODES    = 60
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = NO
+WARN_LOGFILE           = build/docs/warnings.log
+QUIET                  = YES

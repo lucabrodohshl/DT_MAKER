@@ -34,6 +34,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -87,6 +88,8 @@ private:
     Status reload();
 
     std::filesystem::path scenario_path_;
+    /// Operator-defined mission ({targets, home?}) applied on every (re)load; empty = the file's mission.
+    std::optional<json::Json> mission_override_;
     std::mutex mutex_;
     std::unique_ptr<World> world_;
 };

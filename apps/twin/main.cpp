@@ -29,6 +29,7 @@ Run 'twin <command> --help' for the options of a command.)";
 
 }  // namespace
 
+/// @brief Entry point of the `twin` toolchain CLI (see the file documentation for commands).
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << kHelp << "\n";

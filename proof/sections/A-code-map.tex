@@ -23,13 +23,22 @@ Formal object & Implementation \\ \midrule
 \cref{def:monitor} (monitoring) & \code{kernel::observe}, \code{advance\_to} (\code{src/kernel/state\_set.cpp}) \\
 \cref{prop:nointerf} (prediction) & \code{explore}, \code{simulate}, \code{KernelInstance} const members \\
 \cref{def:kprod} ($\Kprod$) & \code{runtime::TwinSession} and the shell modules (\code{src/runtime}) \\
-\cref{rem:ledger} (ledger) & \code{twin::ledger} (\code{src/ledger}) \\
+\cref{rem:ledger} (ledger) & \code{twin::ledger} (\code{src/ledger}), context records \code{context\_fields} \\
+\cref{rem:hosts} (hosts, adapters) & \code{CoSimDriver}, \code{MonitorHost}, \code{PtAdapter}, \code{MissionController} (\code{src/runtime}) \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
 \noindent The test suites cross-check several of these correspondences
-empirically: compiler determinism and translation validation on the aligner's
-corpus, kernel-versus-aligner zone-graph agreement on generated automata, and
-exhaustive window/step agreement around boundaries. These tests are validation
-and do not replace the proofs.
+empirically. They check:
+\begin{itemize}
+  \item compiler determinism and translation validation on all 36 timed-automaton
+        views of the aligner's corpus;
+  \item agreement of enabling windows and invariant deadlines with brute force over
+        the tick grid, on randomly generated automata with diagonal constraints;
+  \item that replaying a recorded end-to-end mission reproduces every ledger record;
+  \item architecture rules: the kernel's dependencies, the single assignment site of
+        the authoritative state, and the absence of the twin's location names in
+        the proposers.
+\end{itemize}
+These tests are validation and do not replace the proofs.

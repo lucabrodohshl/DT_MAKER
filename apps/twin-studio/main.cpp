@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "twin/studio/runtime_bridge.hpp"
 #include "twin/studio/seed.hpp"
 #include "twin/studio/server.hpp"
 #include "twin/studio/services.hpp"
@@ -161,10 +162,14 @@ int serve(Services& services, const Args& a, std::vector<fs::path> feeds) {
     for (const auto& f : feeds) {
         feed_threads.emplace_back([&services, f, &stop] { run_demo_feed(services, f, stop); });
     }
+    for (const auto& [twin, url] : options.runtime_urls) {
+        feed_threads.emplace_back([&services, twin, url, &stop] { run_runtime_bridge(services, twin, url, stop); });
+    }
     std::cout << "Verified Twin Studio listening on http://" << options.host << ":" << port.value() << "\n"
               << "  data dir:  " << services.config().data_dir << "\n"
               << "  web UI:    " << (options.web_root ? options.web_root->string() : std::string("(not served; use the Vite dev server)")) << "\n";
-    for (const auto& [t, u] : options.runtime_urls) std::cout << "  runtime:   " << t << " -> " << u << "\n";
+    for (const auto& [t, u] : options.runtime_urls) std::cout << "  runtime:   " << t << " -> " << u << " (telemetry persisted)\n";
+    for (const auto& [t, u] : options.world_urls) std::cout << "  world:     " << t << " -> " << u << " (ground truth, visualisation only)\n";
     for (const auto& f : feeds) std::cout << "  simulated telemetry feed: " << f << "\n";
 
     auto st = server.listen();
@@ -180,6 +185,7 @@ int serve(Services& services, const Args& a, std::vector<fs::path> feeds) {
 
 }  // namespace
 
+/// @brief Entry point of `twin-studio` (see the file documentation for the serve, seed, demo and version commands).
 int main(int argc, char** argv) {
     auto args = parse(argc, argv);
     if (!args) return usage();

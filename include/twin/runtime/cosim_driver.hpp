@@ -20,6 +20,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -27,6 +28,7 @@
 
 #include "twin/planner/planner.hpp"
 #include "twin/runtime/event_hub.hpp"
+#include "twin/runtime/host.hpp"
 #include "twin/runtime/mission_controller.hpp"
 #include "twin/runtime/pt_adapter.hpp"
 #include "twin/runtime/session.hpp"
@@ -49,18 +51,17 @@ struct DriverConfig {
 enum class SimStatus { Paused, Running, Finished, Failed };
 
 /// @brief The co-simulation driver (see file documentation).
-class CoSimDriver {
+class CoSimDriver final : public RuntimeHost {
 public:
+    /// @brief Driver for @p package against the Physical Twin behind @p world, publishing on @p hub.
     CoSimDriver(package::LoadedPackage package, std::unique_ptr<WorldPort> world, EventHub& hub,
                 DriverConfig config);
-    ~CoSimDriver();
-    CoSimDriver(const CoSimDriver&) = delete;
-    CoSimDriver& operator=(const CoSimDriver&) = delete;
-    CoSimDriver(CoSimDriver&&) = delete;
-    CoSimDriver& operator=(CoSimDriver&&) = delete;
+    ~CoSimDriver() override;
 
     /// @brief Reset the physical scenario and start a fresh twin session (new ledger).
-    [[nodiscard]] Status reset();
+    [[nodiscard]] Status reset() override;
+    /// @brief "cosimulation".
+    [[nodiscard]] std::string mode() const override { return "cosimulation"; }
     /// @brief Start the background pacing thread.
     void launch();
     /// @brief Run one tick synchronously (used by the API "step" control and by tests).
@@ -68,24 +69,32 @@ public:
 
     /// @name Controls
     /// @{
+    /// @brief Operator start request: the mission controller may propose start_mission! (idempotent).
+    void request_mission_start();
+    /// @brief Run the wall-clock pacing (ticks advance at the configured speed).
     void play();
+    /// @brief Stop pacing; logical time does not advance while paused.
     void pause();
+    /// @brief Logical seconds per wall-clock second (clamped to [0.1, 50]).
     void set_speed(double logical_per_wall);
     /// @}
 
     /// @brief Current session (shared: stays valid for callers across resets).
-    [[nodiscard]] std::shared_ptr<TwinSession> session() const;
+    [[nodiscard]] std::shared_ptr<TwinSession> session() const override;
     /// @brief Status for the API: lifecycle, speed, logical time, session, ledger.
-    [[nodiscard]] json::Json status() const;
+    [[nodiscard]] json::Json status() const override;
     /// @brief The twin's world model (belief) for the visualisation.
     [[nodiscard]] json::Json known_world() const;
     /// @brief Mission progress and plans.
     [[nodiscard]] json::Json mission() const;
+    /// @brief Active plan and ended plans.
     [[nodiscard]] json::Json plans() const;
+    /// @brief Planning episodes (candidates, verdicts, selection), chronological.
+    [[nodiscard]] json::Json episodes() const;
     /// @brief Latest telemetry as received by the twin.
     [[nodiscard]] json::Json telemetry() const;
     /// @brief The verified package.
-    [[nodiscard]] const package::LoadedPackage& package() const noexcept { return package_; }
+    [[nodiscard]] const package::LoadedPackage& package() const noexcept override { return package_; }
 
 private:
     Status tick_locked();
@@ -96,6 +105,7 @@ private:
     void apply_map_updates();
     void check_deadline();
     void publish_state(const TwinSession& session);
+    void log_telemetry(const json::Json& telemetry);
     void loop();
 
     package::LoadedPackage package_;
@@ -116,6 +126,8 @@ private:
     std::uint32_t session_counter_{0};
     std::optional<Ticks> alarmed_deadline_;
     std::string last_error_;
+    bool mission_start_requested_{false};
+    std::ofstream telemetry_log_;  ///< <session>.telemetry.jsonl (observation data, not evidence)
 
     std::atomic<double> speed_;
     std::atomic<bool> stop_{false};

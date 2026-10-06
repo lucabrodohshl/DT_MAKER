@@ -4,6 +4,10 @@
  */
 #include "twin/package/builder.hpp"
 
+#include "twin/authoring/model.hpp"
+#include "twin/authoring/uppaal.hpp"
+#include "twin/monitoring/monitors.hpp"
+
 #include <algorithm>
 #include <fstream>
 #include <map>
@@ -37,6 +41,67 @@ Status write_bytes(const std::filesystem::path& path, const std::string& bytes) 
     out.close();
     if (!out) {
         return make_error(ErrorCode::IoError, "cannot write file").with("file", path.string());
+    }
+    return ok_status();
+}
+
+/// The canonical model in @p json_path must render to the bytes of @p xml_path (the shipped view).
+Result<std::string> checked_source_model(const std::filesystem::path& json_path, const std::filesystem::path& xml_path,
+                                         const char* view) {
+    Result<std::string> text = read_bytes(json_path);
+    if (!text) return std::move(text).error();
+    Result<json::Json> j = json::parse(text.value());
+    if (!j) return std::move(j).error();
+    Result<authoring::Model> m = authoring::model_from_json(j.value());
+    if (!m) return std::move(m).error();
+    Result<std::string> xml = read_bytes(xml_path);
+    if (!xml) return std::move(xml).error();
+    if (authoring::render_toolchain_xml(m.value()) != xml.value()) {
+        return make_error(ErrorCode::ValidationError,
+                          std::string("the ") + view + " source model does not render to the shipped " + view +
+                              " view byte for byte")
+            .with("source_model", json_path.string())
+            .with("view", xml_path.string());
+    }
+    return text;
+}
+
+/// Optional Studio artefacts: canonical models, monitors, property evidence, type metadata.
+template <class Artefacts>
+Status studio_additions(const BuildInputs& in, Artefacts& artefacts) {
+    if (in.dt_source_model) {
+        Result<std::string> t = checked_source_model(*in.dt_source_model, in.dt_model, "DT");
+        if (!t) return t.error();
+        artefacts.push_back({"model/dt_view.tta.json", "dt_source_model", std::move(t).value()});
+    }
+    if (in.pt_source_model) {
+        Result<std::string> t = checked_source_model(*in.pt_source_model, in.pt_model, "PT");
+        if (!t) return t.error();
+        artefacts.push_back({"semantics/pt_view.tta.json", "pt_source_model", std::move(t).value()});
+    }
+    if (in.monitors) {
+        Result<std::string> text = read_bytes(*in.monitors);
+        if (!text) return text.error();
+        Result<json::Json> j = json::parse(text.value());
+        if (!j) return j.error();
+        Result<monitoring::MonitorsDocument> doc = monitoring::monitors_from_json(j.value());
+        if (!doc) return doc.error();
+        if (const auto findings = monitoring::validate_document(doc.value()); !findings.empty()) {
+            return make_error(ErrorCode::ValidationError,
+                              "the monitor document is invalid: " + findings.front().code + " " + findings.front().message)
+                .with("path", findings.front().path);
+        }
+        artefacts.push_back({"monitors/monitors.json", "monitors", std::move(text).value()});
+    }
+    if (in.property_evidence) {
+        Result<std::string> text = read_bytes(*in.property_evidence);
+        if (!text) return text.error();
+        artefacts.push_back({"evidence/properties.json", "property_evidence", std::move(text).value()});
+    }
+    if (in.type_metadata) {
+        Result<std::string> text = json::canonical_dump(*in.type_metadata);
+        if (!text) return text.error();
+        artefacts.push_back({"meta/type.json", "type_metadata", std::move(text).value()});
     }
     return ok_status();
 }
@@ -111,6 +176,7 @@ Result<BuildResult> build_package(const BuildInputs& in, const std::filesystem::
         artefacts.push_back(Artefact{target_path.at(role), role, std::move(bytes).value()});
     }
     artefacts.push_back(Artefact{"ir/model.ir.json", "ir", compiled.canonical_ir});
+    if (Status s = studio_additions(in, artefacts); !s) return s.error();
     Result<std::string> comp_text = json::canonical_dump(compiler::to_json(compiled.manifest));
     Result<std::string> ev_text = json::canonical_dump(alignment::to_json(ev));
     if (!comp_text) return std::move(comp_text).error();

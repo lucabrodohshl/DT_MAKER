@@ -72,6 +72,7 @@ struct Neighborhood {
 /// @brief Asset registry (see file documentation).
 class AssetRepository {
 public:
+    /// @brief Repository over @p db.
     explicit AssetRepository(Database& db) : db_(db) {}
 
     /// @brief Insert or replace an asset.
@@ -99,6 +100,7 @@ public:
 
     /**
      * @brief Breadth-first neighbourhood of @p focus.
+     * @param focus Asset the neighbourhood is centred on.
      * @param depth Maximum hops (relationships and hierarchy in both directions).
      * @param relationship_types If non-empty, only these types ("contains" = hierarchy).
      * @param max_nodes Hard bound on returned nodes.

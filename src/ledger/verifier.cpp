@@ -174,11 +174,11 @@ bool bump_digit_after(std::string& text, std::string_view key, std::size_t from,
 
 }  // namespace
 
-Json to_json(const Anchor& a) {
+json::Json to_json(const Anchor& a) {
     return Json{{"format", "twin-ledger-anchor/1"}, {"session", a.session}, {"seq", a.seq}, {"hash", a.hash}};
 }
 
-Result<Anchor> anchor_from_json(const Json& j) {
+Result<Anchor> anchor_from_json(const json::Json& j) {
     if (Status s = json::expect_keys(j, {"format", "session", "seq", "hash"}); !s) return s.error();
     if (str(j, "format") != "twin-ledger-anchor/1") {
         return make_error(ErrorCode::ValidationError, "unsupported anchor format");

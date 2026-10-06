@@ -249,6 +249,10 @@ TEST_F(PlatformTest, AssetGraphNeighbourhoodIsBounded) {
     EXPECT_EQ(ids, (std::set<std::string>{"p101", "line4", "m12", "tt101"}));
     EXPECT_EQ(n1.nodes.front().id, "p101");
     EXPECT_FALSE(n1.frontier.empty()) << "line4 has unexplored neighbours (plant)";
+    for (const auto& e : n1.edges) {
+        EXPECT_TRUE(e.properties.is_object()) << e.source_id << " -" << e.type << "-> " << e.target_id
+                                              << ": properties must be an object (API contract), never null";
+    }
 
     auto only_monitors = assets.neighborhood("p101", 2, {"monitors"}, 50).value();
     EXPECT_EQ(only_monitors.nodes.size(), 2U);
@@ -275,7 +279,7 @@ TEST_F(PlatformTest, TelemetryFreshnessAndDownsampling) {
 
     std::vector<TelemetrySample> samples;
     for (int i = 0; i < 1000; ++i) {
-        samples.push_back({kT0 + i * 1000, kT0 + i * 1000 + 40, 60.0 + (i % 10), std::nullopt, i == 500 ? "bad" : "good"});
+        samples.push_back({kT0 + i * 1000, kT0 + i * 1000 + 40, 60.0 + (i % 10), std::nullopt, i == 500 ? "bad" : "good", std::nullopt});
     }
     ASSERT_EQ(tel.ingest("p101.temp", samples).value(), 1000);
     EXPECT_EQ(tel.freshness(ch, kT0 + 999000 + 2000).value(), Freshness::Fresh);
@@ -302,7 +306,7 @@ TEST_F(PlatformTest, TelemetryFreshnessAndDownsampling) {
     EXPECT_EQ(bad, 1);
 
     EXPECT_EQ(tel.at("p101.temp", kT0 + 1500).value()->observed_ms, kT0 + 1000);
-    EXPECT_FALSE(tel.ingest("p101.temp", {{kT0, kT0, std::nullopt, std::string("hot"), "good"}}).ok());
+    EXPECT_FALSE(tel.ingest("p101.temp", {{kT0, kT0, std::nullopt, std::string("hot"), "good", std::nullopt}}).ok());
     EXPECT_FALSE(tel.query("p101.temp", kT0 + 10, kT0, 10).ok());
 }
 

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!-- Oven controller with named timing constants. -->
+<nta>
+    <declaration>
+// heating timer
+clock t;
+const int WARMUP = 30;
+const int HOLD_MAX = WARMUP * 4;
+chan start, ready, done;
+    </declaration>
+    <template>
+        <name>Oven</name>
+        <location id="id0" x="0" y="0">
+            <name x="-10" y="-30">Off</name>
+        </location>
+        <location id="id1" x="200" y="0">
+            <name x="190" y="-30">Warming</name>
+            <label kind="invariant" x="190" y="20">t &lt;= WARMUP</label>
+            <label kind="comments">the element heats up</label>
+        </location>
+        <location id="id2" x="400" y="0">
+            <name x="390" y="-30">Holding</name>
+            <label kind="invariant" x="390" y="20">t &lt;= HOLD_MAX</label>
+        </location>
+        <init ref="id0"/>
+        <transition>
+            <source ref="id0"/><target ref="id1"/>
+            <label kind="synchronisation" x="80" y="-20">start!</label>
+            <label kind="assignment" x="80" y="0">t := 0</label>
+        </transition>
+        <transition>
+            <source ref="id1"/><target ref="id2"/>
+            <label kind="guard" x="280" y="-40">t &gt;= 25</label>
+            <label kind="synchronisation" x="280" y="-20">ready!</label>
+            <label kind="assignment" x="280" y="0">t := 0</label>
+            <label kind="comments">temperature reached</label>
+        </transition>
+        <transition>
+            <source ref="id2"/><target ref="id0"/>
+            <label kind="guard" x="180" y="100">t &gt;= 10</label>
+            <label kind="synchronisation" x="180" y="120">done!</label>
+            <nail x="400" y="140"/>
+            <nail x="0" y="140"/>
+        </transition>
+    </template>
+    <system>
+Oven1 = Oven();
+system Oven1;
+    </system>
+</nta>

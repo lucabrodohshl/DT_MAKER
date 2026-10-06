@@ -37,6 +37,26 @@ struct ReplayMismatch {
     std::string detail;     ///< What differs.
 };
 
+/**
+ * @brief One replayed record, for replay timelines.
+ *
+ * `fields` holds the kind-specific fields as RECOMPUTED by the replay (same
+ * shape as the record body minus the chain members), so a timeline built from
+ * frames shows what the kernel re-derived, not merely what the file says. For
+ * context records the (chain-verified) recorded topic and data are carried over.
+ */
+struct ReplayFrame {
+    std::uint64_t seq{0};   ///< Sequence number of the record.
+    std::string kind;       ///< Record kind.
+    std::string hash;       ///< Chain hash of the record.
+    json::Json fields;      ///< Recomputed kind-specific fields.
+};
+
+/// @brief Replay options.
+struct ReplayOptions {
+    bool frames{false};  ///< Collect one ReplayFrame per record.
+};
+
 /// @brief Result of a replay.
 struct ReplayReport {
     VerificationReport chain;              ///< Chain verification performed first.
@@ -45,18 +65,22 @@ struct ReplayReport {
     std::uint64_t delays{0};               ///< Accepted delays re-executed.
     std::uint64_t rejections{0};           ///< Rejections reproduced.
     std::uint64_t alarms{0};               ///< Alarms checked.
+    std::uint64_t contexts{0};             ///< Context records checked.
     std::vector<ReplayMismatch> mismatches;  ///< Differences (empty iff identical).
     json::Json final_state;                ///< State after the last record.
+    std::vector<ReplayFrame> frames;       ///< Per-record frames (if requested).
 };
 
-/// @brief Encode a replay report.
+/// @brief Encode a replay report (frames included if collected).
 [[nodiscard]] json::Json to_json(const ReplayReport& report);
 
 /// @brief Replay ledger text against a verified package.
-[[nodiscard]] Result<ReplayReport> replay_text(const package::LoadedPackage& package, std::string_view text);
+[[nodiscard]] Result<ReplayReport> replay_text(const package::LoadedPackage& package, std::string_view text,
+                                               const ReplayOptions& options = {});
 
 /// @brief Replay a ledger file against a verified package.
 [[nodiscard]] Result<ReplayReport> replay_file(const package::LoadedPackage& package,
-                                               const std::filesystem::path& ledger);
+                                               const std::filesystem::path& ledger,
+                                               const ReplayOptions& options = {});
 
 }  // namespace twin::ledger

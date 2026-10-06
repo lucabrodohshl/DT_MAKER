@@ -42,6 +42,7 @@ void forward(twin::world::WorldService& service, const httplib::Request& req, ht
 
 }  // namespace
 
+/// @brief Entry point of `twin-world` (HTTP transport of twin::world::WorldService).
 int main(int argc, char** argv) {
     std::string scenario;
     std::string host = "127.0.0.1";

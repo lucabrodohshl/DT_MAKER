@@ -18,10 +18,7 @@ class Document;
 
 namespace twin::compiler::detail {
 
-/// @brief Options of the strict reader.
-struct ReaderOptions {
-    bool legacy_system_declaration{false};  ///< See CompileOptions::legacy_system_declaration.
-};
+using compiler::ReaderOptions;
 
 /**
  * @brief Read @p doc strictly: accept only the aligner's formal fragment.

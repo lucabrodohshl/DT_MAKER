@@ -1,0 +1,800 @@
+openapi: 3.1.0
+info:
+  title: Verified Twin Studio — engine services
+  version: 1.0.0
+  description: |
+    Engine operations behind Studio Mode, served by twin-studio under `/api/v1` next to the
+    platform API (`api/studio.openapi.yaml`). Every conclusion is computed by the formal tools
+    (canonical model validator, TwinTA parser, strict UPPAAL reader, compiler with translation
+    validation); the browser only sends structure or text and renders what comes back.
+
+    Vocabulary: **valid** means structurally well formed (no TWM/TWT/TWC error). It never means
+    verified: formal results (alignment, translation validation, property checks) are evidence
+    produced by their own operations.
+
+    Errors use the Studio envelope (`Error`): 400 malformed request, 404 unknown entity,
+    409 state conflict, 422 semantically invalid input, 503 unavailable.
+servers:
+  - url: /api/v1
+paths:
+  /authoring/models/parse:
+    post:
+      summary: Parse TwinTA text into the canonical model
+      operationId: parseModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source: { type: string, description: TwinTA text }
+      responses:
+        "200":
+          description: Parse result. `model` is present iff there is no syntax error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParseResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/models/validate:
+    post:
+      summary: Validate a canonical model (structure only)
+      operationId: validateModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model: { $ref: "#/components/schemas/CanonicalModel" }
+      responses:
+        "200":
+          description: Structural diagnostics, the TwinTA text and (when valid) the semantic digest.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidateResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/models/format:
+    post:
+      summary: Format TwinTA text (parse, then print)
+      operationId: formatModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source: { type: string }
+      responses:
+        "200":
+          description: The formatted text, or null with the syntax errors. Formatting never drops a comment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FormatResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/models/render:
+    post:
+      summary: Render a model as TwinTA, JSON or UPPAAL XML
+      operationId: renderModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, target]
+              properties:
+                model: { $ref: "#/components/schemas/CanonicalModel" }
+                layout: { $ref: "#/components/schemas/Layout" }
+                target:
+                  type: string
+                  enum: [twinta, json, uppaal, uppaal-toolchain]
+                  description: "`uppaal` adds layout and notes for UPPAAL users; `uppaal-toolchain` is the exact document the compiler and the aligner read."
+      responses:
+        "200":
+          description: The document; every export is re-imported and verified before it is returned.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RenderResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /authoring/models/diff:
+    post:
+      summary: Structural difference of two models
+      operationId: diffModels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { $ref: "#/components/schemas/CanonicalModel" }
+                to: { $ref: "#/components/schemas/CanonicalModel" }
+      responses:
+        "200":
+          description: Differences; edges are matched by id, declarations by name.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModelDiff" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/models/compile:
+    post:
+      summary: Compile a draft model to Twin IR (with the IR <-> model source map)
+      operationId: compileModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model: { $ref: "#/components/schemas/CanonicalModel" }
+                modelId: { type: string, default: draft }
+                modelVersion: { type: string, default: 0.0.0-draft }
+                ticksPerUnit: { type: integer, default: 1000 }
+                interpretation: { type: string, description: DT interpretation (.interp text), optional }
+      responses:
+        "200":
+          description: The compilation outcome (also when it fails, with diagnostics).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CompileResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/constraints/parse:
+    post:
+      summary: Parse a guard or invariant field
+      operationId: parseConstraint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, example: "t >= 30 && x - y < 3" }
+                kind: { type: string, enum: [guard, invariant], default: guard }
+      responses:
+        "200":
+          description: The atoms and canonical text, or the diagnostics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConstraintResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/import:
+    post:
+      summary: Import a model file (UPPAAL XML, twin-ta/1 JSON, TwinTA)
+      operationId: importModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                filename: { type: string }
+                content: { type: string, description: The file's text }
+                options:
+                  type: object
+                  properties:
+                    legacySystemDeclaration: { type: boolean, default: false }
+      responses:
+        "200":
+          description: The import result; `model` is absent when any error was found (every unsupported construct is listed).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportResult" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/importers:
+    get:
+      summary: Registered model importers
+      operationId: listImporters
+      responses:
+        "200":
+          description: Importers in detection order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Importer" }
+  /authoring/alignment/diagnose:
+    post:
+      summary: Findings, modes and correspondences of an alignment evidence document
+      operationId: diagnoseAlignment
+      description: |
+        Explains the aligner's verdict; never decides alignment itself. Findings are linked to
+        the PT/DT edges, locations and interpretation entries involved. Note: the aligner folds
+        delays into zone-graph successors and does not compare guard bounds of equivalent labels
+        (docs/existing-aligner-integration.md, finding 14).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [evidence]
+              properties:
+                evidence: { type: object, description: twin-alignment-evidence/1 document as stored }
+                ptModel: { $ref: "#/components/schemas/CanonicalModel" }
+                ptSource: { type: string, description: twin-ta/1 JSON text or UPPAAL XML }
+                dtModel: { $ref: "#/components/schemas/CanonicalModel" }
+                dtSource: { type: string }
+      responses:
+        "200":
+          description: Verdict, modes, findings and the correspondence tables.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlignmentDiagnosis" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/alignment/explain:
+    post:
+      summary: How a PT/DT label (or location) pair relates under the ontology
+      operationId: explainAlignmentPair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ontology, ptInterpretation, dtInterpretation, pt, dt]
+              properties:
+                ontology: { type: string }
+                ptInterpretation: { type: string }
+                dtInterpretation: { type: string }
+                pt: { type: string }
+                dt: { type: string }
+                kind: { type: string, enum: [event, location], default: event }
+      responses:
+        "200":
+          description: Entailment in both directions (the aligner's own ontology and Z3).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairExplanation" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /authoring/properties/analyse:
+    post:
+      summary: What the backend can check or monitor for a property (and why)
+      operationId: analyseProperty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [property, dtModel]
+              properties:
+                property: { type: string, example: "A[] !FAULT" }
+                dtModel: { $ref: "#/components/schemas/CanonicalModel" }
+                ontology: { type: string, description: Ontology text, to check sem(...) atoms }
+      responses:
+        "200":
+          description: Analysis (monitorability decided by real backend capability).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PropertyAnalysis" }
+        "400": { $ref: "#/components/responses/Error" }
+  /authoring/properties/check:
+    post:
+      summary: Check a property at design time (evidence document)
+      operationId: checkProperty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [property]
+              properties:
+                property: { type: string }
+                dtModel: { $ref: "#/components/schemas/CanonicalModel" }
+                dtSource: { type: string }
+                ontology: { type: string }
+                dtInterpretation: { type: string }
+      responses:
+        "200":
+          description: twin-property-evidence/1 (verdict holds/violated, holds/does_not_hold, guaranteed/not_guaranteed, inconclusive or unsupported).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PropertyEvidence" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /authoring/monitors/validate:
+    post:
+      summary: Validate a monitor document against the views
+      operationId: validateMonitors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [monitors]
+              properties:
+                monitors: { type: object, description: twin-monitors/1 document }
+                ptModel: { $ref: "#/components/schemas/CanonicalModel" }
+                dtModel: { $ref: "#/components/schemas/CanonicalModel" }
+                telemetry: { type: array, description: "Telemetry schema [{id, ...}]", items: { type: object } }
+                ontology: { type: string }
+      responses:
+        "200":
+          description: Structural findings (TWN) and property diagnostics (TWP).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, diagnostics]
+                properties:
+                  valid: { type: boolean }
+                  diagnostics:
+                    type: array
+                    items: { $ref: "#/components/schemas/Diagnostic" }
+        "400": { $ref: "#/components/responses/Error" }
+components:
+  responses:
+    Error:
+      description: Error envelope.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, context]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            context:
+              type: array
+              items:
+                type: object
+                required: [key, value]
+                properties:
+                  key: { type: string }
+                  value: { type: string }
+    SourceRange:
+      type: object
+      required: [line, column, endLine, endColumn]
+      description: 1-based; 0 means unknown. Columns count Unicode code points.
+      properties:
+        line: { type: integer }
+        column: { type: integer }
+        endLine: { type: integer }
+        endColumn: { type: integer }
+    ElementRef:
+      type: object
+      required: [kind, name, part]
+      properties:
+        kind: { type: string, enum: [model, clock, constant, channel, location, edge, document] }
+        name: { type: string }
+        part: { type: string, description: "invariant, guard, sync, reset, source, target, name, declaration or empty" }
+    Diagnostic:
+      type: object
+      required: [severity, code, message, hint, element]
+      properties:
+        severity: { type: string, enum: [error, warning, info, note] }
+        code: { type: string, description: "TWM (structure), TWT (text syntax), TWI (import), TWC (compiler)" }
+        message: { type: string }
+        hint: { type: string }
+        element: { $ref: "#/components/schemas/ElementRef" }
+        range: { $ref: "#/components/schemas/SourceRange" }
+    Symbol:
+      type: object
+      required: [kind, name, definition, references]
+      properties:
+        kind: { type: string }
+        name: { type: string }
+        definition: { $ref: "#/components/schemas/SourceRange" }
+        references:
+          type: array
+          items: { $ref: "#/components/schemas/SourceRange" }
+    Atom:
+      type: object
+      required: [clock, op, bound]
+      properties:
+        clock: { type: string }
+        minus: { type: string, description: Subtracted clock of a diagonal constraint (invariants only) }
+        op: { type: string, enum: ["<", "<=", "==", ">=", ">"] }
+        bound:
+          oneOf:
+            - { type: integer }
+            - { type: string, description: Name of an integer constant }
+    Constraint:
+      type: array
+      description: Conjunction of atoms; empty means true.
+      items: { $ref: "#/components/schemas/Atom" }
+    NamedDecl:
+      type: object
+      required: [name, note]
+      properties:
+        name: { type: string }
+        note: { type: string }
+    CanonicalModel:
+      type: object
+      description: "Canonical timed-automaton model (twin-ta/1). See docs/authoring/model-format.md."
+      required: [format, name, note, clocks, constants, channels, locations, edges]
+      additionalProperties: false
+      properties:
+        format: { const: twin-ta/1 }
+        name: { type: string }
+        note: { type: string }
+        clocks:
+          type: array
+          items: { $ref: "#/components/schemas/NamedDecl" }
+        constants:
+          type: array
+          items:
+            type: object
+            required: [name, value, note]
+            properties:
+              name: { type: string }
+              value: { type: integer }
+              note: { type: string }
+        channels:
+          type: array
+          items: { $ref: "#/components/schemas/NamedDecl" }
+        locations:
+          type: array
+          items:
+            type: object
+            required: [name, initial, invariant, note]
+            properties:
+              name: { type: string }
+              initial: { type: boolean }
+              invariant: { $ref: "#/components/schemas/Constraint" }
+              note: { type: string }
+        edges:
+          type: array
+          items:
+            type: object
+            required: [id, source, target, sync, guard, resets, note]
+            properties:
+              id: { type: string }
+              source: { type: string }
+              target: { type: string }
+              sync:
+                oneOf:
+                  - { type: "null", description: The internal action tau }
+                  - type: object
+                    required: [channel, direction]
+                    properties:
+                      channel: { type: string }
+                      direction: { type: string, enum: ["!", "?"] }
+              guard: { $ref: "#/components/schemas/Constraint" }
+              resets:
+                type: array
+                items: { type: string }
+              note: { type: string }
+    Point:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+    Layout:
+      type: object
+      description: Diagram layout (twin-ta-layout/1); presentation only, never hashed into evidence.
+      required: [format, locations, edges]
+      properties:
+        format: { const: twin-ta-layout/1 }
+        locations:
+          type: object
+          additionalProperties:
+            type: object
+            required: [x, y]
+            properties:
+              x: { type: integer }
+              y: { type: integer }
+              label: { $ref: "#/components/schemas/Point" }
+        edges:
+          type: object
+          additionalProperties:
+            type: object
+            required: [nails]
+            properties:
+              nails:
+                type: array
+                items: { $ref: "#/components/schemas/Point" }
+              label: { $ref: "#/components/schemas/Point" }
+    ParseResponse:
+      type: object
+      required: [valid, diagnostics, symbols]
+      properties:
+        valid: { type: boolean, description: No syntax and no structural error }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        symbols:
+          type: array
+          items: { $ref: "#/components/schemas/Symbol" }
+        model: { $ref: "#/components/schemas/CanonicalModel" }
+        contentSha256: { type: string }
+        semanticDigest: { type: string, description: "SHA-256 of the toolchain rendering (only when valid)" }
+    ValidateResponse:
+      type: object
+      required: [valid, diagnostics, contentSha256, text]
+      properties:
+        valid: { type: boolean }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        contentSha256: { type: string }
+        semanticDigest: { type: string }
+        text: { type: string, description: The model's TwinTA text }
+    FormatResponse:
+      type: object
+      required: [source, diagnostics]
+      properties:
+        source: { type: [string, "null"] }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+    RenderResponse:
+      type: object
+      required: [content, mediaType, roundTripVerified]
+      properties:
+        content: { type: string }
+        mediaType: { type: string }
+        roundTripVerified: { type: boolean }
+    ConstraintResponse:
+      type: object
+      required: [diagnostics]
+      properties:
+        atoms: { $ref: "#/components/schemas/Constraint" }
+        text: { type: string }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+    AddedRemoved:
+      type: object
+      required: [added, removed]
+      properties:
+        added:
+          type: array
+          items: { type: string }
+        removed:
+          type: array
+          items: { type: string }
+    FromTo:
+      type: object
+      required: [from, to]
+      properties:
+        from: {}
+        to: {}
+    ModelDiff:
+      type: object
+      required: [semanticChange, digests, clocks, channels, constants, locations, edges, notes]
+      properties:
+        semanticChange: { type: boolean }
+        digests: { $ref: "#/components/schemas/FromTo" }
+        name: { $ref: "#/components/schemas/FromTo" }
+        clocks: { $ref: "#/components/schemas/AddedRemoved" }
+        channels: { $ref: "#/components/schemas/AddedRemoved" }
+        constants:
+          allOf:
+            - { $ref: "#/components/schemas/AddedRemoved" }
+            - type: object
+              required: [changed]
+              properties:
+                changed:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, from, to]
+        locations:
+          allOf:
+            - { $ref: "#/components/schemas/AddedRemoved" }
+            - type: object
+              required: [changed]
+              properties:
+                changed:
+                  type: array
+                  items:
+                    type: object
+                    required: [name]
+                    properties:
+                      name: { type: string }
+                      initial: { $ref: "#/components/schemas/FromTo" }
+                      invariant: { $ref: "#/components/schemas/FromTo" }
+        edges:
+          type: object
+          required: [added, removed, changed]
+          properties:
+            added:
+              type: array
+              items: { type: string }
+            removed:
+              type: array
+              items: { type: string }
+            changed:
+              type: array
+              items:
+                type: object
+                required: [id, fields]
+                properties:
+                  id: { type: string }
+                  fields:
+                    type: object
+                    additionalProperties: { $ref: "#/components/schemas/FromTo" }
+        notes:
+          type: array
+          items:
+            type: object
+            required: [element, from, to]
+    Provenance:
+      type: object
+      required: [originalFilename, originalSha256, importedAt, importer, importerVersion, options,
+                 contentSha256, semanticDigest, preserved, preservationChecks]
+      properties:
+        originalFilename: { type: string }
+        originalSha256: { type: string }
+        importedAt: { type: string }
+        importer: { type: string }
+        importerVersion: { type: string }
+        options: { type: object }
+        contentSha256: { type: string }
+        semanticDigest: { type: string }
+        preserved: { type: boolean, description: "The preservation check passed: original and canonical rendering compile to the same IR" }
+        preservationChecks: { type: integer }
+    ImportResult:
+      type: object
+      required: [format, layout, diagnostics]
+      properties:
+        format: { type: string, description: "uppaal-xml, twin-ta-json, twinta-text or unknown" }
+        model: { $ref: "#/components/schemas/CanonicalModel" }
+        layout: { $ref: "#/components/schemas/Layout" }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+    AlignmentModes:
+      type: object
+      required: [weak, strong, strong_reason]
+      properties:
+        weak: { type: string, enum: [aligned, not_aligned] }
+        strong: { type: string, enum: [aligned, not_aligned, not_decidable] }
+        strong_reason: { type: string }
+    AlignmentFinding:
+      type: object
+      required: [category, severity, message, links]
+      properties:
+        category:
+          type: string
+          enum: [outside_fragment, missing_interpretation, receive_label, tautological_interpretation,
+                 unused_interpretation, unmatched_pt_event, unmatched_dt_event, ontology_equivalence,
+                 timing_or_branching, state_inconsistency]
+        severity: { type: string, enum: [error, warning, info] }
+        message: { type: string }
+        links:
+          type: array
+          items:
+            type: object
+            required: [view, kind, name]
+            properties:
+              view: { type: string, enum: [pt, dt, pt_interpretation, dt_interpretation, ontology] }
+              kind: { type: string, enum: [edge, location, label, entry, document] }
+              name: { type: string }
+              index: { type: integer, description: Edge index in document order (= canonical edge order) }
+    AlignmentDiagnosis:
+      type: object
+      required: [verdict, modes, diagnostics, correspondences]
+      properties:
+        verdict: { type: object }
+        modes: { $ref: "#/components/schemas/AlignmentModes" }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/AlignmentFinding" }
+        correspondences:
+          type: object
+          required: [labels, locations]
+          properties:
+            labels:
+              type: array
+              items:
+                type: object
+                required: [pt, dt]
+                properties:
+                  pt: { type: string }
+                  dt: { type: array, items: { type: string } }
+            locations:
+              type: array
+              items:
+                type: object
+                required: [dt, pt_equivalents]
+                properties:
+                  dt: { type: string }
+                  pt_equivalents: { type: array, items: { type: string } }
+    PairExplanation:
+      type: object
+      required: [equivalent, ptImpliesDt, dtImpliesPt]
+      properties:
+        equivalent: { type: boolean }
+        ptImpliesDt: { type: boolean }
+        dtImpliesPt: { type: boolean }
+    PropertyAnalysis:
+      type: object
+      required: [valid, diagnostics, text, quantifier, locations, clocks, semantic, designTime, runtime, evaluator, reasons]
+      properties:
+        valid: { type: boolean }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        text: { type: string }
+        quantifier: { type: string }
+        locations: { type: array, items: { type: string } }
+        clocks: { type: array, items: { type: string } }
+        semantic: { type: array, items: { type: string } }
+        designTime: { type: string, enum: [checkable, guarantee_check, unsupported] }
+        runtime: { type: string, enum: [monitorable, not_monitorable, unsupported] }
+        evaluator: { type: string, enum: [runtime, studio, none] }
+        reasons: { type: array, items: { type: string } }
+    PropertyEvidence:
+      type: object
+      required: [format, property, quantifier, verdict, inputs, checker, reasons]
+      properties:
+        format: { const: twin-property-evidence/1 }
+        property: { type: string }
+        quantifier: { type: string }
+        verdict: { type: string, enum: [holds, violated, does_not_hold, guaranteed, not_guaranteed, inconclusive, unsupported] }
+        method: { type: string }
+        semantics: { type: string }
+        witness:
+          type: object
+          required: [path, location]
+          properties:
+            path: { type: array, items: { type: string } }
+            location: { type: string }
+        locations:
+          type: array
+          items:
+            type: object
+            required: [location, guaranteed]
+            properties:
+              location: { type: string }
+              guaranteed: { type: boolean }
+              reason: { type: string }
+        states: { type: integer }
+        complete: { type: boolean }
+        reasons: { type: array, items: { type: string } }
+        inputs: { type: object }
+        checker: { type: object }
+    Importer:
+      type: object
+      required: [id, version, description]
+      properties:
+        id: { type: string }
+        version: { type: string }
+        description: { type: string }
+    CompileResponse:
+      type: object
+      required: [compiled, diagnostics]
+      properties:
+        compiled: { type: boolean }
+        diagnostics:
+          type: array
+          items: { $ref: "#/components/schemas/Diagnostic" }
+        ir: { type: object, description: Twin IR (twin-ir/1) }
+        irSha256: { type: string }
+        semanticDigest: { type: string }
+        sourceMap:
+          type: object
+          required: [locations, transitions, edges]
+          properties:
+            locations: { type: object, additionalProperties: { type: string } }
+            transitions: { type: object, additionalProperties: { type: string }, description: IR transition id -> edge id }
+            edges: { type: object, additionalProperties: { type: string }, description: edge id -> IR transition id }
+        manifest: { type: object, description: Compilation manifest (twin-compilation-manifest/1) }

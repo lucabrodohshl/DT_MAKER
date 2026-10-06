@@ -4,6 +4,8 @@
  */
 #include "twin/runtime/views.hpp"
 
+#include <algorithm>
+
 #include "twin/kernel/explore.hpp"
 
 namespace twin::runtime {
@@ -35,12 +37,20 @@ Json enabled_view(const TwinSession& session, const Snapshot& snapshot) {
     Json arr = Json::array();
     for (const EnabledInfo& e : snapshot.enabled) {
         const ir::Transition& t = m.transition(e.transition);
+        Json resets = Json::array();
+        for (ir::ClockIndex r : t.resets) resets.push_back(ir::clock_name(m.ir(), r));
+        std::string meaning;
+        for (const ir::EventInterpretation& ev : m.ir().event_interpretations) {
+            if (ev.label == t.action.label()) meaning = ev.formula;
+        }
         arr.push_back(Json{{"member", e.member},
                            {"transition", t.id},
                            {"label", t.action.label()},
                            {"source", m.ir().locations.at(t.source).id},
                            {"target", m.ir().locations.at(t.target).id},
                            {"guard", ir::to_string(m.ir(), t.guard)},
+                           {"resets", resets},
+                           {"interpretation", meaning},
                            {"window", window_view(e.window, m.time_base())},
                            {"enabled_now", e.enabled_now}});
     }
@@ -52,7 +62,9 @@ Json propositions_view(const TwinSession& session, const Snapshot& snapshot) {
     Json arr = Json::array();
     for (ir::PropositionIndex p : snapshot.certain) {
         const ir::Proposition& prop = m.ir().propositions.at(p);
-        arr.push_back(Json{{"id", prop.id}, {"interpretation", prop.interpretation}});
+        arr.push_back(Json{{"id", prop.id},
+                           {"location", m.ir().locations.at(prop.location).id},
+                           {"interpretation", prop.interpretation}});
     }
     return arr;
 }
@@ -72,7 +84,46 @@ Json state_view(const TwinSession& session, const Snapshot& snapshot) {
                 {"ledger", {{"records", snapshot.ledger_records}, {"head", snapshot.ledger_head}}},
                 {"failed", snapshot.failed},
                 {"closed", snapshot.closed},
-                {"session", session.session_id()}};
+                {"session", session.session_id()},
+                {"package_hash", session.package().package_hash},
+                {"model", {{"id", session.package().manifest.model_id},
+                           {"version", session.package().manifest.model_version},
+                           {"ir_sha256", session.package().ir_sha256}}},
+                {"locations", locations_view(session, snapshot)},
+                {"last_transition", last_transition_view(session, snapshot)},
+                {"conformance", conformance_view(snapshot)}};
+}
+
+Json locations_view(const TwinSession& session, const Snapshot& snapshot) {
+    Json out = Json::array();
+    for (const kernel::Configuration& c : snapshot.state.members()) {
+        const std::string id = session.model().ir().locations.at(c.location).id;
+        if (std::find(out.begin(), out.end(), Json(id)) == out.end()) out.push_back(id);
+    }
+    return out;
+}
+
+Json last_transition_view(const TwinSession& session, const Snapshot& snapshot) {
+    if (!snapshot.last_transition) return Json();
+    const LastTransition& t = *snapshot.last_transition;
+    return Json{{"seq", t.seq},     {"transition", t.transition}, {"label", t.label},
+                {"from", t.source}, {"to", t.target},             {"source", t.input_source},
+                {"at", time_view(t.at, session.model().time_base())}};
+}
+
+Json conformance_view(const Snapshot& snapshot) {
+    const MonitoringSummary& m = snapshot.monitoring;
+    return Json{{"status", m.conformant() ? "conformant" : "violated"},
+                {"observations", m.observations},
+                {"observations_rejected", m.observations_rejected},
+                {"decisions", m.decisions},
+                {"decisions_rejected", m.decisions_rejected},
+                {"alarms", m.alarms},
+                {"first_violation_seq", m.first_violation_seq ? Json(*m.first_violation_seq) : Json()},
+                {"first_violation", m.first_violation},
+                {"definition",
+                 "every observation of the physical twin was explained by the verified model and no deadline "
+                 "was missed (counts of the kernel's verdicts)"}};
 }
 
 Json package_view(const package::LoadedPackage& p) {
@@ -113,8 +164,8 @@ Json submission_view(const TwinSession& session, const ledger::Input& input, con
         v["to"] = m.ir().locations.at(t.target).id;
     }
     if (r.rejection) {
-        Json context = Json::object();
-        for (const auto& [k, val] : r.rejection->context) context[k] = val;
+        Json context = Json::array();
+        for (const auto& [k, val] : r.rejection->context) context.push_back(Json{{"key", k}, {"value", val}});
         v["error"] = Json{{"code", std::string(to_string(r.rejection->code))},
                           {"message", r.rejection->message},
                           {"context", context}};

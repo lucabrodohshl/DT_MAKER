@@ -8,6 +8,7 @@
 #include <chrono>
 
 #include "twin/core/wall_clock.hpp"
+#include "twin/runtime/executions.hpp"
 #include "twin/runtime/views.hpp"
 
 namespace twin::runtime {
@@ -75,28 +76,21 @@ Status CoSimDriver::reset() {
     Result<std::unique_ptr<TwinSession>> session = TwinSession::start(package_, options);
     if (!session) return std::move(session).error();
     session_ = std::shared_ptr<TwinSession>(std::move(session).value());
-    session_->subscribe([this](const SessionEvent& e) {
-        const json::Json& body = e.record.at("body");
-        json::Json summary{{"seq", body.value("seq", 0)},
-                           {"kind", e.kind},
-                           {"time_after", body.value("time_after", Ticks{0})},
-                           {"prev_hash", body.value("prev_hash", std::string())},
-                           {"hash", e.record.value("hash", std::string())}};
-        if (body.contains("outcome") && !body.at("outcome").at("branches").empty()) {
-            const json::Json& b = body.at("outcome").at("branches").at(0);
-            summary["transition"] = b.value("transition", std::string());
-            summary["label"] = b.value("label", std::string());
-            summary["from"] = b.value("source", std::string());
-            summary["to"] = b.value("target", std::string());
-        }
-        if (body.contains("input")) summary["input"] = body.at("input").value("name", std::string());
-        if (body.contains("error")) summary["error"] = body.at("error").value("code", std::string());
-        if (body.contains("alarm")) summary["alarm"] = body.at("alarm");
-        hub_.publish("ledger", summary);
-    });
+    stream_ledger(*session_, hub_);
+    // Evidence of what the twin knows when the mission starts (prior building knowledge + mission).
+    if (Result<SubmitResult> r = session_->record_context(
+            "knowledge", 0,
+            json::Json{{"map", geo::to_json(world_model_.map())},
+                       {"map_seq", world_model_.last_seq()},
+                       {"mission", mission_json.value()}});
+        !r) {
+        return std::move(r).error();
+    }
     controller_ = std::make_unique<MissionController>(*session_, planner_, config_.controller);
     controller_->reset(std::move(mission).value(), &world_model_);
+    mission_start_requested_ = config_.autostart;
     if (config_.autostart) controller_->request_start();
+    telemetry_log_ = std::ofstream(telemetry_path_for(options.ledger_path), std::ios::trunc);
     telemetry_ = json::Json::object();
     now_ = 0;
     ticks_ = 0;
@@ -107,6 +101,15 @@ Status CoSimDriver::reset() {
     hub_.publish("map_reset", json::Json{{"map", geo::to_json(world_model_.map())}, {"seq", world_model_.last_seq()}});
     publish_state(*session_);
     return ok_status();
+}
+
+void CoSimDriver::log_telemetry(const json::Json& telemetry) {
+    if (!telemetry_log_) return;
+    json::Json line = telemetry;
+    // Anchor the sample to the ledger position at which it arrived (for synchronised replay).
+    line["ledger_seq"] = session_->record_count();
+    telemetry_log_ << line.dump() << '\n';
+    telemetry_log_.flush();
 }
 
 void CoSimDriver::publish_state(const TwinSession& session) {
@@ -152,8 +155,9 @@ Status CoSimDriver::fail(const Error& error) {
 void CoSimDriver::send_commands() {
     for (const json::Json& c : controller_->take_commands()) {
         Status s = world_->command(c);
-        hub_.publish("command", json::Json{{"command", c}, {"accepted", s.ok()},
-                                           {"error", s.ok() ? std::string() : s.error().message}});
+        json::Json sent{{"command", c}, {"accepted", s.ok()}, {"error", s.ok() ? std::string() : s.error().message}};
+        (void)session_->record_context("command", now_, sent);  // every action is evidenced
+        hub_.publish("command", std::move(sent));
     }
 }
 
@@ -164,6 +168,7 @@ Result<json::Json> CoSimDriver::step_physical_twin() {
     telemetry_ = stepped.value().at("telemetry");
     now_ = telemetry_.value("at", now_);
     controller_->on_telemetry(telemetry_);
+    log_telemetry(telemetry_);
     hub_.publish("telemetry", telemetry_);
     for (const json::Json& line : stepped.value().value("facility_log", json::Json::array())) {
         hub_.publish("facility", json::Json{{"at", now_}, {"text", line}});
@@ -198,6 +203,8 @@ void CoSimDriver::apply_map_updates() {
         if (changed.empty()) continue;
         json::Json payload = geo::to_json(u.value());
         payload["unknown_cells"] = static_cast<std::int64_t>(world_model_.unknown_cells());
+        // The knowledge change is evidenced before any decision it triggers.
+        (void)session_->record_context("map_update", u.value().at, payload);
         hub_.publish("map", payload);
         controller_->on_map_changed(changed);
     }
@@ -236,6 +243,14 @@ void CoSimDriver::loop() {
     }
 }
 
+void CoSimDriver::request_mission_start() {
+    std::lock_guard lock(mutex_);
+    if (!controller_ || mission_start_requested_) return;
+    mission_start_requested_ = true;
+    controller_->request_start();
+    hub_.publish("mission", json::Json{{"text", "operator requested mission start"}, {"at", now_}});
+}
+
 void CoSimDriver::play() {
     std::lock_guard lock(mutex_);
     if (status_ == SimStatus::Paused) status_ = SimStatus::Running;
@@ -261,6 +276,8 @@ std::shared_ptr<TwinSession> CoSimDriver::session() const {
 json::Json CoSimDriver::status() const {
     std::lock_guard lock(mutex_);
     return json::Json{{"status", to_string(status_)},
+                      {"mode", "cosimulation"},
+                      {"mission_started", mission_start_requested_},
                       {"speed_permille", static_cast<std::int64_t>(speed_.load() * 1000)},
                       {"now", time_view(now_, package_.model.time)},
                       {"ticks", ticks_},
@@ -284,6 +301,11 @@ json::Json CoSimDriver::mission() const {
 json::Json CoSimDriver::plans() const {
     std::lock_guard lock(mutex_);
     return controller_ ? controller_->plans() : json::Json::object();
+}
+
+json::Json CoSimDriver::episodes() const {
+    std::lock_guard lock(mutex_);
+    return controller_ ? controller_->episodes() : json::Json::array();
 }
 
 json::Json CoSimDriver::telemetry() const {

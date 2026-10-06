@@ -1,0 +1,25 @@
+{
+  "name": "P-101 operating cycle",
+  "description": "Seven-minute operating cycle of process pump P-101 as reported by its control system (PLC-4): start, load increase, bearing temperature rises above the 90 degC alarm limit, auxiliary cooling brings it back, controlled stop. Telemetry and PT events are mutually consistent with the pump ontology (alarm limit 90 degC, trip 105 degC, vibration limit 7.1 mm/s).",
+  "cycle_s": 420,
+  "telemetry_period_ms": 1000,
+  "seed": 4101,
+  "channels": {
+    "shaft_speed":        {"keys": [[0,0],[5,0],[15,2965],[90,2965],[100,3120],[330,3120],[338,0],[420,0]], "noise": 2.0, "min": 0, "precision": 0},
+    "motor_running":      {"type": "boolean", "keys": [[0,0],[5,1],[338,0]]},
+    "motor_current":      {"keys": [[0,0],[5,0],[8,180],[15,118],[90,118],[100,132],[330,132],[338,0],[420,0]], "noise": 1.2, "min": 0, "precision": 1},
+    "discharge_pressure": {"keys": [[0,0],[5,0],[15,11.2],[90,11.2],[100,12.1],[330,12.1],[338,0],[420,0]], "noise": 0.08, "min": 0, "precision": 2},
+    "bearing_temp":       {"keys": [[0,38],[5,38],[100,74],[150,84],[171,90.6],[184,94.5],[200,91],[229,86],[240,82],[330,79],[338,79],[420,52]], "noise": 0.3, "precision": 1},
+    "vibration_rms":      {"keys": [[0,0],[5,0],[15,3.1],[150,3.4],[184,4.9],[230,3.6],[330,3.5],[338,0],[420,0]], "noise": 0.12, "min": 0, "precision": 2},
+    "cooling_active":     {"type": "boolean", "keys": [[0,0],[184,1],[231,0]]}
+  },
+  "events": [
+    {"at": 5,   "label": "start_cmd!",        "detail": {"source": "PLC-4 start sequence"}},
+    {"at": 90,  "label": "duty_up!",          "detail": {"setpoint": "105 m3/h"}},
+    {"at": 172, "label": "alarm_raise!",      "detail": {"tag": "TT-101", "reason": "bearing temperature above 90 degC"}},
+    {"at": 185, "label": "aux_cooling_on!",   "detail": {"unit": "CU-7"}},
+    {"at": 230, "label": "aux_cooling_done!", "detail": {"unit": "CU-7"}},
+    {"at": 330, "label": "ramp_down_cmd!",    "detail": {"source": "shift schedule"}},
+    {"at": 339, "label": "halted!",           "detail": {}}
+  ]
+}

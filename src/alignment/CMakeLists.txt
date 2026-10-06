@@ -1,6 +1,6 @@
 # twin::alignment — runs the unmodified semantic aligner (Z3) and records evidence.
 twin_add_library(alignment
-    SOURCES alignment.cpp
+    SOURCES alignment.cpp diagnostics.cpp entailment.cpp
     PUBLIC_DEPS twin::json
     PRIVATE_DEPS twin::compiler aligner::semalign)
 target_include_directories(twin_alignment PUBLIC

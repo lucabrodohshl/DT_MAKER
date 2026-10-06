@@ -103,8 +103,10 @@ struct RefinementReport {
     std::string checker;                         ///< checker_identity().
     std::string base_ontology_sha256;            ///< SHA-256 of K₂.
     std::string candidate_ontology_sha256;       ///< SHA-256 of K₁.
-    std::string base_pt_sha256, candidate_pt_sha256;  ///< I_P hashes (empty if not part of the check).
-    std::string base_dt_sha256, candidate_dt_sha256;  ///< I_D hashes (empty if not part of the check).
+    std::string base_pt_sha256;                  ///< SHA-256 of the base I_P (empty if not part of the check).
+    std::string candidate_pt_sha256;             ///< SHA-256 of the candidate I_P (empty if not part of the check).
+    std::string base_dt_sha256;                  ///< SHA-256 of the base I_D (empty if not part of the check).
+    std::string candidate_dt_sha256;             ///< SHA-256 of the candidate I_D (empty if not part of the check).
     unsigned timeout_ms{0};                      ///< Per-query solver timeout used.
 };
 

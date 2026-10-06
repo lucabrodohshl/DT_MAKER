@@ -50,6 +50,7 @@ struct SeedOptions {
  */
 class ProfileGenerator {
 public:
+    /// @brief Generator for @p profile; times are relative to @p anchor_ms, @p seed makes it deterministic.
     ProfileGenerator(json::Json profile, std::string value_type, std::int64_t anchor_ms, std::uint32_t seed);
 
     /// @brief Sample at @p t_ms, or std::nullopt inside a gap episode.

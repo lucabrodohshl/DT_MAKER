@@ -22,7 +22,7 @@ Error sqlite_error(sqlite3* db, std::string_view what) {
  * Schema migrations, applied in order; `meta.schema_version` records progress.
  * Never edit a released migration: append a new one.
  */
-constexpr std::array<std::string_view, 1> kMigrations = {
+constexpr std::array<std::string_view, 2> kMigrations = {
     R"SQL(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE sequences (name TEXT PRIMARY KEY, next INTEGER NOT NULL);
@@ -181,6 +181,10 @@ CREATE TABLE telemetry_samples (
   quality TEXT NOT NULL
 );
 CREATE INDEX telemetry_by_channel_time ON telemetry_samples(channel_id, observed_ms);
+)SQL",
+    // v2: logical model time of a sample when the source provides one (runtime-fed channels).
+    R"SQL(
+ALTER TABLE telemetry_samples ADD COLUMN logical_ticks INTEGER;
 )SQL",
 };
 

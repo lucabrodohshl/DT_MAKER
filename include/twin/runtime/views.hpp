@@ -24,6 +24,15 @@ namespace twin::runtime {
 /// @brief Committed state, propositions (with ontology meaning), enabled transitions, deadline.
 [[nodiscard]] json::Json state_view(const TwinSession& session, const Snapshot& snapshot);
 
+/// @brief Distinct locations of the possible configurations.
+[[nodiscard]] json::Json locations_view(const TwinSession& session, const Snapshot& snapshot);
+
+/// @brief The most recent discrete step (null before the first one).
+[[nodiscard]] json::Json last_transition_view(const TwinSession& session, const Snapshot& snapshot);
+
+/// @brief Conformance status derived from the kernel's verdicts (see MonitoringSummary).
+[[nodiscard]] json::Json conformance_view(const Snapshot& snapshot);
+
 /// @brief Outgoing transitions with delay windows.
 [[nodiscard]] json::Json enabled_view(const TwinSession& session, const Snapshot& snapshot);
 

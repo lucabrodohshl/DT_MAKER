@@ -8,7 +8,9 @@
  * reports its state; absence of evidence is reported as "not_checked", never as pass.
  */
 #include <algorithm>
+#include <fstream>
 #include <map>
+#include <sstream>
 
 #include "ontology_json.hpp"
 #include "services_impl.hpp"
@@ -110,7 +112,7 @@ Result<json::Json> Services::twin(std::string_view id) {
     for (const auto& b : pkg.value().bindings) {
         auto s = impl_->version_summary(b.ref);
         json::Json bj = to_json(b);
-        bj["version"] = s ? s.value() : json::Json(nullptr);
+        bj["versionInfo"] = s ? s.value() : json::Json(nullptr);
         j["bindings"].push_back(bj);
     }
     const auto& bindings = pkg.value().bindings;
@@ -288,6 +290,17 @@ Result<json::Json> Services::impact(const ArtifactRef& ref) {
             }
         }
 
+        // Refinement evidence for exactly (deployed Φ -> candidate Φ), if any (decides condition (c)).
+        std::optional<EvidenceRecord> refinement;
+        if (!identical && (kind == ArtifactKind::Ontology || kind == ArtifactKind::Interpretation)) {
+            std::vector<EvidenceInput> rin = as_inputs(B, {"ontology", "pt_interpretation", "dt_interpretation"}, "base_");
+            auto cin = as_inputs(C, {"ontology", "pt_interpretation", "dt_interpretation"}, "candidate_");
+            rin.insert(rin.end(), cin.begin(), cin.end());
+            auto found = impl_->evidence->latest_for(EvidenceKind::Refinement, rin);
+            if (!found) return std::move(found).error();
+            refinement = found.value();
+        }
+
         // Interpretations bound next to a changed ontology.
         if (kind == ArtifactKind::Ontology) {
             for (const char* role : {"pt_interpretation", "dt_interpretation"}) {
@@ -297,14 +310,27 @@ Result<json::Json> Services::impact(const ArtifactRef& ref) {
                 std::vector<std::string> entries;
                 if (itext) entries = onto::entries_using(onto::parse_interpretation(itext.value()).source, affected_symbols);
                 const std::string id = "artifact:" + ib->ref.str() + ":" + t.id;
-                node(id, "interpretation", ib->ref.str() + " (" + role + ")",
-                     entries.empty() ? "potentially_affected" : "requires_verification",
-                     entries.empty()
-                         ? "No entry mentions a symbol whose declaration or axioms changed; its meaning can still change "
-                           "through Δ, which the refinement check (condition c) decides."
-                         : std::to_string(entries.size()) + " entr" + (entries.size() == 1 ? "y uses" : "ies use") +
-                               " symbols whose axioms or declaration changed; condition (c) of Def. 4 must hold for them.",
-                     {{"ref", ib->ref.str()}, {"entries", entries}, {"role", role}});
+                std::string cls = entries.empty() ? "potentially_affected" : "requires_verification";
+                std::string reason =
+                    entries.empty()
+                        ? "No entry mentions a symbol whose declaration or axioms changed; its meaning can still change "
+                          "through Δ, which the refinement check (condition c) decides."
+                        : std::to_string(entries.size()) + " entr" + (entries.size() == 1 ? "y uses" : "ies use") +
+                              " symbols whose axioms or declaration changed; condition (c) of Def. 4 must hold for them.";
+                json::Json extra = {{"ref", ib->ref.str()}, {"entries", entries}, {"role", role}};
+                if (identical) {
+                    cls = "unaffected";
+                    reason = "The ontology content is identical to the deployed version.";
+                } else if (refinement && refinement->outcome == Outcome::Pass) {
+                    cls = "preserved";
+                    reason = "Condition (c) of Def. 4 holds: every entry keeps its meaning under the new axioms (" +
+                             refinement->id + ").";
+                    extra["refinementEvidenceId"] = refinement->id;
+                } else if (refinement && refinement->outcome == Outcome::Fail) {
+                    reason += " The refinement check " + refinement->id + " did not establish it.";
+                    extra["refinementEvidenceId"] = refinement->id;
+                }
+                node(id, "interpretation", ib->ref.str() + " (" + role + ")", cls, reason, extra);
                 edges.push_back({{"from", root}, {"to", id}, {"label", "interprets over"}});
             }
         }
@@ -330,23 +356,19 @@ Result<json::Json> Services::impact(const ArtifactRef& ref) {
             add_action("alignment", "Re-run semantic alignment for " + t.name + ".");
         } else if (phi_changed) {
             // Preservation route (Theorem 3): a valid Def. 4 check of exactly (Φ_deployed → Φ_candidate).
-            std::vector<EvidenceInput> rin = as_inputs(B, {"ontology", "pt_interpretation", "dt_interpretation"}, "base_");
-            auto cin = as_inputs(C, {"ontology", "pt_interpretation", "dt_interpretation"}, "candidate_");
-            rin.insert(rin.end(), cin.begin(), cin.end());
-            auto ref_ev = impl_->evidence->latest_for(EvidenceKind::Refinement, rin);
-            if (!ref_ev) return std::move(ref_ev).error();
-            if (ref_ev.value() && ref_ev.value()->outcome == Outcome::Pass) {
+            const std::optional<EvidenceRecord>& ref_ev = refinement;
+            if (ref_ev && ref_ev->outcome == Outcome::Pass) {
                 node(align_node, "alignment", "Alignment of " + t.name, "preserved",
-                     "Theorem 3: the candidate domain knowledge is a valid refinement (" + ref_ev.value()->id +
+                     "Theorem 3: the candidate domain knowledge is a valid refinement (" + ref_ev->id +
                          ") of the deployed one, under which the views are aligned.",
                      {{"evidenceId", align_id ? json::Json(*align_id) : json::Json(nullptr)},
-                      {"refinementEvidenceId", ref_ev.value()->id}});
-            } else if (ref_ev.value()) {
+                      {"refinementEvidenceId", ref_ev->id}});
+            } else if (ref_ev) {
                 node(align_node, "alignment", "Alignment of " + t.name, "requires_verification",
-                     "The refinement check (" + ref_ev.value()->id + ") returned " + ref_ev.value()->verdict +
+                     "The refinement check (" + ref_ev->id + ") returned " + ref_ev->verdict +
                          ", so Theorem 3 does not apply: re-run alignment.",
                      {{"evidenceId", align_id ? json::Json(*align_id) : json::Json(nullptr)},
-                      {"refinementEvidenceId", ref_ev.value()->id}});
+                      {"refinementEvidenceId", ref_ev->id}});
                 add_action("alignment", "Re-run semantic alignment for " + t.name + " (refinement does not hold).");
             } else {
                 node(align_node, "alignment", "Alignment of " + t.name, "requires_verification",
@@ -453,7 +475,14 @@ Result<json::Json> Services::change(std::string_view id) {
     }
     j["artifactVersions"] = arts;
     auto tw = impl_->twins->twin(c.value().twin_id);
-    j["twin"] = tw ? to_json(tw.value()) : json::Json(nullptr);
+    j["twin"] = nullptr;
+    if (tw) {
+        json::Json tj = to_json(tw.value());  // same shape as GET /twins (TwinSummary)
+        auto dep = impl_->twins->current_deployment(tw.value().id);
+        if (!dep) return std::move(dep).error();
+        tj["deployment"] = dep.value() ? to_json(*dep.value()) : json::Json(nullptr);
+        j["twin"] = std::move(tj);
+    }
     return j;
 }
 
@@ -938,7 +967,7 @@ Result<json::Json> Services::package(std::string_view id) {
     for (const auto& b : p.value().bindings) {
         json::Json bj = to_json(b);
         auto s = impl_->version_summary(b.ref);
-        bj["version"] = s ? s.value() : json::Json(nullptr);
+        bj["versionInfo"] = s ? s.value() : json::Json(nullptr);
         bindings.push_back(bj);
     }
     j["bindings"] = bindings;
@@ -957,6 +986,31 @@ Result<json::Json> Services::package(std::string_view id) {
     }
     j["deployments"] = used;
     return j;
+}
+
+Result<json::Json> Services::package_ir(std::string_view package_id) {
+    std::string dir;
+    {
+        auto l = impl_->lock();
+        auto p = impl_->twins->package(package_id);
+        if (!p) return std::move(p).error();
+        dir = p.value().directory;
+    }
+    // Read through the package library so the IR is only served from a package that verifies.
+    auto loaded = package::load_and_verify(dir, package::VerifyOptions{true});
+    if (!loaded) {
+        return make_error(ErrorCode::IntegrityError, "the package does not verify; its IR is not served")
+            .with("package", std::string(package_id));
+    }
+    std::ifstream in(std::filesystem::path(dir) / "ir" / "model.ir.json", std::ios::binary);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    auto j = json::parse(ss.str());
+    if (!j) return std::move(j).error();
+    json::Json out = j.value();
+    out["irSha256"] = loaded.value().ir_sha256;
+    out["packageId"] = std::string(package_id);
+    return out;
 }
 
 Result<json::Json> Services::deployments(std::string_view twin_id) {

@@ -3,6 +3,9 @@
  * @brief In-memory Twin Intermediate Representation (IR) of a DT timed-automaton view.
  * @ingroup ir
  *
+ * @defgroup ir Twin Intermediate Representation
+ * @brief The canonical, hashed, executable form of a verified DT view (format twin-ir/1).
+ *
  * The IR is an executable canonicalisation of the source timed automaton V_D
  * and deliberately nothing more ("intentionally boring"). It covers exactly the
  * fragment the existing semantic aligner (SemPTDTAlignmentICSE) gives semantics to:

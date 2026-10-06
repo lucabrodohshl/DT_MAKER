@@ -152,6 +152,15 @@ Result<std::unique_ptr<WorldService>> WorldService::open(const std::filesystem::
 Status WorldService::reload() {
     Result<Scenario> scenario = load_scenario(scenario_path_);
     if (!scenario) return scenario.error();
+    std::optional<Json> mission;
+    {
+        std::lock_guard lock(mutex_);
+        mission = mission_override_;
+    }
+    if (mission) {
+        scenario = with_mission(std::move(scenario).value(), *mission);
+        if (!scenario) return scenario.error();
+    }
     auto fresh = std::make_unique<World>(std::move(scenario).value());
     std::lock_guard lock(mutex_);
     world_ = std::move(fresh);
@@ -159,6 +168,28 @@ Status WorldService::reload() {
 }
 
 ApiReply WorldService::handle(const ApiRequest& request) {
+    // Operator-defined mission: validated against the building, applied now and on every reset.
+    if (request.path == "/scenario/mission" || request.path == "/scenario/mission/default") {
+        if (request.method != "POST") return fail(405, ErrorCode::InvalidArgument, "method not allowed");
+        if (request.path == "/scenario/mission/default") {
+            std::lock_guard lock(mutex_);
+            mission_override_.reset();
+        } else {
+            Result<Scenario> base = load_scenario(scenario_path_);
+            if (!base) return fail(500, base.error());
+            Result<Json> body = body_json(request);
+            if (!body) return fail(400, body.error());
+            Result<Scenario> next = with_mission(std::move(base).value(), body.value());
+            if (!next) return fail(400, next.error());
+            std::lock_guard lock(mutex_);
+            mission_override_ = body.value();
+        }
+        if (Status s = reload(); !s) return fail(500, s.error());
+        std::lock_guard lock(mutex_);
+        Json info = world_->scenario_info();
+        info["custom_mission"] = mission_override_.has_value();
+        return ok(info);
+    }
     if (request.path == "/admin/reset") {
         if (request.method != "POST") return fail(405, ErrorCode::InvalidArgument, "method not allowed");
         if (Status s = reload(); !s) return fail(500, s.error());

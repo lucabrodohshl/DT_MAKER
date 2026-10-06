@@ -30,6 +30,7 @@
 #pragma once
 
 #include <filesystem>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -109,6 +110,19 @@ struct CompileResult {
 struct CompileFailure {
     std::vector<Diagnostic> diagnostics;  ///< Errors, warnings and notes.
 };
+
+/**
+ * @brief The lock that serialises every use of the UTAP parser in this process.
+ *
+ * UTAP keeps global parser state and is not thread-safe; compile_file() and
+ * read_uppaal() hold this lock, and so must any other code that parses UPPAAL
+ * documents through UTAP (e.g. constructing the aligner's dtpta::TimedAutomaton).
+ * It is recursive, so holders may call compile_file() themselves.
+ */
+[[nodiscard]] std::recursive_mutex& utap_mutex() noexcept;
+
+/// @brief Largest absolute clock-constraint bound the toolchain accepts (strictly below UDBM's infinity).
+[[nodiscard]] std::int64_t max_clock_bound() noexcept;
 
 /**
  * @brief Compile a UPPAAL XML document into the Twin IR.

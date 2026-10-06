@@ -1,0 +1,73 @@
+/* Drone mission view (plugin). Uses only design tokens; works in light and dark themes. */
+.drone-maps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.drone-maps--single { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) {
+  .drone-maps { grid-template-columns: minmax(0, 1fr); }
+}
+.drone-map-card {
+  margin: 0;
+  padding: var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.drone-map { width: 100%; }
+.drone-map canvas { display: block; border-radius: var(--radius-sm); }
+.drone-map__empty { padding: var(--s-6); text-align: center; }
+
+.drone-state { display: flex; flex-direction: column; gap: var(--s-1); align-items: flex-start; }
+.drone-controls { padding: var(--s-2) 0; }
+
+.drone-legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); margin: 0; padding: 0; list-style: none; color: var(--text-muted); }
+.drone-legend li { display: inline-flex; align-items: center; gap: var(--s-1); }
+.drone-legend__mark { display: inline-block; width: 14px; height: 14px; border-radius: 2px; border: 1px solid var(--border-strong); }
+.drone-legend__swatch--wall { background: var(--text); }
+.drone-legend__swatch--obstacle { background: var(--series-6); }
+.drone-legend__swatch--unknown { background: repeating-linear-gradient(135deg, var(--bg-sunken) 0 3px, var(--border-strong) 3px 4px); }
+.drone-legend__swatch--door { background: color-mix(in srgb, var(--ok) 35%, var(--surface)); }
+.drone-legend__swatch--closed { background: var(--crit); }
+.drone-legend__swatch--hazard { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--crit) 18%, var(--surface)) 0 3px, var(--crit) 3px 4px); }
+.drone-legend__swatch--differs { background: transparent; border: 2px solid var(--series-5); }
+.drone-legend__swatch--recent { background: transparent; border: 2px solid var(--warn); }
+.drone-legend__line--plan, .drone-legend__line--invalid, .drone-legend__line--candidate, .drone-legend__line--trajectory {
+  height: 0; width: 18px; border: none; border-radius: 0; border-top: 3px solid var(--accent);
+}
+.drone-legend__line--invalid { border-top: 3px dashed var(--crit); }
+.drone-legend__line--candidate { border-top: 2px dashed var(--series-4); }
+.drone-legend__line--trajectory { border-top: 3px solid var(--series-3); }
+
+.drone-table-wrap { overflow-x: auto; }
+.drone-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.drone-table th, .drone-table td { text-align: left; padding: var(--s-2); border-bottom: 1px solid var(--divider); white-space: nowrap; }
+.drone-table th { color: var(--text-muted); font-weight: 600; }
+.drone-table tr.is-highlighted td, .drone-table tr:focus td { background: var(--surface-selected); outline: none; }
+
+.drone-facility { padding: var(--s-2); border-radius: var(--radius); background: var(--sim-soft); color: var(--text); }
+
+.drone-timeline { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
+.drone-timeline__item { border-left: 3px solid var(--border-strong); padding: var(--s-1) var(--s-2); margin-bottom: var(--s-1); }
+.drone-timeline__item.tone-ok { border-left-color: var(--ok); }
+.drone-timeline__item.tone-warning { border-left-color: var(--warn); }
+.drone-timeline__item.tone-critical { border-left-color: var(--crit); }
+.drone-timeline__item.tone-info { border-left-color: var(--info); }
+.drone-timeline__item.tone-formal { border-left-color: var(--formal); }
+.drone-timeline__btn {
+  display: flex; width: 100%; gap: var(--s-2); align-items: baseline; background: none; border: none; padding: 0;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.drone-timeline__btn:hover .drone-timeline__title { text-decoration: underline; }
+.drone-timeline__time { color: var(--text-muted); font-size: var(--text-xs); min-width: 56px; }
+.drone-timeline__title { flex: 1; font-size: var(--text-sm); }
+.drone-timeline__seq { color: var(--text-subtle); font-size: var(--text-xs); }
+.drone-timeline__detail { padding-left: 64px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drone-view * { transition: none !important; animation: none !important; }
+}

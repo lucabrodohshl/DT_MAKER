@@ -14,26 +14,16 @@
 #include "dtpta/interpretation.h"
 #include "dtpta/semantic_checker.h"
 #include "dtpta/timedautomaton.h"
+#include "capture.hpp"
 #include "twin/alignment/aligner_identity.hpp"
+#include "twin/alignment/diagnostics.hpp"
 #include "twin/compiler/compiler.hpp"
 #include "twin/core/sha256.hpp"
 
 namespace twin::alignment {
 namespace {
 
-/// Redirects std::cout into a buffer for its lifetime (the aligner prints reports).
-class CoutCapture {
-public:
-    CoutCapture() : previous_(std::cout.rdbuf(buffer_.rdbuf())) {}
-    ~CoutCapture() { std::cout.rdbuf(previous_); }
-    CoutCapture(const CoutCapture&) = delete;
-    CoutCapture& operator=(const CoutCapture&) = delete;
-    [[nodiscard]] std::string text() const { return buffer_.str(); }
-
-private:
-    std::ostringstream buffer_;
-    std::streambuf* previous_;
-};
+using detail::CoutCapture;
 
 Result<std::string> file_sha256(const std::filesystem::path& path) {
     std::ifstream in(path, std::ios::binary);
@@ -129,12 +119,22 @@ Result<AlignmentEvidence> check_alignment(const AlignmentInputs& in) {
     // 2. Run the aligner (Algorithm 1) exactly as its own drivers do.
     try {
         CoutCapture capture;
+        std::unique_lock<std::recursive_mutex> utap_lock(compiler::utap_mutex());  // TA parsing uses UTAP
         dtpta::TimedAutomaton pt(in.pt_model.string());
         dtpta::TimedAutomaton dt(in.dt_model.string());
+        utap_lock.unlock();
         pt.construct_zone_graph();
         dt.construct_zone_graph();
         ev.pt_zones = pt.get_num_states();
         ev.dt_zones = dt.get_num_states();
+        const auto internal = [](const dtpta::TimedAutomaton& ta) {
+            const auto& ts = ta.get_transitions();
+            return static_cast<std::size_t>(std::count_if(ts.begin(), ts.end(), [](const dtpta::Transition& t) {
+                return !t.has_synchronization();
+            }));
+        };
+        ev.pt_internal_transitions = internal(pt);
+        ev.dt_internal_transitions = internal(dt);
 
         dtpta::OntFileParser ont_parser;
         dtpta::InterpFileParser interp_parser;
@@ -156,8 +156,10 @@ Result<AlignmentEvidence> check_alignment(const AlignmentInputs& in) {
         }
 
         // Syntactic baseline (classical weak timed bisimulation), on fresh automata.
+        utap_lock.lock();
         dtpta::TimedAutomaton pt2(in.pt_model.string());
         dtpta::TimedAutomaton dt2(in.dt_model.string());
+        utap_lock.unlock();
         dtpta::SemanticAlignmentChecker baseline;
         dtpta::SemanticAlignmentResult baseline_result;
         ev.syntactic_baseline_aligned = baseline.check_weak_timed_bisimulation(pt2, dt2, baseline_result);
@@ -233,6 +235,8 @@ json::Json to_json(const AlignmentEvidence& ev) {
           {"pt_zones", n(ev.pt_zones)},
           {"dt_zones", n(ev.dt_zones)}}},
         {"syntactic_baseline", {{"aligned", ev.syntactic_baseline_aligned}}},
+        {"modes", alignment_modes(ev.aligned, ev.pt_internal_transitions, ev.dt_internal_transitions)},
+        {"internal_transitions", {{"pt", n(ev.pt_internal_transitions)}, {"dt", n(ev.dt_internal_transitions)}}},
         {"label_equivalence", e},
         {"location_consistency", loc},
         {"lint", {{"clean", ev.lint_clean}, {"findings", lint}}},

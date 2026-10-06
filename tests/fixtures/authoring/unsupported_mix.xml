@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
+<!-- Fixture: four constructs outside the supported fragment, each must be reported. -->
+<nta>
+    <declaration>
+clock x;
+int counter;
+urgent chan hurry;
+chan go;
+    </declaration>
+    <template>
+        <name>Mixed</name>
+        <location id="id0" x="0" y="0">
+            <name>Idle</name>
+            <label kind="invariant">x &lt;= 10</label>
+        </location>
+        <location id="id1" x="200" y="0">
+            <name>Rush</name>
+            <urgent/>
+        </location>
+        <init ref="id0"/>
+        <transition>
+            <source ref="id0"/><target ref="id1"/>
+            <label kind="synchronisation">go!</label>
+            <label kind="assignment">counter := counter + 1</label>
+        </transition>
+        <transition>
+            <source ref="id1"/><target ref="id0"/>
+            <label kind="synchronisation">hurry!</label>
+            <label kind="assignment">x := 0</label>
+        </transition>
+    </template>
+    <system>
+P = Mixed();
+system P;
+    </system>
+</nta>

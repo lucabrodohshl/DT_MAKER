@@ -9,6 +9,9 @@ compile_commands.json
 /third_party/install/
 /third_party/downloads/
 
+# Distribution artefacts (scripts/macos/build-app.sh)
+/dist/
+
 # Runtime artefacts
 /var/
 *.ledger.jsonl
@@ -32,3 +35,7 @@ compile_commands.json
 .DS_Store
 .vscode/
 .idea/
+/web/**/node_modules/
+/web/**/dist/
+/web/**/test-results/
+/web/**/playwright-report/
