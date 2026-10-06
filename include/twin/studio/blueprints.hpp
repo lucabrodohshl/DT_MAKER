@@ -28,6 +28,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "twin/core/result.hpp"
 #include "twin/json/canonical.hpp"
@@ -140,6 +141,10 @@ public:
     [[nodiscard]] Result<json::Json> control_instance(std::string_view id, std::string_view action, const Actor& actor);
     /// @brief Test a data-source binding: fetch a sample and show raw, canonical, type, unit, timestamp and quality.
     [[nodiscard]] Result<json::Json> test_binding(std::string_view id, std::int64_t version, const json::Json& body);
+
+    /// @brief Append search hits for Blueprints and the elements of each one's working version
+    /// (the draft, else the latest version) matching the lower-case @p query_lower.
+    void search(std::string_view query_lower, std::vector<SearchHit>& hits);
 
     /// @brief Opaque implementation (src/studio/blueprints_impl.hpp).
     struct Impl;

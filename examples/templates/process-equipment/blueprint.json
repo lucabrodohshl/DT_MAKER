@@ -1,0 +1,160 @@
+{
+ "format": "twin-blueprint/1",
+ "identity": {
+  "timeUnit": "s",
+  "ticksPerUnit": 1000,
+  "runtimeMode": "monitor",
+  "plugin": null,
+  "icon": "pump",
+  "tags": [
+   "process"
+  ]
+ },
+ "structure": {
+  "root": null,
+  "assetTypes": [
+   {
+    "id": "CentrifugalPump",
+    "name": "Centrifugal pump",
+    "category": "Rotating equipment",
+    "description": "",
+    "properties": [
+     {
+      "key": "serial",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "Compressor",
+    "name": "Compressor",
+    "category": "Rotating equipment",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "InductionMotor",
+    "name": "Induction motor",
+    "category": "Drive",
+    "description": "",
+    "properties": [
+     {
+      "key": "ratedPower",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "Bearing",
+    "name": "Bearing",
+    "category": "Wear part",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "TemperatureSensor",
+    "name": "Temperature sensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "VibrationSensor",
+    "name": "Vibration sensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "PressureTransmitter",
+    "name": "Pressure transmitter",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Tank",
+    "name": "Tank",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Valve",
+    "name": "Valve",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   }
+  ],
+  "assets": [],
+  "relationships": []
+ },
+ "world": {
+  "format": "twin-world/1",
+  "mode": "topology",
+  "unit": "px",
+  "bounds": {
+   "x": 0,
+   "y": 0,
+   "w": 960,
+   "h": 480
+  },
+  "grid": {
+   "size": 20,
+   "snap": true
+  },
+  "layers": [
+   {
+    "id": "process",
+    "name": "Process flow",
+    "role": "shared",
+    "visible": true,
+    "locked": false
+   }
+  ],
+  "objects": []
+ },
+ "data": {
+  "properties": [],
+  "telemetry": [],
+  "events": [],
+  "commands": []
+ },
+ "connectivity": {
+  "sources": [
+   {
+    "id": "sim",
+    "kind": "simulator",
+    "name": "Event-script simulator",
+    "config": {
+     "model": "event-script"
+    }
+   }
+  ],
+  "bindings": []
+ },
+ "presentation": {
+  "primaryView": "topology",
+  "keyTelemetry": [],
+  "states": {},
+  "events": {},
+  "charts": []
+ },
+ "simulation": {
+  "kind": "event-script",
+  "script": {
+   "name": "Operating cycle",
+   "description": "",
+   "cycle_s": 300,
+   "telemetry_period_ms": 1000,
+   "seed": 1,
+   "channels": {},
+   "events": []
+  }
+ }
+}

@@ -1,0 +1,48 @@
+{
+ "format": "twin-palettes/1",
+ "note": "World & Layout tool palettes. Every tool creates an ordinary twin-world/1 object (geometry kind + semantic type); domains add shortcuts, never a different editor.",
+ "palettes": {
+  "generic": {"label": "General", "tools": [
+   {"id": "zone", "label": "Zone", "kind": "zone", "semanticType": "zone", "icon": "square-dashed", "description": "An area of interest"},
+   {"id": "region", "label": "Region", "kind": "polygon", "semanticType": "region", "icon": "pentagon", "description": "A free-form area"},
+   {"id": "label", "label": "Label", "kind": "label", "semanticType": "label", "icon": "type", "description": "Text annotation"},
+   {"id": "point", "label": "Marker", "kind": "point", "semanticType": "marker", "icon": "map-pin", "description": "A located point"},
+   {"id": "line", "label": "Line", "kind": "line", "semanticType": "line", "icon": "slash", "description": "A straight line"},
+   {"id": "node", "label": "Node", "kind": "node", "semanticType": "node", "icon": "circle-dot", "description": "Topology node"},
+   {"id": "connector", "label": "Connector", "kind": "edge", "semanticType": "connection", "icon": "spline", "description": "Typed connection between nodes"}]},
+  "mobile-robot": {"label": "Mobile robot", "tools": [
+   {"id": "floor", "label": "Floor", "kind": "rect", "semanticType": "floor", "icon": "square", "layerRole": "shared", "description": "Navigable floor area (everything outside a floor is a wall)"},
+   {"id": "wall", "label": "Wall", "kind": "polyline", "semanticType": "wall", "icon": "brick-wall", "layerRole": "shared", "defaults": {"width": 200}, "description": "Wall drawn as a thick line"},
+   {"id": "wall-block", "label": "Wall block", "kind": "rect", "semanticType": "wall", "icon": "rectangle-horizontal", "layerRole": "shared", "description": "Wall drawn as a rectangle"},
+   {"id": "door", "label": "Door", "kind": "rect", "semanticType": "door", "icon": "door-open", "layerRole": "shared", "defaults": {"properties": {"state": "open"}}, "description": "Door; state open or closed"},
+   {"id": "obstacle", "label": "Obstacle", "kind": "rect", "semanticType": "obstacle", "icon": "box", "layerRole": "shared", "description": "Furniture, racks, pallets"},
+   {"id": "unknown", "label": "Unknown region", "kind": "rect", "semanticType": "unknown", "icon": "circle-help", "layerRole": "knowledge", "description": "Area the twin does not know initially (knowledge layers only)"},
+   {"id": "free", "label": "Free region", "kind": "rect", "semanticType": "free", "icon": "square-dashed", "layerRole": "shared", "description": "Carve navigable space"},
+   {"id": "hazard", "label": "No-fly zone", "kind": "rect", "semanticType": "hazard", "icon": "triangle-alert", "layerRole": "event", "description": "Declared hazard (usually applied by a timeline event)"},
+   {"id": "start", "label": "Start", "kind": "point", "semanticType": "start", "icon": "plane-takeoff", "layerRole": "annotation", "description": "Where the robot starts (home pad)"},
+   {"id": "target", "label": "Target", "kind": "point", "semanticType": "target", "icon": "crosshair", "layerRole": "annotation", "description": "Inspection target"},
+   {"id": "waypoint", "label": "Waypoint", "kind": "waypoint", "semanticType": "waypoint", "icon": "milestone", "layerRole": "annotation", "description": "Route waypoint"},
+   {"id": "room", "label": "Room", "kind": "zone", "semanticType": "room", "icon": "layout-dashboard", "layerRole": "annotation", "description": "Named room (annotation)"}]},
+  "process": {"label": "Process", "tools": [
+   {"id": "tank", "label": "Tank", "kind": "node", "semanticType": "tank", "icon": "cylinder", "description": "Vessel"},
+   {"id": "pump", "label": "Pump", "kind": "node", "semanticType": "pump", "icon": "fan", "description": "Pump"},
+   {"id": "valve", "label": "Valve", "kind": "node", "semanticType": "valve", "icon": "git-commit-horizontal", "description": "Valve"},
+   {"id": "heat-exchanger", "label": "Heat exchanger", "kind": "node", "semanticType": "heat-exchanger", "icon": "thermometer", "description": "Heat exchanger"},
+   {"id": "sensor", "label": "Sensor", "kind": "node", "semanticType": "sensor", "icon": "gauge", "description": "Instrument"},
+   {"id": "controller", "label": "Controller", "kind": "node", "semanticType": "controller", "icon": "cpu", "description": "Control system"},
+   {"id": "pipe", "label": "Pipe", "kind": "edge", "semanticType": "pipe", "icon": "arrow-right", "description": "Process flow (directed)"},
+   {"id": "signal", "label": "Signal", "kind": "edge", "semanticType": "signal", "icon": "radio", "description": "Control or measurement signal"}]},
+  "power": {"label": "Electrical", "tools": [
+   {"id": "bus", "label": "Bus", "kind": "node", "semanticType": "bus", "icon": "minus", "description": "Busbar"},
+   {"id": "transformer", "label": "Transformer", "kind": "node", "semanticType": "transformer", "icon": "zap", "description": "Transformer"},
+   {"id": "inverter", "label": "Inverter", "kind": "node", "semanticType": "inverter", "icon": "battery-charging", "description": "Inverter"},
+   {"id": "breaker", "label": "Breaker", "kind": "node", "semanticType": "breaker", "icon": "toggle-left", "description": "Circuit breaker"},
+   {"id": "feeder", "label": "Line", "kind": "edge", "semanticType": "feeder", "icon": "cable", "description": "Electrical connection"}]},
+  "thermal": {"label": "Thermal", "tools": [
+   {"id": "chamber", "label": "Chamber", "kind": "rect", "semanticType": "chamber", "icon": "box", "description": "Chamber volume"},
+   {"id": "heater", "label": "Heater", "kind": "rect", "semanticType": "heater", "icon": "flame", "description": "Heating element"},
+   {"id": "door", "label": "Door", "kind": "rect", "semanticType": "door", "icon": "door-open", "defaults": {"properties": {"state": "closed"}}, "description": "Chamber door"},
+   {"id": "sensor", "label": "Sensor", "kind": "point", "semanticType": "sensor", "icon": "gauge", "description": "Sensor location"}]}
+ },
+ "domains": {"generic": ["generic"], "mobile-robot": ["mobile-robot", "generic"], "process": ["process", "generic"], "power": ["power", "generic"], "thermal": ["thermal", "generic"]}
+}

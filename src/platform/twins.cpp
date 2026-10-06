@@ -110,6 +110,10 @@ Result<Change> read_change(const Statement& s) {
 
 std::string blueprint_owner(std::string_view blueprint_id) { return "blueprint:" + std::string(blueprint_id); }
 
+bool package_usable_by(const Twin& twin, const PackageRecord& package) {
+    return package.twin_id == twin.id || (twin.blueprint_id && package.twin_id == blueprint_owner(*twin.blueprint_id));
+}
+
 const Binding* PackageRecord::binding(std::string_view role) const noexcept {
     for (const auto& b : bindings) {
         if (b.role == role) return &b;
@@ -215,6 +219,20 @@ Result<std::vector<PackageRecord>> TwinRepository::packages(std::string_view twi
     return twin_id.empty() ? query_packages("", "") : query_packages("WHERE twin_id = ?1", twin_id);
 }
 
+Result<std::vector<PackageRecord>> TwinRepository::packages_usable_by(const Twin& twin) const {
+    auto own = packages(twin.id);
+    if (!own) return own;
+    if (!twin.blueprint_id) return own;
+    auto shared = packages(blueprint_owner(*twin.blueprint_id));
+    if (!shared) return shared;
+    std::vector<PackageRecord> all = std::move(own).value();
+    for (auto& p : shared.value()) all.push_back(std::move(p));
+    std::sort(all.begin(), all.end(), [](const PackageRecord& a, const PackageRecord& b) {
+        return a.created_at != b.created_at ? a.created_at > b.created_at : a.id > b.id;
+    });
+    return all;
+}
+
 Result<PackageRecord> TwinRepository::mark_released(std::string_view id) {
     auto q = db_.prepare("UPDATE packages SET state = 'released', released_at = ?2 WHERE id = ?1 AND state = 'built'");
     if (!q) return std::move(q).error();
@@ -242,9 +260,7 @@ Result<Deployment> TwinRepository::deploy(std::string_view twin_id, std::string_
     if (!pkg) return std::move(pkg).error();
     auto owner = twin(twin_id);
     if (!owner) return std::move(owner).error();
-    const bool blueprint_package =
-        owner.value().blueprint_id && pkg.value().twin_id == blueprint_owner(*owner.value().blueprint_id);
-    if (pkg.value().twin_id != twin_id && !blueprint_package) {
+    if (!package_usable_by(owner.value(), pkg.value())) {
         return make_error(ErrorCode::InvalidArgument, "package belongs to a different twin")
             .with("package", std::string(package_id));
     }

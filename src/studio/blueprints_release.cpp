@@ -516,12 +516,16 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
         if (b.value("target", Json::object()).value("kind", std::string()) == "telemetry") binding_of[b["target"].value("id", std::string())] = b;
     }
     Json channels = Json::array();
+    std::map<std::string, std::string> channel_of;  // telemetry id -> channel id
     for (const Json& t : doc.value("data", Json::object()).value("telemetry", Json::array())) {
         const std::string tid = t.value("id", std::string());
         TelemetryChannel ch;
-        ch.id = id + "." + tid;
         const std::string owner = t.value("asset", std::string());
         ch.asset_id = map.count(owner) ? map.at(owner) : map.at(root);
+        // "<root asset>.<telemetry>": unique per instance and stable across versions (the channel
+        // itself is attached to the asset that measures it).
+        ch.id = map.at(root) + "." + tid;
+        channel_of[tid] = ch.id;
         ch.name = tid;
         ch.value_type = value_type_of(t.value("type", std::string("real")));
         ch.unit = t.value("unit", std::string());
@@ -558,7 +562,7 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
     const Json pres = doc.value("presentation", Json::object());
     Json key = Json::array();
     for (const Json& k : pres.value("keyTelemetry", Json::array())) {
-        if (k.is_string()) key.push_back(id + "." + k.get<std::string>());
+        if (k.is_string() && channel_of.count(k.get<std::string>())) key.push_back(channel_of.at(k.get<std::string>()));
     }
     Twin t;
     t.id = id;

@@ -64,6 +64,20 @@ struct StudioConfig {
 };
 
 class BlueprintService;
+
+/// @brief One global-search result (Services::search).
+struct SearchHit {
+    std::string kind;      ///< "twin", "blueprint", "asset", "state", "telemetry", ...
+    std::string id;        ///< Object id.
+    std::string title;     ///< Display title.
+    std::string subtitle;  ///< Where it lives ("Indoor Inspection Drone v2 (draft) · DT view").
+    std::string route;     ///< Web route that opens (and selects) the object.
+    int score{3};          ///< Match quality: 0 exact, 1 prefix, 2 word start, 3 substring.
+};
+
+/// @brief Match quality of @p text for the lower-case @p query_lower: 0 exact, 1 prefix,
+/// 2 word start, 3 substring, -1 no match (case-insensitive).
+[[nodiscard]] int search_score(std::string_view text, std::string_view query_lower);
 class Supervisor;
 
 /// @brief Identity of the caller (for audit). Not an authentication mechanism.
@@ -265,7 +279,14 @@ public:
     // ------------------------------------------------------------------ cross-cutting
     /// @brief Estate overview: assets, telemetry freshness, twins and trust, engineering activity.
     [[nodiscard]] Result<json::Json> overview();
-    /// @brief Global search over assets, twins, symbols, versions, evidence, packages, deployments and changes.
+    /**
+     * @brief Global search over every object kind: twins, Blueprints and their elements (asset
+     * types, assets, world objects, telemetry, events, commands, data sources, states,
+     * requirements, monitors, scenarios), assets, artefacts and versions ("process-pump@2"),
+     * ontology symbols and axioms, interpretation entries, telemetry channels, evidence, packages,
+     * deployments and changes. Results are ranked by match quality (exact, prefix, word start,
+     * substring), then by kind, and cut at @p limit.
+     */
     [[nodiscard]] Result<json::Json> search(std::string_view query, std::size_t limit);
     /// @brief A page of engineering-audit records, newest first.
     [[nodiscard]] Result<json::Json> audit(const platform::AuditFilter& filter);

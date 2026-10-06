@@ -84,6 +84,10 @@ struct PackageRecord {
     [[nodiscard]] const Binding* binding(std::string_view role) const noexcept;
 };
 
+/// @brief Whether @p twin may run @p package: packages built for the twin itself, or for the
+/// Blueprint the twin is an instance of (every version of that Blueprint).
+[[nodiscard]] bool package_usable_by(const Twin& twin, const PackageRecord& package);
+
 /// @brief A deployment record.
 struct Deployment {
     std::int64_t seq{0};                          ///< Global order.
@@ -134,6 +138,8 @@ public:
     [[nodiscard]] Result<PackageRecord> package(std::string_view id) const;
     /// @brief Packages of a twin (all twins when empty), newest first.
     [[nodiscard]] Result<std::vector<PackageRecord>> packages(std::string_view twin_id) const;
+    /// @brief Packages @p twin may run (its own and its Blueprint's, see package_usable_by), newest first.
+    [[nodiscard]] Result<std::vector<PackageRecord>> packages_usable_by(const Twin& twin) const;
     /// @brief Marks a built package released (packages are otherwise immutable).
     [[nodiscard]] Result<PackageRecord> mark_released(std::string_view id);
     /// @}

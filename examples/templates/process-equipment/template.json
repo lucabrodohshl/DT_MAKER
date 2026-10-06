@@ -1,0 +1,3 @@
+{"name": "Process equipment", "description": "Rotating or process equipment (pump, compressor, fan): asset types and sensors, a process-flow topology with the process palette, an event-script simulator and a data contract with condition-monitoring signals.",
+ "domain": "process", "icon": "pump", "order": 30, "document": "blueprint.json",
+ "includes": ["Asset types", "Process-flow topology", "Event-script simulator", "Condition-monitoring signals"]}

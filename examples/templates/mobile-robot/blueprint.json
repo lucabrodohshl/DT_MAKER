@@ -1,0 +1,231 @@
+{
+ "format": "twin-blueprint/1",
+ "identity": {
+  "timeUnit": "s",
+  "ticksPerUnit": 1000,
+  "runtimeMode": "cosimulation",
+  "plugin": "drone",
+  "icon": "drone",
+  "tags": [
+   "mobile-robot"
+  ]
+ },
+ "structure": {
+  "root": null,
+  "assetTypes": [
+   {
+    "id": "Building",
+    "name": "Building",
+    "category": "Site",
+    "description": "",
+    "properties": [
+     {
+      "key": "address",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "Floor",
+    "name": "Floor",
+    "category": "Site",
+    "description": "",
+    "properties": [
+     {
+      "key": "area",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "Room",
+    "name": "Room",
+    "category": "Space",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "InspectionDrone",
+    "name": "Inspection drone",
+    "category": "Robot",
+    "description": "",
+    "properties": [
+     {
+      "key": "model",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     },
+     {
+      "key": "maxSpeed",
+      "type": "string",
+      "unit": "",
+      "default": "1.2 m/s"
+     }
+    ]
+   },
+   {
+    "id": "RangeSensor",
+    "name": "Range sensor",
+    "category": "Sensor",
+    "description": "Lidar or sonar",
+    "properties": [
+     {
+      "key": "range_m",
+      "type": "real",
+      "unit": "m",
+      "default": "3"
+     }
+    ]
+   },
+   {
+    "id": "NavigationSensor",
+    "name": "Navigation sensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "BatterySystem",
+    "name": "Battery system",
+    "category": "Power",
+    "description": "",
+    "properties": [
+     {
+      "key": "capacity",
+      "type": "string",
+      "unit": "",
+      "default": "10 Wh"
+     }
+    ]
+   },
+   {
+    "id": "InspectionTarget",
+    "name": "Inspection target",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   }
+  ],
+  "assets": [],
+  "relationships": []
+ },
+ "world": {
+  "format": "twin-world/1",
+  "mode": "spatial",
+  "unit": "mm",
+  "bounds": {
+   "x": 0,
+   "y": 0,
+   "w": 20000,
+   "h": 12000
+  },
+  "grid": {
+   "size": 500,
+   "snap": true
+  },
+  "layers": [
+   {
+    "id": "background",
+    "name": "Background",
+    "role": "background",
+    "visible": true,
+    "locked": true
+   },
+   {
+    "id": "structure",
+    "name": "Building structure",
+    "role": "shared",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "as-built",
+    "name": "As-built (ground truth)",
+    "role": "ground-truth",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "knowledge",
+    "name": "Twin knowledge",
+    "role": "knowledge",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "events",
+    "name": "Timeline events",
+    "role": "event",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "annotations",
+    "name": "Rooms and markers",
+    "role": "annotation",
+    "visible": true,
+    "locked": false
+   }
+  ],
+  "objects": []
+ },
+ "data": {
+  "properties": [],
+  "telemetry": [],
+  "events": [],
+  "commands": []
+ },
+ "connectivity": {
+  "sources": [
+   {
+    "id": "sim",
+    "kind": "simulator",
+    "name": "Robot simulator (mobile-robot)",
+    "config": {
+     "model": "mobile-robot"
+    }
+   }
+  ],
+  "bindings": []
+ },
+ "presentation": {
+  "primaryView": "world",
+  "plugin": "drone",
+  "keyTelemetry": [],
+  "states": {},
+  "events": {},
+  "charts": []
+ },
+ "simulation": {
+  "kind": "mobile-robot",
+  "cellSize": 500,
+  "seed": 1,
+  "robot": {
+   "maxSpeed": "1.2",
+   "maxAccel": "1.5",
+   "batteryCapacityWh": "10",
+   "batteryStartPct": "100",
+   "reservePct": "20"
+  },
+  "observation": {
+   "sensorRange": "3",
+   "proximityRange": "1",
+   "updateIntervalMs": 0,
+   "observes": [
+    "wall",
+    "obstacle",
+    "door"
+   ],
+   "noise": "none",
+   "discovery": "on-sight",
+   "unobservableLayers": []
+  },
+  "mission": {},
+  "timeline": []
+ }
+}

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <tuple>
 
 #include "blueprints_impl.hpp"
 #include "twin/authoring/import.hpp"
@@ -765,6 +766,133 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
     out["blueprint"]["id"] = id;
     out["imports"] = imports;
     return out;
+}
+
+// ------------------------------------------------------------------------------- search
+
+void BlueprintService::search(std::string_view q, std::vector<SearchHit>& hits) {
+    std::vector<Blueprint> all;
+    {
+        auto l = impl_->core.lock();
+        auto bs = impl_->repo->blueprints();
+        if (!bs) return;
+        all = std::move(bs).value();
+    }
+    auto str = [](const Json& o, const char* key) {
+        return o.is_object() && o.contains(key) && o.at(key).is_string() ? o.at(key).get<std::string>() : std::string();
+    };
+    for (const Blueprint& b : all) {
+        std::optional<BlueprintVersion> v;
+        {
+            auto l = impl_->core.lock();
+            auto vs = impl_->repo->versions(b.id);
+            if (!vs || vs.value().empty()) continue;
+            for (const BlueprintVersion& x : vs.value()) {
+                if (x.state == "draft") {
+                    v = x;
+                    break;
+                }
+            }
+            if (!v) v = vs.value().front();
+        }
+        const std::string base = "/studio/blueprints/" + b.id + "/v/" + std::to_string(v->version);
+        const std::string where = b.name + " v" + std::to_string(v->version) + (v->state == "draft" ? " (draft)" : "");
+        auto add = [&](const char* kind, const std::string& id, const std::string& title, const std::string& what,
+                       const std::string& route, std::initializer_list<std::string_view> fields) {
+            int best = -1;
+            for (std::string_view f : fields) {
+                const int sc = search_score(f, q);
+                if (sc >= 0 && (best < 0 || sc < best)) best = sc;
+            }
+            if (best >= 0) hits.push_back({kind, id, title.empty() ? id : title, where + " · " + what, route, best});
+        };
+        int best = -1;
+        for (std::string_view f : {std::string_view(b.id), std::string_view(b.name)}) {
+            const int sc = search_score(f, q);
+            if (sc >= 0 && (best < 0 || sc < best)) best = sc;
+        }
+        if (best >= 0) hits.push_back({"blueprint", b.id, b.name, "Blueprint · " + b.domain, "/studio/blueprints/" + b.id, best});
+
+        const Json& d = v->document;
+        auto each = [&](const Json& parent, const char* section, const char* list, auto&& fn) {
+            if (!parent.is_object() || !parent.contains(section) || !parent.at(section).is_object()) return;
+            const Json& sec = parent.at(section);
+            if (!sec.contains(list) || !sec.at(list).is_array()) return;
+            for (const Json& e : sec.at(list)) {
+                if (e.is_object()) fn(e);
+            }
+        };
+        each(d, "structure", "assetTypes", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("asset_type", id, str(e, "name"), "asset type", base + "/build/structure?type=" + id, {id, str(e, "name")});
+        });
+        each(d, "structure", "assets", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("blueprint_asset", id, str(e, "name"), str(e, "scope") == "context" ? "context asset" : "asset",
+                base + "/build/structure?asset=" + id, {id, str(e, "name")});
+        });
+        each(d, "world", "objects", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("world_object", id, str(e, "name"), "world object (" + str(e, "kind") + ")", base + "/build/world?object=" + id,
+                {id, str(e, "name"), str(e, "semanticType")});
+        });
+        each(d, "data", "telemetry", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("telemetry", id, str(e, "label"), "telemetry" + (str(e, "unit").empty() ? std::string() : " · " + str(e, "unit")),
+                base + "/build/data?telemetry=" + id, {id, str(e, "label")});
+        });
+        each(d, "data", "events", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            const Json formal = e.contains("formal") ? e.at("formal") : Json::object();
+            add("event", id, str(e, "label"), "event", base + "/build/data?event=" + id,
+                {id, str(e, "label"), str(formal, "pt"), str(formal, "dt")});
+        });
+        each(d, "data", "commands", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("command", id, str(e, "label"), "command", base + "/build/data?command=" + id, {id, str(e, "label")});
+        });
+        each(d, "connectivity", "sources", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("data_source", id, str(e, "name"), "data source (" + str(e, "kind") + ")",
+                base + "/build/data?tab=connectivity&source=" + id, {id, str(e, "name")});
+        });
+        each(d, "assurance", "requirements", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("requirement", id, str(e, "title"), "requirement", base + "/assurance/requirements?id=" + id, {id, str(e, "title")});
+        });
+        each(d, "assurance", "monitors", [&](const Json& e) {
+            const std::string id = str(e, "id");
+            add("monitor", id, str(e, "name"), "monitor (" + str(e, "kind") + ")", base + "/assurance/monitors?id=" + id,
+                {id, str(e, "name")});
+        });
+        if (d.contains("scenarios") && d.at("scenarios").is_array()) {
+            for (const Json& e : d.at("scenarios")) {
+                const std::string id = str(e, "id");
+                add("scenario", id, str(e, "name"), "scenario", base + "/test/scenarios/" + id, {id, str(e, "name")});
+            }
+        }
+        // States of the PT and DT views (pinned canonical models).
+        for (const auto& [role, page, label] : {std::tuple{"pt_model", "pt", "PT view state"}, std::tuple{"dt_model", "dt", "DT view state"}}) {
+            auto pin = v->pins.find(role);
+            if (pin == v->pins.end()) continue;
+            auto ref = parse_ref(pin->second);
+            if (!ref) continue;
+            std::string text;
+            {
+                auto l = impl_->core.lock();
+                auto c = impl_->core.artifacts->content(ref.value());
+                if (!c) continue;
+                text = std::move(c).value();
+            }
+            auto doc = json::parse(text);
+            if (!doc) continue;
+            auto model = authoring::model_from_json(doc.value());
+            if (!model) continue;
+            for (const auto& loc : model.value().locations) {
+                add("state", loc.name, loc.name, label, base + "/behavior/" + page + "?state=" + loc.name, {loc.name});
+            }
+        }
+    }
 }
 
 }  // namespace twin::studio

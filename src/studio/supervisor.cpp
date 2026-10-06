@@ -22,6 +22,7 @@
 #include <sstream>
 
 #if defined(__APPLE__)
+#include <libproc.h>
 #include <mach-o/dyld.h>
 #endif
 
@@ -57,6 +58,7 @@ struct Supervisor::Instance {
     std::atomic<bool> bridge_stop{false};
     std::thread bridge;
     std::string started_at;
+    fs::path run_dir;  ///< Pid files of the running processes (orphan clean-up after a crash).
 };
 
 fs::path executable_dir() {
@@ -140,6 +142,55 @@ int terminate_pid(pid_t pid) {
     return -SIGKILL;
 }
 
+/// @brief Executable path of a live process ("" if it is gone or cannot be inspected).
+std::string process_path(pid_t pid) {
+    if (pid <= 0) return {};
+#if defined(__APPLE__)
+    char buf[PROC_PIDPATHINFO_MAXSIZE];
+    if (proc_pidpath(pid, buf, sizeof buf) > 0) return buf;
+    return {};
+#else
+    std::error_code ec;
+    std::string p = fs::read_symlink("/proc/" + std::to_string(pid) + "/exe", ec).string();
+    if (ec) return {};
+    if (constexpr std::string_view deleted = " (deleted)"; p.ends_with(deleted)) p.resize(p.size() - deleted.size());
+    return p;
+#endif
+}
+
+/// @brief Whether @p pid currently runs @p program (same file name in the same directory).
+bool runs(pid_t pid, const fs::path& program) {
+    const std::string path = process_path(pid);
+    if (path.empty()) return false;
+    const fs::path running(path);
+    std::error_code ec;
+    return running.filename() == program.filename() && fs::equivalent(running.parent_path(), program.parent_path(), ec);
+}
+
+/**
+ * @brief Stop processes that a previous Studio (one that crashed or was killed) left running for an
+ * instance, as recorded in its run directory's pid files. Only a pid that still runs the same
+ * executable from @p bin_dir is signalled, so a recycled pid is never touched.
+ */
+void reap_orphans(const fs::path& run_dir, const fs::path& bin_dir, platform::AppLog& log) {
+    std::error_code ec;
+    if (!fs::is_directory(run_dir, ec)) return;
+    for (const auto& entry : fs::directory_iterator(run_dir, ec)) {
+        if (entry.path().extension() != ".pid") continue;
+        pid_t pid = -1;
+        { std::ifstream(entry.path()) >> pid; }
+        const fs::path program = bin_dir / entry.path().stem();
+        if (pid > 0 && runs(pid, program)) {
+            ::kill(-pid, SIGTERM);
+            for (int i = 0; i < 50 && runs(pid, program); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if (runs(pid, program)) ::kill(-pid, SIGKILL);
+            log.write(LogLevel::Warn, "studio.supervisor", "stopped a process left running by a previous Studio",
+                      {{"pid", static_cast<std::int64_t>(pid)}, {"program", program.string()}});
+        }
+        fs::remove(entry.path(), ec);
+    }
+}
+
 Json process_json(const Process& p) {
     return Json{{"name", p.name}, {"pid", p.pid}, {"port", p.port}, {"url", p.url}, {"log", p.log.string()},
                 {"state", p.state}, {"exitStatus", p.exit_status}, {"startedAt", p.started_at}};
@@ -191,9 +242,13 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
     std::error_code ec;
     const fs::path logs = plan.work_dir / "logs";
     const fs::path ledgers = plan.work_dir / "ledgers";
+    const fs::path run = plan.work_dir / "run";
     fs::create_directories(logs, ec);
-    fs::create_directories(ledgers, ec);
+    if (!ec) fs::create_directories(ledgers, ec);
+    if (!ec) fs::create_directories(run, ec);
     if (ec) return make_error(ErrorCode::IoError, "cannot create instance directories: " + ec.message());
+    reap_orphans(run, bin_dir_, services_.app_log());
+    inst->run_dir = run;
 
     auto launch = [&](const std::string& name, const std::vector<std::string>& args, int port) -> Result<Process> {
         Process p;
@@ -207,6 +262,7 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
         if (!pid) return std::move(pid).error();
         p.pid = pid.value();
         p.state = "starting";
+        { std::ofstream(run / (name + ".pid"), std::ios::trunc) << p.pid << "\n"; }
         return p;
     };
     auto wait_healthy = [&](Process& p) -> Status {
@@ -364,6 +420,8 @@ void Supervisor::stop(const std::string& instance_id, const std::string& reason)
         for (const auto& [k, st] : statuses) {
             inst->processes[k].state = "stopped";
             inst->processes[k].exit_status = st;
+            std::error_code ec;
+            fs::remove(inst->run_dir / (inst->processes[k].name + ".pid"), ec);
         }
         if (inst->state != "failed") inst->state = "stopped";
         inst->message = reason;
@@ -427,6 +485,8 @@ void Supervisor::watch() {
                     if (::waitpid(p.pid, &status, WNOHANG) != p.pid) continue;
                     p.state = "exited";
                     p.exit_status = WIFEXITED(status) ? WEXITSTATUS(status) : -WTERMSIG(status);
+                    std::error_code ec;
+                    fs::remove(inst->run_dir / (p.name + ".pid"), ec);
                     if (inst->state == "running" && p.name != "twin-pt-feed") {
                         inst->state = "failed";
                         inst->message = p.name + " exited unexpectedly (status " + std::to_string(p.exit_status) +

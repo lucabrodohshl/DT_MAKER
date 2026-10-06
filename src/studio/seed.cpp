@@ -9,6 +9,7 @@
 #include <fstream>
 #include <map>
 #include <numbers>
+#include <set>
 #include <sstream>
 #include <thread>
 
@@ -174,10 +175,17 @@ Status write_history(Services& services, const json::Json& history, const json::
     std::uint32_t channel_index = 0;
     auto channels = services.telemetry_channels_all();
     if (!channels) return channels.error();
+    auto twin = services.twin_record(instance);
+    if (!twin) return twin.error();
+    std::set<std::string> own;  // the instance's channels (instance_config.channels)
+    for (const auto& c : twin.value().instance_config.value("channels", json::Json::array())) {
+        if (c.is_string()) own.insert(c.get<std::string>());
+    }
     for (const auto& [name, profile] : profiles.items()) {
-        const std::string channel_id = instance + "." + name;
-        auto it = std::find_if(channels.value().begin(), channels.value().end(), [&](const TelemetryChannel& c) { return c.id == channel_id; });
+        auto it = std::find_if(channels.value().begin(), channels.value().end(),
+                               [&](const TelemetryChannel& c) { return c.name == name && own.count(c.id) > 0; });
         if (it == channels.value().end()) continue;
+        const std::string channel_id = it->id;
         ProfileGenerator gen(profile, it->value_type, now, seed + channel_index++);
         std::vector<TelemetrySample> batch;
         const std::int64_t start = ((now - days * 86400000) / period) * period;

@@ -125,7 +125,7 @@ claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
 | C++ tests (unit, integration, architecture, e2e) | `ctest --test-dir build/release` |
 | Frontend tests | `cd web/studio && npm test` |
 | Browser end-to-end (against a running demo) | `cd web/studio && npx playwright test` |
-| Drone simulator only | `build/release/bin/twin-world --scenario scenarios/inspection_default.json` |
+| Drone simulator only | `twin-world --scenario <(generated)`: the simulator scenario is generated from the drone Blueprint's world (`examples/indoor-drone/world.json` + `simulation.json`); Studio's supervisor starts it on deployment |
 | Offline toolchain | `twin compile`, `twin align`, `twin package build/verify`, `twin ledger verify`, `twin replay` |
 | API docs, proof | `make docs`, `make proof` |
 | Screenshots | `./scripts/capture-screenshots.sh` (or `make screenshots`) |
