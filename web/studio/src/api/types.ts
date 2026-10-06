@@ -445,6 +445,16 @@ export interface TwinSummary {
   presentation: TwinPresentation;
   createdAt: string;
   deployment: Deployment | null;
+  /** Blueprint the twin is an instance of (null for twins registered without one). */
+  blueprintId?: string | null;
+  /** Blueprint version the instance runs. */
+  blueprintVersion?: number | null;
+  /** Instance configuration (identity, placement, connectivity, target, asset map, channels). */
+  instanceConfig?: Record<string, unknown>;
+  /** Physical-twin simulator URL (ground truth, visualisation only). */
+  worldUrl?: string | null;
+  /** What the deployment supervisor reconciles to. */
+  desiredState?: 'running' | 'stopped';
 }
 
 export interface TwinDetail extends TwinSummary {
@@ -579,6 +589,8 @@ export interface SearchHit {
   title: string;
   subtitle: string;
   route: string;
+  /** Match quality (ranked first to last). */
+  match?: 'exact' | 'prefix' | 'word' | 'substring';
 }
 
 export type Tone = 'ok' | 'warning' | 'critical' | 'info' | 'neutral' | 'formal';
@@ -603,4 +615,804 @@ export interface Overview {
   engineering: { openChanges: Change[]; openDrafts: number };
   recentEngineeringEvents: AuditRecord[];
   generatedAt: string;
+}
+
+// ------------------------------------------------------------------ blueprints (twin-blueprint/1)
+/*
+ * A Twin Blueprint is the reusable engineering definition of a type of twin; instances are
+ * twins created from a published version. Every status below is computed by the backend
+ * from stored evidence for the exact pinned inputs; the UI only renders it.
+ */
+
+export type BlueprintVersionState = 'draft' | 'published' | 'deprecated';
+export type BlueprintSectionId =
+  | 'identity'
+  | 'structure'
+  | 'world'
+  | 'data'
+  | 'connectivity'
+  | 'presentation'
+  | 'behavior'
+  | 'assurance'
+  | 'simulation'
+  | 'scenarios';
+export type FormalRole = 'ontology' | 'pt_interpretation' | 'dt_interpretation' | 'pt_model' | 'dt_model';
+export type RuntimeMode = 'monitor' | 'cosimulation';
+
+export interface BlueprintMeta {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  icon: string;
+  templateId: string | null;
+  clonedFrom: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface BlueprintVersionSummary {
+  blueprintId: string;
+  version: number;
+  /** "v2" or "v3-draft". */
+  label: string;
+  state: BlueprintVersionState;
+  /** Optimistic-concurrency revision of a draft (incremented by every save). */
+  revision: number;
+  parent: number | null;
+  documentSha256: string;
+  /** role -> "artifact@version". */
+  pins: Record<string, string>;
+  packageId: string | null;
+  bundleId: string | null;
+  note: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  publishedAt: string | null;
+}
+
+export interface BlueprintListItem extends BlueprintMeta {
+  versions: BlueprintVersionSummary[];
+  draft: BlueprintVersionSummary | null;
+  published: BlueprintVersionSummary | null;
+  latest: BlueprintVersionSummary | null;
+  updatedAt: string;
+  instanceCount: number;
+  draftErrors?: number;
+  draftWarnings?: number;
+}
+
+export interface BlueprintDetail extends BlueprintMeta {
+  versions: BlueprintVersionSummary[];
+  instances: InstanceView[];
+}
+
+export interface BlueprintIdentity {
+  name: string;
+  description?: string;
+  domain: string;
+  icon?: string;
+  tags?: string[];
+  modelId: string;
+  timeUnit: string;
+  ticksPerUnit: number;
+  runtimeMode: RuntimeMode;
+  plugin?: string | null;
+}
+
+export interface AssetTypeProperty {
+  key: string;
+  label?: string;
+  type?: string;
+  default?: string;
+  unit?: string;
+}
+
+export interface AssetTypeDef {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  properties: AssetTypeProperty[];
+}
+
+export interface BlueprintAssetDef {
+  id: string;
+  name: string;
+  type: string;
+  /** "instance": every instance gets its own; "context": shared site/estate asset. */
+  scope: 'instance' | 'context';
+  description?: string;
+  properties?: Record<string, string>;
+  tags?: string[];
+  parent?: string;
+}
+
+export interface RelationshipDef {
+  id: string;
+  source: string;
+  type: string;
+  target: string;
+}
+
+export interface StructureSection {
+  root: string;
+  assetTypes: AssetTypeDef[];
+  assets: BlueprintAssetDef[];
+  relationships: RelationshipDef[];
+}
+
+export type WorldLayerRole = 'shared' | 'ground-truth' | 'knowledge' | 'event' | 'annotation' | 'background';
+export type WorldMode = 'spatial' | 'topology' | 'diagram';
+export type WorldObjectKind =
+  | 'point'
+  | 'label'
+  | 'waypoint'
+  | 'line'
+  | 'polyline'
+  | 'polygon'
+  | 'region'
+  | 'zone'
+  | 'rect'
+  | 'image'
+  | 'node'
+  | 'edge'
+  | 'connector';
+
+export interface WorldLayer {
+  id: string;
+  name: string;
+  role: WorldLayerRole;
+  visible: boolean;
+  locked: boolean;
+}
+
+/** Integer world units. Rect-like kinds: {x, y, w, h} (top-left); points/labels: {x, y}; nodes: {x, y, w?, h?} (centre); lines: {points, width}; areas: {points} or {x, y, w, h}; links: {from, to, directed}. */
+export interface WorldGeometry {
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  points?: number[][];
+  width?: number;
+  from?: string;
+  to?: string;
+  directed?: boolean;
+}
+
+export interface WorldObject {
+  id: string;
+  layer: string;
+  kind: WorldObjectKind;
+  semanticType: string;
+  name: string;
+  geometry: WorldGeometry;
+  properties: Record<string, string | number | boolean>;
+  asset?: string | null;
+  tags: string[];
+}
+
+export interface WorldDocument {
+  format: 'twin-world/1';
+  mode: WorldMode;
+  unit: 'mm' | 'px';
+  bounds: { x: number; y: number; w: number; h: number };
+  grid?: { size: number; snap: boolean };
+  layers: WorldLayer[];
+  objects: WorldObject[];
+}
+
+export type DataType = 'real' | 'integer' | 'boolean' | 'string' | 'enum';
+
+export interface StaticPropertyDef {
+  id: string;
+  label: string;
+  type: DataType;
+  asset?: string;
+  perInstance?: boolean;
+  value?: string;
+}
+
+export interface TelemetryDef {
+  id: string;
+  label: string;
+  type: DataType;
+  unit?: string;
+  asset?: string;
+  description?: string;
+  expectedPeriodMs?: number;
+  quality?: { maxAgeMs?: number };
+  presentation?: { category?: string; precision?: number; chart?: string };
+  ontologySymbol?: string;
+  range?: { min?: string; max?: string };
+  values?: string[];
+}
+
+export interface EventDef {
+  id: string;
+  label: string;
+  asset?: string;
+  description?: string;
+  payload?: { key: string; type: DataType }[];
+  /** Formal labels of this event in the PT and DT views ("label!"). */
+  formal?: { pt?: string; dt?: string };
+}
+
+export interface CommandDef {
+  id: string;
+  label: string;
+  asset?: string;
+  description?: string;
+  parameters?: { key: string; type: DataType; unit?: string }[];
+  acknowledgement?: { event?: string; timeoutMs?: number };
+  observedConsequence?: { event?: string; timeoutMs?: number };
+}
+
+export interface DataSection {
+  properties: StaticPropertyDef[];
+  telemetry: TelemetryDef[];
+  events: EventDef[];
+  commands: CommandDef[];
+}
+
+export type SourceKind = 'mqtt' | 'opcua' | 'rest' | 'simulator' | 'replay' | 'file';
+
+export interface DataSourceDef {
+  id: string;
+  kind: SourceKind;
+  name: string;
+  config: Record<string, string | number | boolean>;
+}
+
+export interface BindingDef {
+  id: string;
+  target: { kind: 'telemetry' | 'event' | 'command'; id: string };
+  source: string;
+  select: { field?: string; path?: string; topic?: string; node?: string };
+  unit?: { from?: string; scale?: string; offset?: string };
+}
+
+export interface ConnectivitySection {
+  sources: DataSourceDef[];
+  bindings: BindingDef[];
+}
+
+export interface StatePresentation {
+  label?: string;
+  tone?: Tone;
+  summary?: string;
+}
+
+export interface PresentationSection {
+  displayName: string;
+  icon?: string;
+  primaryView: string;
+  plugin?: string | null;
+  keyTelemetry: string[];
+  importantAssets: string[];
+  importantPropositions: string[];
+  importantMonitors: string[];
+  importantPredictions: string[];
+  states: Record<string, StatePresentation>;
+  events: Record<string, { label?: string }>;
+  charts: { title: string; telemetry: string[] }[];
+  units?: Record<string, string>;
+  precision?: Record<string, number>;
+}
+
+export type RequirementCategory = 'safety' | 'mission' | 'performance' | 'timing' | 'operational';
+export type MonitorKind = 'conformance' | 'property' | 'data_quality' | 'semantic';
+
+export interface RequirementDef {
+  id: string;
+  title: string;
+  category: RequirementCategory;
+  severity: 'info' | 'warning' | 'critical';
+  description?: string;
+  monitors: string[];
+  formal?: string;
+}
+
+export interface MonitorDef {
+  id: string;
+  kind: MonitorKind;
+  name: string;
+  severity: 'info' | 'warning' | 'critical';
+  requirement?: string;
+  property?: string;
+  events?: string;
+  unmatchedEvents?: string;
+  field?: string;
+  check?: string;
+  maxAgeSeconds?: number;
+  min?: number;
+  max?: number;
+  condition?: string;
+}
+
+export interface AlertDef {
+  id: string;
+  monitor: string;
+  on: 'violated' | 'finding' | 'inconclusive';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+}
+
+export interface AssuranceSection {
+  format?: string;
+  requirements: RequirementDef[];
+  monitors: MonitorDef[];
+  alerts: AlertDef[];
+}
+
+export interface SimulationSection {
+  kind: 'none' | 'mobile-robot' | 'event-script';
+  [key: string]: unknown;
+}
+
+export type ScenarioStepKind = 'event' | 'delay' | 'observe' | 'world' | 'expect';
+
+export interface ScenarioStep {
+  id: string;
+  kind: ScenarioStepKind;
+  /** Logical time of the step (decimal string in model time units). */
+  at?: string;
+  delay?: string;
+  label?: string;
+  level?: 'pt' | 'dt';
+  transition?: string;
+  telemetry?: Record<string, string>;
+  change?: Record<string, unknown>;
+  observation?: Record<string, unknown>;
+  expect?: Record<string, unknown>;
+  expectRefused?: boolean;
+  note?: string;
+}
+
+export interface ScenarioDef {
+  id: string;
+  name: string;
+  description?: string;
+  start: { kind: 'initial' | 'configurations'; configurations?: unknown[] };
+  steps: ScenarioStep[];
+}
+
+export interface BlueprintDocument {
+  format: 'twin-blueprint/1';
+  identity: BlueprintIdentity;
+  structure: StructureSection;
+  world: WorldDocument;
+  data: DataSection;
+  connectivity: ConnectivitySection;
+  presentation: PresentationSection;
+  behavior: { pt?: { layout?: TaLayout | null }; dt?: { layout?: TaLayout | null } };
+  assurance: AssuranceSection;
+  simulation: SimulationSection;
+  scenarios: ScenarioDef[];
+}
+
+export interface BlueprintVersionDetail extends BlueprintVersionSummary {
+  document: BlueprintDocument;
+  editable: boolean;
+  /** Pinned formal artefact versions by role. */
+  artifacts: Partial<Record<FormalRole, ArtifactVersion>>;
+  blueprint: BlueprintMeta;
+}
+
+export interface SectionFinding {
+  section: string;
+  severity: 'error' | 'warning';
+  code: string;
+  message: string;
+  target: string;
+  path: string;
+}
+
+export interface SectionSaveResult {
+  revision: number;
+  documentSha256: string;
+  updatedAt: string;
+  section: string;
+  findings: SectionFinding[];
+}
+
+export interface BlueprintValidation {
+  valid: boolean;
+  errors: number;
+  warnings: number;
+  sections: Record<string, { errors: number; warnings: number }>;
+  findings: SectionFinding[];
+}
+
+export type SectionState = 'complete' | 'warnings' | 'errors' | 'empty';
+
+export interface BlueprintSectionStatus {
+  id: string;
+  title: string;
+  state: SectionState;
+  summary: string;
+  route: string;
+  errors: number;
+  warnings: number;
+  detail: string;
+}
+
+export type GateState = 'pass' | 'fail' | 'not_run' | 'blocked' | 'error' | 'not_applicable';
+
+export interface GateItem {
+  id: string;
+  title: string;
+  state: GateState;
+  detail: string;
+  blocking: boolean;
+  /** Blueprint-relative route that fixes the item. */
+  fix: string;
+  evidenceId: string | null;
+}
+
+export interface BlueprintStatus {
+  version: BlueprintVersionSummary;
+  sections: BlueprintSectionStatus[];
+  completeness: {
+    complete: number;
+    total: number;
+    next: { section: string; title: string; state: SectionState; route: string; detail: string }[];
+  };
+  readiness: { verdict: 'ready' | 'blocked'; readyToPackage: boolean; items: GateItem[]; blockers: string[] };
+  alignment: { state: string; evidenceId: string | null; at?: string };
+  findings: SectionFinding[];
+}
+
+// ---- canonical timed automata (twin-ta/1) and their layout (twin-ta-layout/1)
+export interface TaAtom {
+  clock: string;
+  op: '<' | '<=' | '==' | '>=' | '>';
+  bound: number | string;
+  minus?: string;
+}
+
+export interface TaLocation {
+  name: string;
+  initial: boolean;
+  invariant: TaAtom[];
+  note: string;
+}
+
+export interface TaEdge {
+  id: string;
+  source: string;
+  target: string;
+  sync: { channel: string; direction: '!' | '?' } | null;
+  guard: TaAtom[];
+  resets: string[];
+  note: string;
+}
+
+export interface TaModel {
+  format: 'twin-ta/1';
+  name: string;
+  note: string;
+  clocks: { name: string; note: string }[];
+  constants: { name: string; value: number; note: string }[];
+  channels: { name: string; note: string }[];
+  locations: TaLocation[];
+  edges: TaEdge[];
+}
+
+export interface TaPoint {
+  x: number;
+  y: number;
+}
+
+/** Diagram layout (twin-ta-layout/1): presentation only, integer coordinates, y downwards. */
+export interface TaLayout {
+  format?: 'twin-ta-layout/1';
+  locations: Record<string, { x: number; y: number; label?: TaPoint }>;
+  edges?: Record<string, { nails: TaPoint[]; label?: TaPoint }>;
+}
+
+export interface TaDiagnostic {
+  severity: 'error' | 'warning' | 'note';
+  code: string;
+  message: string;
+  hint?: string;
+  /** What it concerns: kind "location" | "edge" | "clock" | "channel" | "constant" | "model" | "document", by name. */
+  element?: { kind: string; name: string; part: string };
+  range?: { line: number; column: number; endLine: number; endColumn: number };
+}
+
+export interface BlueprintModelView {
+  role: 'pt_model' | 'dt_model';
+  editable: boolean;
+  revision: number;
+  artifact: ArtifactVersion | null;
+  model: TaModel | null;
+  layout: TaLayout | null;
+  diagnostics: TaDiagnostic[];
+  semanticDigest: string | null;
+  validation?: EvidenceRecord | null;
+  contentFormat?: string;
+}
+
+export interface ModelSaveResult {
+  revision: number;
+  artifact: ArtifactVersion;
+  diagnostics: TaDiagnostic[];
+  semanticDigest: string | null;
+}
+
+export interface ModelImportResult extends Partial<ModelSaveResult> {
+  imported: boolean;
+  report: { format: string; diagnostics: TaDiagnostic[]; provenance?: Record<string, unknown>; layout?: unknown };
+}
+
+export interface SemanticsView {
+  role: 'ontology' | 'pt_interpretation' | 'dt_interpretation';
+  editable: boolean;
+  revision: number;
+  artifact: VersionDetail | null;
+  pinned: string | null;
+  coverage?: { key: string; kind: 'location' | 'event'; mapped: boolean }[];
+  ontologyPinned?: string | null;
+  validatedAgainstPinnedOntology?: boolean;
+}
+
+export interface CheckResult {
+  check?: string;
+  outcome?: Outcome;
+  summary?: string;
+  verdict?: string;
+  id?: string;
+  document?: Record<string, unknown>;
+  results?: unknown[];
+  [key: string]: unknown;
+}
+
+// ---- timing windows (kernel what-if)
+export interface TimeValue {
+  text: string;
+  ticks: number;
+}
+
+export interface TimingInterval {
+  earliest: TimeValue;
+  latest: TimeValue | null;
+  earliest_at: TimeValue;
+  latest_at: TimeValue | null;
+}
+
+export interface TimingAlternative {
+  enabled_now: boolean;
+  guard: string;
+  location: string;
+  source: string;
+  target: string;
+  transition: string;
+  resets: string[];
+  window: TimingInterval | null;
+  factors?: {
+    atom: string;
+    origin: string;
+    never: boolean;
+    depends_on_delay: boolean;
+    min_delay: TimeValue | null;
+    max_delay: TimeValue | null;
+    value_now?: TimeValue;
+  }[];
+  [key: string]: unknown;
+}
+
+export interface Availability {
+  label: string;
+  /** "now": enabled at the current time; "later": after a delay; "blocked": never from here. */
+  status: 'now' | 'later' | 'blocked';
+  intervals: TimingInterval[];
+  alternatives: TimingAlternative[];
+}
+
+export interface AvailabilityView {
+  state: { time: TimeValue; configurations: { location: string; clocks: Record<string, TimeValue> }[] };
+  propositions: { id: string; [key: string]: unknown }[];
+  max_delay: TimeValue | null;
+  max_delay_at: TimeValue | null;
+  invariants: { location: string; invariant: string }[];
+  availability: Availability[];
+  unavailable: { label: string; from_locations: string[] }[];
+}
+
+export interface TimingStepResult {
+  index: number;
+  kind: 'event' | 'delay';
+  status: 'ok' | 'invalid' | 'not_evaluated';
+  requested?: { label?: string; transition?: string | null; delay?: TimeValue; at?: TimeValue };
+  after?: AvailabilityView['state'];
+  branches?: { transition: string; label: string; source: string; target: string }[];
+  error?: { code: string; message: string };
+  explanation?: Record<string, unknown>;
+}
+
+export interface TimingResult {
+  start: { kind: string; state: AvailabilityView['state'] };
+  steps: TimingStepResult[];
+  first_invalid: number | null;
+  final: AvailabilityView;
+  irSha256: string;
+  timeUnit: string;
+  authority: string;
+  note?: string;
+}
+
+export interface ScenarioStepResult {
+  index: number;
+  id: string;
+  kind: string;
+  generated: boolean;
+  status: string;
+  detail?: string;
+  translated?: { pt: string; dt: string };
+  expected?: Record<string, unknown>;
+  actual?: string;
+  at?: string;
+  error?: { code: string; message: string };
+  explanation?: Record<string, unknown>;
+  after?: AvailabilityView['state'];
+  telemetry?: Record<string, string>;
+}
+
+export interface ScenarioResult {
+  id: string;
+  name: string;
+  outcome: 'pass' | 'fail' | 'error';
+  passed: number;
+  failed: number;
+  refused: boolean;
+  firstFailure: string;
+  final: AvailabilityView['state'];
+  steps: ScenarioStepResult[];
+}
+
+export interface ScenarioRun {
+  outcome: 'pass' | 'fail';
+  kind: 'tests';
+  passed: number;
+  failed: number;
+  durationMs: number;
+  evidenceId: string | null;
+  results: ScenarioResult[];
+}
+
+export interface BlueprintImpact {
+  against: number | null;
+  version?: number;
+  sections: { section: string; classification: 'formal' | 'deployment' | 'presentation' | 'verified-core' | 'tests'; consequences: string[]; from?: string; to?: string }[];
+  formal?: { alignmentStale: boolean; irStale: boolean; packageStale: boolean; bundleStale: boolean };
+  instances?: { id: string; name: string; version: number | null }[];
+  summary: string;
+}
+
+export interface BundleView {
+  id: string;
+  blueprintId: string;
+  version: number;
+  packageId: string;
+  bundleHash: string;
+  createdAt: string;
+  createdBy: string;
+  intact?: boolean;
+  filesIntact?: boolean;
+  manifest?: {
+    format: string;
+    files: { path: string; role: string; sha256: string; size: number; verification: string }[];
+    verificationScope: { formallyVerified: string[]; integrityOnly: string[]; note: string };
+    [key: string]: unknown;
+  };
+}
+
+export interface BlueprintPackageView {
+  version: BlueprintVersionSummary;
+  package: PackageDetail | null;
+  bundle: BundleView | null;
+  verifiedCoreInputs: { role: string; ref: string | null }[];
+  deploymentContent: { section: string; sha256: string | null }[];
+  verificationScope: { formallyVerified: string[]; integrityOnly: string[] };
+  integrity?: PackageIntegrity;
+}
+
+export interface SupervisedProcess {
+  name: string;
+  pid: number;
+  port: number;
+  url: string;
+  log: string;
+  state: string;
+  exitStatus: number;
+  startedAt: string;
+}
+
+export interface SupervisorStatus {
+  instance: string;
+  kind?: 'instance' | 'preview';
+  state: 'not_started' | 'starting' | 'running' | 'stopped' | 'failed';
+  message?: string;
+  startedAt?: string;
+  runtimeUrl?: string | null;
+  worldUrl?: string | null;
+  processes: SupervisedProcess[];
+}
+
+export interface InstanceView extends TwinSummary {
+  /** Process state from the deployment supervisor. */
+  runtime: SupervisorStatus;
+  latestPublishedVersion: number | null;
+  /** A newer published version of the Blueprint exists. */
+  upgradeAvailable: boolean;
+}
+
+export interface PreviewView {
+  previewId: string;
+  banner: 'STUDIO PREVIEW';
+  mode?: RuntimeMode;
+  simulator?: string;
+  core?: Record<string, unknown>;
+  runtime: SupervisorStatus;
+  isolation?: string;
+}
+
+export interface BlueprintTemplate {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  icon: string;
+  order: number;
+  includes: string[];
+}
+
+export interface PaletteTool {
+  id: string;
+  label: string;
+  kind: WorldObjectKind;
+  semanticType: string;
+  icon?: string;
+  layerRole?: WorldLayerRole;
+  defaults?: { width?: number; properties?: Record<string, string | number | boolean>; w?: number; h?: number };
+  description?: string;
+}
+
+export interface Palettes {
+  format: string;
+  palettes: Record<string, { label: string; tools: PaletteTool[] }>;
+  domains: Record<string, string[]>;
+}
+
+export interface BindingTestResult {
+  source: string;
+  kind: SourceKind;
+  /** ok | adapter_unavailable | unreachable | bad_payload | not_found | not_configured | type_mismatch */
+  status: string;
+  detail?: string;
+  latencyMs?: number;
+  httpStatus?: number;
+  raw?: unknown;
+  value?: unknown;
+  availableFields?: string[];
+  canonical?: unknown;
+  typeCheck?: string;
+  unit?: { source?: string; canonical?: string; scale?: string; offset?: string };
+  timestamp?: string;
+  quality?: string;
+  samples?: unknown[];
+}
+
+export interface WorldRaster {
+  cellMm: number;
+  width: number;
+  height: number;
+  /** Cell code -> meaning ("#" wall, "." free, ...). */
+  legend: Record<string, string>;
+  groundTruth: string[];
+  knowledge: string[];
+  findings: { severity: string; code: string; message: string; object?: string; path?: string }[];
 }

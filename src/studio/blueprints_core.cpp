@@ -741,6 +741,11 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
                 v.document["behavior"][role == "pt_model" ? "pt" : "dt"]["layout"] = authoring::to_json(r.layout);
             }
         } else {
+            if (kind_of_role(role) == ArtifactKind::Interpretation && !v.pins.count("ontology")) {
+                imports.push_back(Json{{"role", role}, {"filename", f->second.filename}, {"imported", false},
+                                       {"reason", "an interpretation needs an ontology; import or define the ontology first"}});
+                continue;
+            }
             auto ref = impl_->ensure_editable(v, role, actor);
             if (!ref) return std::move(ref).error();
             std::optional<Json> refs;

@@ -269,6 +269,9 @@ Result<Json> BlueprintService::save_semantics(std::string_view id, std::int64_t 
         if (!body.contains("content") || !body.at("content").is_string()) {
             return make_error(ErrorCode::InvalidArgument, "give 'content' (text) or 'ref' (an artefact version to pin)");
         }
+        if (r != "ontology" && !next.pins.count("ontology")) {
+            return make_error(ErrorCode::StateError, "define or pin the ontology first: an interpretation is written over an ontology");
+        }
         auto ref = impl_->ensure_editable(next, r, actor);
         if (!ref) return std::move(ref).error();
         std::optional<Json> refs;

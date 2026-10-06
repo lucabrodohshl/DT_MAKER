@@ -60,7 +60,7 @@ export interface CodeEditorProps {
   resetKey: string;
   onChange?: (text: string) => void;
   readOnly?: boolean;
-  language: 'ontology' | 'interpretation' | 'xml';
+  language: 'ontology' | 'interpretation' | 'xml' | 'json' | 'text';
   diagnostics?: SourceDiagnostic[];
   symbols?: SymbolEntry[];
   onGoToSymbol?: (name: string) => void;
@@ -132,7 +132,7 @@ export function CodeEditor({
       highlightSelectionMatches(),
       lintGutter(),
       linter(null),
-      language === 'xml' ? xmlLanguage : ontologyLanguage,
+      language === 'xml' ? xmlLanguage : language === 'json' || language === 'text' ? [] : ontologyLanguage,
       studioHighlight,
       autocompletion({ override: [complete] }),
       keymap.of([

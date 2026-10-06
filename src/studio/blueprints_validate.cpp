@@ -416,6 +416,8 @@ void validate_scenarios(const Json& list, const ModelFacts& pt, const ModelFacts
         const std::string path = "[" + std::to_string(i) + "]";
         if (!identifier(id) || !ids.insert(id).second) c.error("TWB080", "Scenario ids must be unique identifiers.", id, path + ".id");
         const Json steps = s.value("steps", Json::array());
+        // Objects of the scenario's world as it evolves: earlier steps may add or remove objects.
+        std::set<std::string> present = objects;
         for (std::size_t k = 0; k < steps.size(); ++k) {
             const Json& st = steps[k];
             const std::string kind = st.value("kind", std::string());
@@ -430,9 +432,14 @@ void validate_scenarios(const Json& list, const ModelFacts& pt, const ModelFacts
                 }
             } else if (kind == "world") {
                 const Json change = st.value("change", Json::object());
+                const std::string action = change.value("action", std::string());
                 const std::string obj = change.value("objectId", change.value("object", Json::object()).value("id", std::string()));
-                if (change.value("action", std::string()) != "add_object" && !obj.empty() && !objects.count(obj)) {
+                if (action == "add_object") {
+                    if (!obj.empty()) present.insert(obj);
+                } else if (!obj.empty() && !present.count(obj)) {
                     c.error("TWB083", "Scenario '" + id + "' changes unknown world object '" + obj + "'.", id, sp);
+                } else if (action == "remove_object") {
+                    present.erase(obj);
                 }
             } else if (kind == "expect") {
                 const Json e = st.value("expect", Json::object());

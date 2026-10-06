@@ -12,8 +12,14 @@
  *   /twins/{twinId}/engineering[/models|/ontology|/interpretations|/verification|/package|/deployment]
  *   /twins/{twinId}/maintenance[/impact|/versions|/readiness|/rollback]
  *   /twins/{twinId}/admin/{data-sources|runtime|storage|logs}
+ *   /studio                                       Studio home: Blueprints, drafts, templates
+ *   /studio/blueprints/{id}                       → its open draft (else latest version)
+ *   /studio/blueprints/{id}/v/{n}[/build/{structure|world|data|presentation}
+ *        |/behavior/{pt|dt}|/semantics/{ontology|interpretations|binding}
+ *        |/assurance/{requirements|monitors|alignment|verification}
+ *        |/test/{scenarios[/{scenario}]|preview}|/release/{package|instances|deployment}]
  *   /studio[/changes/{id}|/refinement/{id}|/impact|/history|/{models|ontologies|interpretations}/{id}[/versions/{v}]
- *           |/verification[/{id}]|/packages[/{id}]|/deployments|/audit]
+ *           |/verification[/{id}]|/packages[/{id}]|/deployments|/audit]     (artefact library)
  *
  * Earlier URLs (/operations/..., /behavior, /engineering/..., /maintenance/..., /audit/...,
  * /assets/{id}) redirect to their place in this structure.
@@ -66,6 +72,26 @@ const P: Record<string, Loader> = {
   twinStorage: named(twinPages, 'TwinStoragePage'),
   studio: () => import('@/features/studio/StudioLayout') as never,
   studioHome: () => import('@/features/studio/StudioHomePage') as never,
+  bpRedirect: () => import('@/features/blueprint/BlueprintRedirect') as never,
+  bpWorkspace: () => import('@/features/blueprint/BlueprintWorkspace') as never,
+  bpOverview: () => import('@/features/blueprint/pages/OverviewPage') as never,
+  bpStructure: () => import('@/features/blueprint/pages/StructurePage') as never,
+  bpWorld: () => import('@/features/blueprint/pages/WorldPage') as never,
+  bpData: () => import('@/features/blueprint/pages/DataPage') as never,
+  bpPresentation: () => import('@/features/blueprint/pages/PresentationPage') as never,
+  bpModel: () => import('@/features/blueprint/pages/ModelPage') as never,
+  bpOntology: () => import('@/features/blueprint/pages/OntologyPage') as never,
+  bpInterpretations: () => import('@/features/blueprint/pages/InterpretationsPage') as never,
+  bpBinding: () => import('@/features/blueprint/pages/BindingPage') as never,
+  bpRequirements: () => import('@/features/blueprint/pages/RequirementsPage') as never,
+  bpMonitors: () => import('@/features/blueprint/pages/MonitorsPage') as never,
+  bpAlignment: () => import('@/features/blueprint/pages/AlignmentPage') as never,
+  bpVerification: () => import('@/features/blueprint/pages/VerificationPage') as never,
+  bpScenarios: () => import('@/features/blueprint/pages/ScenariosPage') as never,
+  bpPreview: () => import('@/features/blueprint/pages/PreviewPage') as never,
+  bpPackage: () => import('@/features/blueprint/pages/PackagePage') as never,
+  bpInstances: () => import('@/features/blueprint/pages/InstancesPage') as never,
+  bpDeployment: () => import('@/features/blueprint/pages/DeploymentPage') as never,
   whatIf: () => import('@/features/predict/WhatIfPage') as never,
   models: () => import('@/features/twins/TwinModelsPage') as never,
   asset: () => import('@/features/assets/AssetLayout'),
@@ -157,6 +183,30 @@ const twinChildren: RouteObject[] = [
   r('*', <NotFound />),
 ];
 
+const blueprintChildren: RouteObject[] = [
+  { index: true, element: page(P.bpOverview!) },
+  r('build/structure', page(P.bpStructure!)),
+  r('build/world', page(P.bpWorld!)),
+  r('build/data', page(P.bpData!)),
+  r('build/presentation', page(P.bpPresentation!)),
+  r('behavior/pt', page(P.bpModel!, { role: 'pt' })),
+  r('behavior/dt', page(P.bpModel!, { role: 'dt' })),
+  r('semantics/ontology', page(P.bpOntology!)),
+  r('semantics/interpretations', page(P.bpInterpretations!)),
+  r('semantics/binding', page(P.bpBinding!)),
+  r('assurance/requirements', page(P.bpRequirements!)),
+  r('assurance/monitors', page(P.bpMonitors!)),
+  r('assurance/alignment', page(P.bpAlignment!)),
+  r('assurance/verification', page(P.bpVerification!)),
+  r('test/scenarios', page(P.bpScenarios!)),
+  r('test/scenarios/:scenarioId', page(P.bpScenarios!)),
+  r('test/preview', page(P.bpPreview!)),
+  r('release/package', page(P.bpPackage!)),
+  r('release/instances', page(P.bpInstances!)),
+  r('release/deployment', page(P.bpDeployment!)),
+  r('*', <NotFound />),
+];
+
 const studioChildren: RouteObject[] = [
   { index: true, element: page(P.studioHome!) },
   r('changes', page(P.changes!)),
@@ -191,6 +241,8 @@ export const routes: RouteObject[] = [
       r('twins', page(P.library!)),
       r('twins/:twinId', page(P.twin!), twinChildren),
       r('studio', page(P.studio!), studioChildren),
+      r('studio/blueprints/:bpId', page(P.bpRedirect!)),
+      r('studio/blueprints/:bpId/v/:version', page(P.bpWorkspace!), blueprintChildren),
 
       // Outside any twin: assets that belong to no twin, the estate-wide graph, platform pages.
       r('assets/:assetId', <AssetGate>{page(P.asset!)}</AssetGate>, assetTabs),

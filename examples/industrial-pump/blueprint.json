@@ -387,8 +387,8 @@
     "semanticType": "tank",
     "name": "Suction tank",
     "geometry": {
-     "x": 100,
-     "y": 160,
+     "x": 120,
+     "y": 210,
      "w": 150,
      "h": 64
     },
@@ -404,7 +404,7 @@
     "name": "Pump",
     "geometry": {
      "x": 340,
-     "y": 160,
+     "y": 210,
      "w": 150,
      "h": 64
     },
@@ -420,7 +420,7 @@
     "name": "Discharge valve",
     "geometry": {
      "x": 560,
-     "y": 160,
+     "y": 210,
      "w": 150,
      "h": 64
     },
@@ -434,8 +434,8 @@
     "semanticType": "heat-exchanger",
     "name": "Heat exchanger",
     "geometry": {
-     "x": 780,
-     "y": 160,
+     "x": 790,
+     "y": 210,
      "w": 150,
      "h": 64
     },
@@ -451,7 +451,7 @@
     "name": "Line controller",
     "geometry": {
      "x": 340,
-     "y": 20,
+     "y": 70,
      "w": 150,
      "h": 64
     },
@@ -467,7 +467,7 @@
     "name": "Bearing cooling",
     "geometry": {
      "x": 340,
-     "y": 320,
+     "y": 350,
      "w": 150,
      "h": 64
     },
