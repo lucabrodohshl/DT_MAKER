@@ -14,7 +14,13 @@ twin_add_library(studio
         seed.cpp
         server.cpp
         runtime_bridge.cpp
+        supervisor.cpp
+        blueprints_core.cpp
+        blueprints_formal.cpp
+        blueprints_validate.cpp
+        blueprints_test.cpp
+        blueprints_release.cpp
     PUBLIC_DEPS twin::platform twin::ontology
-    PRIVATE_DEPS twin::compiler twin::alignment twin::package_builder twin::studio_engine httplib::httplib)
+    PRIVATE_DEPS twin::compiler twin::alignment twin::authoring twin::monitoring twin::scene twin::world twin::ptfeed twin::runtime_shell twin::package_builder twin::studio_engine httplib::httplib)
 target_include_directories(twin_studio PRIVATE
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/include>)

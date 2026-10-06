@@ -1,0 +1,1760 @@
+{
+ "format": "twin-blueprint/1",
+ "identity": {
+  "name": "Indoor Inspection Drone",
+  "description": "Autonomous indoor inspection drone whose mission supervisor is a verified Digital Twin. It plans over partial building knowledge, learns the building through its sensors, replans when a route is invalidated and records every semantic decision in a tamper-evident ledger.",
+  "domain": "mobile-robot",
+  "icon": "drone",
+  "tags": [
+   "autonomous",
+   "inspection",
+   "indoor"
+  ],
+  "modelId": "indoor-drone-dt",
+  "timeUnit": "s",
+  "ticksPerUnit": 1000,
+  "runtimeMode": "cosimulation",
+  "plugin": "drone"
+ },
+ "structure": {
+  "root": "drone",
+  "assetTypes": [
+   {
+    "id": "Building",
+    "name": "Building",
+    "category": "Site",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Floor",
+    "name": "Floor",
+    "category": "Site",
+    "description": "",
+    "properties": [
+     {
+      "key": "area",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "Room",
+    "name": "Room",
+    "category": "Space",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Corridor",
+    "name": "Corridor",
+    "category": "Space",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "FireDoor",
+    "name": "FireDoor",
+    "category": "Infrastructure",
+    "description": "",
+    "properties": [
+     {
+      "key": "rating",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "LandingPad",
+    "name": "LandingPad",
+    "category": "Infrastructure",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Valve",
+    "name": "Valve",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Switchboard",
+    "name": "Switchboard",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Fleet",
+    "name": "Fleet",
+    "category": "Organisation",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Mission",
+    "name": "Mission",
+    "category": "Plan",
+    "description": "",
+    "properties": [
+     {
+      "key": "targets",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     },
+     {
+      "key": "priority",
+      "type": "string",
+      "unit": "",
+      "default": "routine"
+     }
+    ]
+   },
+   {
+    "id": "EnvironmentService",
+    "name": "EnvironmentService",
+    "category": "Service",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "InspectionDrone",
+    "name": "InspectionDrone",
+    "category": "Robot",
+    "description": "",
+    "properties": [
+     {
+      "key": "model",
+      "type": "string",
+      "unit": "",
+      "default": "Quadrotor X4 indoor"
+     },
+     {
+      "key": "serial",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     },
+     {
+      "key": "maxSpeed",
+      "type": "string",
+      "unit": "",
+      "default": "1.2 m/s"
+     },
+     {
+      "key": "cruiseHeight",
+      "type": "string",
+      "unit": "",
+      "default": "1.5 m"
+     }
+    ]
+   },
+   {
+    "id": "FlightController",
+    "name": "FlightController",
+    "category": "Controller",
+    "description": "",
+    "properties": [
+     {
+      "key": "firmware",
+      "type": "string",
+      "unit": "",
+      "default": "FC 4.2"
+     }
+    ]
+   },
+   {
+    "id": "NavigationSensor",
+    "name": "NavigationSensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": [
+     {
+      "key": "principle",
+      "type": "string",
+      "unit": "",
+      "default": "visual-inertial odometry"
+     }
+    ]
+   },
+   {
+    "id": "RangeSensor",
+    "name": "RangeSensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": [
+     {
+      "key": "range_m",
+      "type": "real",
+      "unit": "",
+      "default": "3"
+     },
+     {
+      "key": "principle",
+      "type": "string",
+      "unit": "",
+      "default": "2-D lidar"
+     }
+    ]
+   },
+   {
+    "id": "BatterySystem",
+    "name": "BatterySystem",
+    "category": "Power",
+    "description": "",
+    "properties": [
+     {
+      "key": "capacity",
+      "type": "string",
+      "unit": "",
+      "default": "10 Wh"
+     },
+     {
+      "key": "reserve",
+      "type": "string",
+      "unit": "",
+      "default": "20 %"
+     }
+    ]
+   },
+   {
+    "id": "Camera",
+    "name": "Camera",
+    "category": "Sensor",
+    "description": "",
+    "properties": [
+     {
+      "key": "kind",
+      "type": "string",
+      "unit": "",
+      "default": "radiometric"
+     }
+    ]
+   }
+  ],
+  "assets": [
+   {
+    "id": "building-a",
+    "name": "Building A",
+    "type": "Building",
+    "scope": "context",
+    "description": "Logistics and technical building",
+    "properties": {
+     "address": "Campus North, Building A",
+     "floors": "3",
+     "facilityPlan": "rev. C (2019)"
+    },
+    "tags": [
+     "site"
+    ]
+   },
+   {
+    "id": "floor-1",
+    "name": "Floor 1",
+    "type": "Floor",
+    "scope": "context",
+    "description": "Ground floor: lobby, technical rooms, open-plan office",
+    "properties": {
+     "area": "28 m x 15 m",
+     "gridResolution": "0.5 m",
+     "planStatus": "partially outdated"
+    },
+    "tags": [],
+    "parent": "building-a"
+   },
+   {
+    "id": "lobby-l1",
+    "name": "Lobby L-1",
+    "type": "Room",
+    "scope": "context",
+    "description": "Entrance lobby with the drone landing pad",
+    "properties": {},
+    "tags": [],
+    "parent": "floor-1"
+   },
+   {
+    "id": "pad-p1",
+    "name": "Landing pad P-1",
+    "type": "LandingPad",
+    "scope": "context",
+    "description": "Home and charging pad of the drone",
+    "properties": {},
+    "tags": [],
+    "parent": "lobby-l1"
+   },
+   {
+    "id": "corridor-c1",
+    "name": "Central corridor C-1",
+    "type": "Corridor",
+    "scope": "context",
+    "description": "East-west service corridor",
+    "properties": {},
+    "tags": [],
+    "parent": "floor-1"
+   },
+   {
+    "id": "fire-door-fd2",
+    "name": "Fire door FD-2",
+    "type": "FireDoor",
+    "scope": "context",
+    "description": "Self-closing fire door across corridor C-1",
+    "properties": {
+     "planState": "open (facility plan)"
+    },
+    "tags": [
+     "safety"
+    ],
+    "parent": "corridor-c1"
+   },
+   {
+    "id": "storage-s2",
+    "name": "North storage S-2",
+    "type": "Room",
+    "scope": "context",
+    "description": "Racked storage",
+    "properties": {},
+    "tags": [],
+    "parent": "floor-1"
+   },
+   {
+    "id": "riser-sr2",
+    "name": "Sprinkler riser valve SR-2",
+    "type": "Valve",
+    "scope": "context",
+    "description": "Inspection target T2 (visual inspection)",
+    "properties": {
+     "target": "T2"
+    },
+    "tags": [
+     "inspection-target",
+     "fire-protection"
+    ],
+    "parent": "storage-s2"
+   },
+   {
+    "id": "server-s1",
+    "name": "Server room S-1",
+    "type": "Room",
+    "scope": "context",
+    "description": "IT racks; connects to storage S-2",
+    "properties": {},
+    "tags": [],
+    "parent": "floor-1"
+   },
+   {
+    "id": "electrical-e1",
+    "name": "Electrical room E-1",
+    "type": "Room",
+    "scope": "context",
+    "description": "Low-voltage distribution",
+    "properties": {},
+    "tags": [],
+    "parent": "floor-1"
+   },
+   {
+    "id": "switchboard-msb1",
+    "name": "Main switchboard MSB-1",
+    "type": "Switchboard",
+    "scope": "context",
+    "description": "Inspection target T1 (thermal inspection)",
+    "properties": {
+     "target": "T1"
+    },
+    "tags": [
+     "inspection-target",
+     "electrical"
+    ],
+    "parent": "electrical-e1"
+   },
+   {
+    "id": "office-o1",
+    "name": "Open-plan office O-1",
+    "type": "Room",
+    "scope": "context",
+    "description": "Refurbished in 2025; layout not in the facility plan",
+    "properties": {},
+    "tags": [
+     "unmapped"
+    ],
+    "parent": "floor-1"
+   },
+   {
+    "id": "fleet",
+    "name": "Inspection fleet",
+    "type": "Fleet",
+    "scope": "context",
+    "description": "Autonomous indoor inspection drones",
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "map-service",
+    "name": "Building information service",
+    "type": "EnvironmentService",
+    "scope": "context",
+    "description": "Publishes the facility plan, onboard-sensing observations and facility notices (the twin's only source of map knowledge)",
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "mission-ins-042",
+    "name": "Mission INS-042",
+    "type": "Mission",
+    "scope": "context",
+    "description": "Floor 1 inspection: MSB-1 (thermal), SR-2 (visual), return to P-1",
+    "properties": {
+     "targets": "T1, T2",
+     "priority": "routine"
+    },
+    "tags": []
+   },
+   {
+    "id": "drone",
+    "name": "Drone",
+    "type": "InspectionDrone",
+    "scope": "instance",
+    "description": "Indoor quadrotor with lidar, visual-inertial navigation and a gimbal camera",
+    "properties": {
+     "model": "Quadrotor X4 indoor",
+     "battery": "10 Wh",
+     "maxSpeed": "1.2 m/s",
+     "cruiseHeight": "1.5 m"
+    },
+    "tags": [
+     "autonomous",
+     "verified-twin"
+    ],
+    "parent": "fleet"
+   },
+   {
+    "id": "fc",
+    "name": "Flight controller",
+    "type": "FlightController",
+    "scope": "instance",
+    "description": "Firmware modes FC_IDLE ... FC_DISARMED (the Physical Twin's own state machine)",
+    "properties": {},
+    "tags": [],
+    "parent": "drone"
+   },
+   {
+    "id": "nav",
+    "name": "Navigation sensor",
+    "type": "NavigationSensor",
+    "scope": "instance",
+    "description": "Visual-inertial odometry: position, velocity, heading",
+    "properties": {},
+    "tags": [],
+    "parent": "drone"
+   },
+   {
+    "id": "lidar",
+    "name": "Range sensor",
+    "type": "RangeSensor",
+    "scope": "instance",
+    "description": "2-D lidar, 3 m range; feeds the building-information service",
+    "properties": {
+     "range_m": "3"
+    },
+    "tags": [],
+    "parent": "drone"
+   },
+   {
+    "id": "battery",
+    "name": "Battery system",
+    "type": "BatterySystem",
+    "scope": "instance",
+    "description": "10 Wh pack with firmware reserve (20 %)",
+    "properties": {},
+    "tags": [],
+    "parent": "drone"
+   },
+   {
+    "id": "camera",
+    "name": "Inspection camera",
+    "type": "Camera",
+    "scope": "instance",
+    "description": "Radiometric camera on a 360-degree gimbal",
+    "properties": {},
+    "tags": [],
+    "parent": "drone"
+   }
+  ],
+  "relationships": [
+   {
+    "id": "r1",
+    "source": "drone",
+    "type": "locatedIn",
+    "target": "floor-1"
+   },
+   {
+    "id": "r2",
+    "source": "drone",
+    "type": "homesAt",
+    "target": "pad-p1"
+   },
+   {
+    "id": "r3",
+    "source": "mission-ins-042",
+    "type": "assignedTo",
+    "target": "drone"
+   },
+   {
+    "id": "r4",
+    "source": "mission-ins-042",
+    "type": "inspects",
+    "target": "switchboard-msb1"
+   },
+   {
+    "id": "r5",
+    "source": "mission-ins-042",
+    "type": "inspects",
+    "target": "riser-sr2"
+   },
+   {
+    "id": "r6",
+    "source": "map-service",
+    "type": "describes",
+    "target": "floor-1"
+   },
+   {
+    "id": "r7",
+    "source": "lidar",
+    "type": "observes",
+    "target": "floor-1"
+   },
+   {
+    "id": "r8",
+    "source": "lidar",
+    "type": "feeds",
+    "target": "map-service"
+   },
+   {
+    "id": "r9",
+    "source": "map-service",
+    "type": "informs",
+    "target": "drone"
+   },
+   {
+    "id": "r10",
+    "source": "nav",
+    "type": "monitors",
+    "target": "drone"
+   },
+   {
+    "id": "r11",
+    "source": "battery",
+    "type": "powers",
+    "target": "drone"
+   },
+   {
+    "id": "r12",
+    "source": "camera",
+    "type": "inspects",
+    "target": "switchboard-msb1"
+   },
+   {
+    "id": "r13",
+    "source": "camera",
+    "type": "inspects",
+    "target": "riser-sr2"
+   },
+   {
+    "id": "r14",
+    "source": "fc",
+    "type": "controls",
+    "target": "drone"
+   },
+   {
+    "id": "r15",
+    "source": "fire-door-fd2",
+    "type": "separates",
+    "target": "corridor-c1"
+   },
+   {
+    "id": "r16",
+    "source": "storage-s2",
+    "type": "connectsTo",
+    "target": "server-s1"
+   }
+  ]
+ },
+ "world": {
+  "$file": "world.json"
+ },
+ "data": {
+  "properties": [
+   {
+    "id": "serial",
+    "label": "Serial number",
+    "type": "string",
+    "asset": "drone",
+    "perInstance": true,
+    "value": ""
+   }
+  ],
+  "telemetry": [
+   {
+    "id": "battery_level",
+    "label": "Battery",
+    "type": "real",
+    "unit": "%",
+    "asset": "battery",
+    "description": "State of charge reported by the battery management system",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Power",
+     "precision": 1,
+     "chart": "line"
+    },
+    "ontologySymbol": "battery_pct",
+    "range": {
+     "min": "0",
+     "max": "100"
+    }
+   },
+   {
+    "id": "energy_remaining",
+    "label": "Remaining energy",
+    "type": "real",
+    "unit": "Wh",
+    "asset": "battery",
+    "description": "Remaining usable energy",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Power",
+     "precision": 2,
+     "chart": "line"
+    },
+    "ontologySymbol": "energy_remaining_wh",
+    "range": {
+     "min": "0",
+     "max": "10"
+    }
+   },
+   {
+    "id": "speed",
+    "label": "Ground speed",
+    "type": "real",
+    "unit": "m/s",
+    "asset": "nav",
+    "description": "Horizontal speed over ground",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    },
+    "range": {
+     "min": "0",
+     "max": "2"
+    }
+   },
+   {
+    "id": "altitude",
+    "label": "Altitude",
+    "type": "real",
+    "unit": "m",
+    "asset": "nav",
+    "description": "Height above the floor",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    },
+    "ontologySymbol": "height_m",
+    "range": {
+     "min": "0",
+     "max": "3"
+    }
+   },
+   {
+    "id": "position_x",
+    "label": "Position east",
+    "type": "real",
+    "unit": "m",
+    "asset": "nav",
+    "description": "Position in the floor frame (east)",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "position_y",
+    "label": "Position south",
+    "type": "real",
+    "unit": "m",
+    "asset": "nav",
+    "description": "Position in the floor frame (south)",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "velocity_x",
+    "label": "Velocity east",
+    "type": "real",
+    "unit": "m/s",
+    "asset": "nav",
+    "description": "Velocity component east",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "velocity_y",
+    "label": "Velocity south",
+    "type": "real",
+    "unit": "m/s",
+    "asset": "nav",
+    "description": "Velocity component south",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 2,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "heading",
+    "label": "Heading",
+    "type": "real",
+    "unit": "deg",
+    "asset": "nav",
+    "description": "Heading (0 = east)",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Navigation",
+     "precision": 1,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "gimbal_angle",
+    "label": "Gimbal sweep",
+    "type": "real",
+    "unit": "deg",
+    "asset": "camera",
+    "description": "Inspection sweep angle",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Inspection",
+     "precision": 0,
+     "chart": "line"
+    }
+   },
+   {
+    "id": "fc_mode",
+    "label": "Flight-controller mode",
+    "type": "enum",
+    "unit": "",
+    "asset": "fc",
+    "description": "Firmware mode of the flight controller (Physical Twin state)",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Flight control",
+     "precision": 0,
+     "chart": "state"
+    },
+    "values": [
+     "FC_BOOT",
+     "FC_IDLE",
+     "FC_ARMING",
+     "FC_CLIMB",
+     "FC_AUTO_WP",
+     "FC_HOLD_REROUTE",
+     "FC_BRAKE_HOLD",
+     "FC_SURVEY",
+     "FC_RTL",
+     "FC_RTL_HOLD",
+     "FC_DESCENT",
+     "FC_DISARMED",
+     "FC_FAILSAFE"
+    ]
+   },
+   {
+    "id": "route_id",
+    "label": "Active route",
+    "type": "integer",
+    "unit": "",
+    "asset": "fc",
+    "description": "Route the drone is flying (0: none)",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 5000
+    },
+    "presentation": {
+     "category": "Flight control",
+     "precision": 0,
+     "chart": "line"
+    }
+   }
+  ],
+  "events": [
+   {
+    "id": "mission_loaded",
+    "label": "Mission loaded",
+    "asset": "fc",
+    "description": "The flight controller accepted the mission upload",
+    "payload": [],
+    "formal": {
+     "pt": "mission_upload_ack!",
+     "dt": "mission_loaded!"
+    }
+   },
+   {
+    "id": "mission_started",
+    "label": "Mission started",
+    "asset": "fc",
+    "description": "Arm and take off",
+    "payload": [],
+    "formal": {
+     "pt": "arm_and_takeoff!",
+     "dt": "start_mission!"
+    }
+   },
+   {
+    "id": "takeoff_complete",
+    "label": "Take-off complete",
+    "asset": "nav",
+    "description": "Cruise height reached",
+    "payload": [],
+    "formal": {
+     "pt": "altitude_reached!",
+     "dt": "takeoff_complete!"
+    }
+   },
+   {
+    "id": "waypoint_reached",
+    "label": "Waypoint reached",
+    "asset": "nav",
+    "description": "Within the acceptance radius of a waypoint",
+    "payload": [],
+    "formal": {
+     "pt": "wp_arrived!",
+     "dt": "waypoint_reached!"
+    }
+   },
+   {
+    "id": "route_blocked",
+    "label": "Route blocked",
+    "asset": "lidar",
+    "description": "Observed occupancy blocks the active route",
+    "payload": [],
+    "formal": {
+     "pt": "route_blocked!",
+     "dt": "path_invalidated!"
+    }
+   },
+   {
+    "id": "replan_requested",
+    "label": "Better route available",
+    "asset": "map-service",
+    "description": "A cheaper admissible route exists",
+    "payload": [],
+    "formal": {
+     "pt": "reroute_request!",
+     "dt": "replan_requested!"
+    }
+   },
+   {
+    "id": "obstacle_detected",
+    "label": "Obstacle detected",
+    "asset": "lidar",
+    "description": "Collision-avoidance brake: obstacle within brake distance",
+    "payload": [],
+    "formal": {
+     "pt": "proximity_brake!",
+     "dt": "obstacle_detected!"
+    }
+   },
+   {
+    "id": "obstacle_cleared",
+    "label": "Obstacle cleared",
+    "asset": "lidar",
+    "description": "The path ahead is clear again",
+    "payload": [],
+    "formal": {
+     "pt": "path_clear!",
+     "dt": "obstacle_cleared!"
+    }
+   },
+   {
+    "id": "plan_available",
+    "label": "Plan available",
+    "asset": "map-service",
+    "description": "A validated route was uploaded to the flight controller",
+    "payload": [],
+    "formal": {
+     "pt": "route_uploaded!",
+     "dt": "plan_accepted!"
+    }
+   },
+   {
+    "id": "target_reached",
+    "label": "Target reached",
+    "asset": "nav",
+    "description": "Arrived at an inspection target",
+    "payload": [],
+    "formal": {
+     "pt": "poi_arrived!",
+     "dt": "target_reached!"
+    }
+   },
+   {
+    "id": "inspection_complete",
+    "label": "Inspection complete",
+    "asset": "camera",
+    "description": "360-degree survey finished",
+    "payload": [],
+    "formal": {
+     "pt": "survey_done!",
+     "dt": "inspection_complete!"
+    }
+   },
+   {
+    "id": "return_requested",
+    "label": "Return requested",
+    "asset": "fc",
+    "description": "Return to launch commanded",
+    "payload": [],
+    "formal": {
+     "pt": "rtl_commanded!",
+     "dt": "return_requested!"
+    }
+   },
+   {
+    "id": "battery_reserve",
+    "label": "Battery reserve reached",
+    "asset": "battery",
+    "description": "Firmware reserve threshold reached",
+    "payload": [],
+    "formal": {
+     "pt": "battery_reserve_reached!",
+     "dt": "battery_low!"
+    }
+   },
+   {
+    "id": "replan_timeout",
+    "label": "Replanning deadline missed",
+    "asset": "fc",
+    "description": "No admissible plan within the deadline",
+    "payload": [],
+    "formal": {
+     "pt": "reroute_timeout_failsafe!",
+     "dt": "replan_timeout!"
+    }
+   },
+   {
+    "id": "home_reached",
+    "label": "Home reached",
+    "asset": "nav",
+    "description": "Above the landing pad",
+    "payload": [],
+    "formal": {
+     "pt": "home_arrived!",
+     "dt": "home_reached!"
+    }
+   },
+   {
+    "id": "landed",
+    "label": "Landed",
+    "asset": "fc",
+    "description": "Touchdown and disarm",
+    "payload": [],
+    "formal": {
+     "pt": "touchdown_disarm!",
+     "dt": "landing_complete!"
+    }
+   }
+  ],
+  "commands": [
+   {
+    "id": "start_mission",
+    "label": "Start mission",
+    "asset": "fc",
+    "parameters": [],
+    "description": "Arm, take off and fly the uploaded mission",
+    "acknowledgement": {
+     "event": "mission_started",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": {
+     "event": "takeoff_complete",
+     "timeoutMs": 12000
+    }
+   },
+   {
+    "id": "navigate_to",
+    "label": "Navigate to",
+    "asset": "drone",
+    "parameters": [
+     {
+      "name": "route",
+      "type": "string"
+     }
+    ],
+    "description": "Fly a validated route",
+    "acknowledgement": {
+     "event": "plan_available",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": {
+     "event": "waypoint_reached",
+     "timeoutMs": 60000
+    }
+   },
+   {
+    "id": "return_home",
+    "label": "Return home",
+    "asset": "drone",
+    "parameters": [],
+    "description": "Return to launch",
+    "acknowledgement": {
+     "event": "return_requested",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": {
+     "event": "home_reached",
+     "timeoutMs": 120000
+    }
+   }
+  ]
+ },
+ "connectivity": {
+  "sources": [
+   {
+    "id": "sim",
+    "kind": "simulator",
+    "name": "Drone simulator (mobile-robot)",
+    "config": {
+     "model": "mobile-robot"
+    }
+   }
+  ],
+  "bindings": [
+   {
+    "id": "b-battery_level",
+    "target": {
+     "kind": "telemetry",
+     "id": "battery_level"
+    },
+    "source": "sim",
+    "select": {
+     "field": "battery_permille"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.1",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-energy_remaining",
+    "target": {
+     "kind": "telemetry",
+     "id": "energy_remaining"
+    },
+    "source": "sim",
+    "select": {
+     "field": "energy_mwh"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-speed",
+    "target": {
+     "kind": "telemetry",
+     "id": "speed"
+    },
+    "source": "sim",
+    "select": {
+     "field": "speed_mm_s"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-altitude",
+    "target": {
+     "kind": "telemetry",
+     "id": "altitude"
+    },
+    "source": "sim",
+    "select": {
+     "field": "alt_mm"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-position_x",
+    "target": {
+     "kind": "telemetry",
+     "id": "position_x"
+    },
+    "source": "sim",
+    "select": {
+     "field": "x_mm"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-position_y",
+    "target": {
+     "kind": "telemetry",
+     "id": "position_y"
+    },
+    "source": "sim",
+    "select": {
+     "field": "y_mm"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-velocity_x",
+    "target": {
+     "kind": "telemetry",
+     "id": "velocity_x"
+    },
+    "source": "sim",
+    "select": {
+     "field": "vx_mm_s"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-velocity_y",
+    "target": {
+     "kind": "telemetry",
+     "id": "velocity_y"
+    },
+    "source": "sim",
+    "select": {
+     "field": "vy_mm_s"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.001",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-heading",
+    "target": {
+     "kind": "telemetry",
+     "id": "heading"
+    },
+    "source": "sim",
+    "select": {
+     "field": "heading_cdeg"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.01",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-gimbal_angle",
+    "target": {
+     "kind": "telemetry",
+     "id": "gimbal_angle"
+    },
+    "source": "sim",
+    "select": {
+     "field": "gimbal_cdeg"
+    },
+    "unit": {
+     "from": "",
+     "scale": "0.01",
+     "offset": "0"
+    }
+   },
+   {
+    "id": "b-fc_mode",
+    "target": {
+     "kind": "telemetry",
+     "id": "fc_mode"
+    },
+    "source": "sim",
+    "select": {
+     "field": "mode"
+    }
+   },
+   {
+    "id": "b-route_id",
+    "target": {
+     "kind": "telemetry",
+     "id": "route_id"
+    },
+    "source": "sim",
+    "select": {
+     "field": "route_id"
+    }
+   }
+  ]
+ },
+ "presentation": {
+  "displayName": "Indoor Inspection Drone",
+  "icon": "drone",
+  "primaryView": "world",
+  "plugin": "drone",
+  "keyTelemetry": [
+   "battery_level",
+   "speed",
+   "altitude",
+   "fc_mode"
+  ],
+  "importantAssets": [
+   "drone",
+   "lidar",
+   "battery"
+  ],
+  "importantPropositions": [
+   "at_NAVIGATING",
+   "at_REPLANNING",
+   "at_MISSION_FAILED"
+  ],
+  "importantMonitors": [
+   "conformance",
+   "never-mission-failed",
+   "battery-fresh"
+  ],
+  "importantPredictions": [
+   "replan_timeout!"
+  ],
+  "states": {
+   "INITIALIZING": {
+    "label": "Initializing",
+    "tone": "neutral",
+    "summary": "Waiting for the mission to be loaded."
+   },
+   "READY": {
+    "label": "Ready",
+    "tone": "info",
+    "summary": "Mission loaded; pre-flight checks pending."
+   },
+   "TAKING_OFF": {
+    "label": "Taking off",
+    "tone": "info",
+    "summary": "Motors spinning up; climbing to cruise height."
+   },
+   "NAVIGATING": {
+    "label": "Navigating",
+    "tone": "ok",
+    "summary": "Following a validated route to the current target."
+   },
+   "REPLANNING": {
+    "label": "Replanning",
+    "tone": "warning",
+    "summary": "The route was invalidated; a new admissible route is due within 5 s."
+   },
+   "HOVERING": {
+    "label": "Hovering (obstacle)",
+    "tone": "warning",
+    "summary": "Collision-avoidance brake: holding position in front of an obstacle."
+   },
+   "INSPECTING": {
+    "label": "Inspecting",
+    "tone": "info",
+    "summary": "360-degree inspection of the target in progress."
+   },
+   "RETURNING": {
+    "label": "Returning",
+    "tone": "info",
+    "summary": "Flying back to the landing pad."
+   },
+   "RETURN_REPLANNING": {
+    "label": "Replanning (return)",
+    "tone": "warning",
+    "summary": "The way home was invalidated; replanning."
+   },
+   "LANDING": {
+    "label": "Landing",
+    "tone": "info",
+    "summary": "Descending onto the landing pad."
+   },
+   "LANDED": {
+    "label": "Landed",
+    "tone": "ok",
+    "summary": "Mission complete; motors disarmed."
+   },
+   "MISSION_FAILED": {
+    "label": "Mission failed",
+    "tone": "critical",
+    "summary": "No admissible plan within the replanning deadline."
+   }
+  },
+  "events": {
+   "mission_loaded!": {
+    "label": "Mission loaded"
+   },
+   "start_mission!": {
+    "label": "Mission started"
+   },
+   "takeoff_complete!": {
+    "label": "Take-off complete"
+   },
+   "waypoint_reached!": {
+    "label": "Waypoint reached"
+   },
+   "path_invalidated!": {
+    "label": "Route blocked"
+   },
+   "replan_requested!": {
+    "label": "Better route available"
+   },
+   "obstacle_detected!": {
+    "label": "Obstacle detected"
+   },
+   "obstacle_cleared!": {
+    "label": "Obstacle cleared"
+   },
+   "plan_accepted!": {
+    "label": "Plan available"
+   },
+   "target_reached!": {
+    "label": "Target reached"
+   },
+   "inspection_complete!": {
+    "label": "Inspection complete"
+   },
+   "return_requested!": {
+    "label": "Return requested"
+   },
+   "battery_low!": {
+    "label": "Battery reserve reached"
+   },
+   "replan_timeout!": {
+    "label": "Replanning deadline missed"
+   },
+   "home_reached!": {
+    "label": "Home reached"
+   },
+   "landing_complete!": {
+    "label": "Landed"
+   }
+  },
+  "charts": [
+   {
+    "title": "Power",
+    "telemetry": [
+     "battery_level",
+     "energy_remaining"
+    ]
+   },
+   {
+    "title": "Flight",
+    "telemetry": [
+     "speed",
+     "altitude"
+    ]
+   }
+  ],
+  "units": {},
+  "precision": {}
+ },
+ "behavior": {
+  "pt": {
+   "layout": null
+  },
+  "dt": {
+   "layout": null
+  }
+ },
+ "assurance": {
+  "format": "twin-monitors/1",
+  "requirements": [
+   {
+    "id": "REQ-S1",
+    "title": "No silent mission failure",
+    "category": "safety",
+    "severity": "critical",
+    "description": "The twin must never reach MISSION_FAILED without an operator alert.",
+    "monitors": [
+     "never-mission-failed"
+    ],
+    "formal": "A[] !MISSION_FAILED"
+   },
+   {
+    "id": "REQ-T1",
+    "title": "Replan within 5 s",
+    "category": "timing",
+    "severity": "warning",
+    "description": "A replacement route is selected within 5 s of a route invalidation.",
+    "monitors": [
+     "replanning-deadline"
+    ],
+    "formal": "A[] (REPLANNING -> t_mode <= 5)"
+   },
+   {
+    "id": "REQ-C1",
+    "title": "Behaviour conforms to the verified model",
+    "category": "operational",
+    "severity": "critical",
+    "description": "Every flight-controller event is admitted by the verified mission model.",
+    "monitors": [
+     "conformance"
+    ]
+   },
+   {
+    "id": "REQ-O1",
+    "title": "Fresh battery telemetry",
+    "category": "operational",
+    "severity": "warning",
+    "description": "Battery telemetry is never older than 5 s while live.",
+    "monitors": [
+     "battery-fresh",
+     "battery-range"
+    ]
+   }
+  ],
+  "monitors": [
+   {
+    "id": "conformance",
+    "kind": "conformance",
+    "name": "Behavioural conformance",
+    "severity": "critical",
+    "events": "all",
+    "unmatchedEvents": "record",
+    "requirement": "REQ-C1"
+   },
+   {
+    "id": "never-mission-failed",
+    "kind": "property",
+    "name": "Mission never fails",
+    "severity": "critical",
+    "property": "A[] !MISSION_FAILED",
+    "requirement": "REQ-S1"
+   },
+   {
+    "id": "replanning-deadline",
+    "kind": "property",
+    "name": "Replanning within its deadline",
+    "severity": "warning",
+    "property": "A[] (REPLANNING -> t_mode <= 5)",
+    "requirement": "REQ-T1"
+   },
+   {
+    "id": "battery-fresh",
+    "kind": "data_quality",
+    "name": "Battery telemetry freshness",
+    "severity": "warning",
+    "field": "battery_level",
+    "check": "stale",
+    "maxAgeSeconds": 5,
+    "requirement": "REQ-O1"
+   },
+   {
+    "id": "battery-range",
+    "kind": "data_quality",
+    "name": "Battery telemetry range",
+    "severity": "warning",
+    "field": "battery_level",
+    "check": "out_of_range",
+    "min": 0,
+    "max": 100,
+    "requirement": "REQ-O1"
+   }
+  ],
+  "alerts": [
+   {
+    "id": "AL-1",
+    "monitor": "conformance",
+    "on": "violated",
+    "severity": "critical",
+    "message": "Behaviour deviates from the verified mission model"
+   },
+   {
+    "id": "AL-2",
+    "monitor": "never-mission-failed",
+    "on": "violated",
+    "severity": "critical",
+    "message": "Mission failed: no admissible plan within the replanning deadline"
+   },
+   {
+    "id": "AL-3",
+    "monitor": "battery-fresh",
+    "on": "finding",
+    "severity": "warning",
+    "message": "Battery telemetry is stale"
+   }
+  ]
+ },
+ "simulation": {
+  "$file": "simulation.json"
+ },
+ "scenarios": [
+  {
+   "id": "blocked-east-corridor",
+   "name": "Blocked East Corridor",
+   "description": "The ground truth contains an obstacle in the east corridor that the twin does not know. When it becomes sensor-visible the route is invalidated, the twin replans and resumes navigation within the 5 s deadline.",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "world",
+     "at": "0",
+     "change": {
+      "action": "add_object",
+      "object": {
+       "id": "east-corridor-obstacle",
+       "layer": "as-built",
+       "kind": "rect",
+       "semanticType": "obstacle",
+       "name": "Pallet in east corridor",
+       "geometry": {
+        "x": 22000,
+        "y": 6500,
+        "w": 1000,
+        "h": 1500
+       },
+       "properties": {},
+       "tags": [
+        "scenario"
+       ]
+      }
+     }
+    },
+    {
+     "id": "s2",
+     "kind": "event",
+     "label": "mission_loaded!",
+     "at": "0.5"
+    },
+    {
+     "id": "s3",
+     "kind": "event",
+     "label": "start_mission!",
+     "at": "1"
+    },
+    {
+     "id": "s4",
+     "kind": "event",
+     "label": "takeoff_complete!",
+     "at": "4"
+    },
+    {
+     "id": "s5",
+     "kind": "expect",
+     "at": "4",
+     "expect": {
+      "location": "NAVIGATING"
+     }
+    },
+    {
+     "id": "s6",
+     "kind": "world",
+     "at": "18",
+     "change": {
+      "action": "set_property",
+      "objectId": "east-corridor-obstacle",
+      "property": "observed",
+      "value": true
+     },
+     "observation": {
+      "event": "route_blocked",
+      "at": "18"
+     }
+    },
+    {
+     "id": "s7",
+     "kind": "expect",
+     "at": "18",
+     "expect": {
+      "transition": "NAVIGATING.path_invalidated!.REPLANNING"
+     }
+    },
+    {
+     "id": "s8",
+     "kind": "expect",
+     "at": "18",
+     "expect": {
+      "semantic": "holding_position"
+     }
+    },
+    {
+     "id": "s9",
+     "kind": "expect",
+     "at": "18",
+     "expect": {
+      "window": {
+       "label": "replan_timeout!",
+       "status": "later",
+       "earliest": "5",
+       "latest": "5"
+      }
+     }
+    },
+    {
+     "id": "s10",
+     "kind": "event",
+     "label": "plan_accepted!",
+     "at": "19.2"
+    },
+    {
+     "id": "s11",
+     "kind": "expect",
+     "at": "19.2",
+     "expect": {
+      "location": "NAVIGATING"
+     }
+    },
+    {
+     "id": "s12",
+     "kind": "expect",
+     "at": "19.2",
+     "expect": {
+      "monitor": {
+       "id": "never-mission-failed",
+       "status": "satisfied"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "replanning-deadline-missed",
+   "name": "Replanning deadline missed",
+   "description": "No admissible plan is found: after exactly 5 s in REPLANNING the timeout is the only legal event and the mission fails (the monitor reports the violation).",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "event",
+     "label": "mission_loaded!",
+     "at": "0.5"
+    },
+    {
+     "id": "s2",
+     "kind": "event",
+     "label": "start_mission!",
+     "at": "1"
+    },
+    {
+     "id": "s3",
+     "kind": "event",
+     "label": "takeoff_complete!",
+     "at": "4"
+    },
+    {
+     "id": "s4",
+     "kind": "event",
+     "label": "path_invalidated!",
+     "at": "10"
+    },
+    {
+     "id": "s5",
+     "kind": "expect",
+     "at": "12",
+     "expect": {
+      "window": {
+       "label": "plan_accepted!",
+       "status": "now"
+      }
+     }
+    },
+    {
+     "id": "s6",
+     "kind": "event",
+     "label": "replan_timeout!",
+     "at": "15"
+    },
+    {
+     "id": "s7",
+     "kind": "expect",
+     "at": "15",
+     "expect": {
+      "location": "MISSION_FAILED"
+     }
+    },
+    {
+     "id": "s8",
+     "kind": "expect",
+     "at": "15",
+     "expect": {
+      "monitor": {
+       "id": "never-mission-failed",
+       "status": "violated"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

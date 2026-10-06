@@ -11,7 +11,8 @@ namespace twin::platform {
 namespace {
 
 constexpr std::string_view kTwinColumns =
-    "id, name, asset_id, description, model_id, ticks_per_unit, runtime_url, presentation, created_at";
+    "id, name, asset_id, description, model_id, ticks_per_unit, runtime_url, presentation, created_at, blueprint_id, "
+    "blueprint_version, instance_config, world_url, desired_state";
 constexpr std::string_view kPackageColumns =
     "id, twin_id, directory, package_hash, ir_sha256, model_version, bindings, evidence_id, state, created_at, "
     "created_by, released_at, change_id";
@@ -47,6 +48,13 @@ Result<Twin> read_twin(const Statement& s) {
     if (!p) return std::move(p).error();
     t.presentation = std::move(p).value();
     t.created_at = s.text(8);
+    t.blueprint_id = s.opt_text(9);
+    if (!s.is_null(10)) t.blueprint_version = s.integer(10);
+    auto c = json::parse(s.text(11).empty() ? std::string("{}") : s.text(11));
+    if (!c) return std::move(c).error();
+    t.instance_config = std::move(c).value();
+    t.world_url = s.opt_text(12);
+    t.desired_state = s.text(13);
     return t;
 }
 
@@ -100,6 +108,8 @@ Result<Change> read_change(const Statement& s) {
 
 }  // namespace
 
+std::string blueprint_owner(std::string_view blueprint_id) { return "blueprint:" + std::string(blueprint_id); }
+
 const Binding* PackageRecord::binding(std::string_view role) const noexcept {
     for (const auto& b : bindings) {
         if (b.role == role) return &b;
@@ -113,11 +123,16 @@ Status TwinRepository::upsert_twin(const Twin& t) {
     if (t.id.empty() || t.name.empty() || t.model_id.empty()) {
         return make_error(ErrorCode::InvalidArgument, "twins need an id, a name and a model id");
     }
+    if (t.desired_state != "running" && t.desired_state != "stopped") {
+        return make_error(ErrorCode::InvalidArgument, "desired state must be 'running' or 'stopped'");
+    }
     auto q = db_.prepare("INSERT INTO twins(" + std::string(kTwinColumns) +
-                         ") VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) ON CONFLICT(id) DO UPDATE SET name = excluded.name, "
-                         "asset_id = excluded.asset_id, description = excluded.description, model_id = "
-                         "excluded.model_id, ticks_per_unit = excluded.ticks_per_unit, runtime_url = "
-                         "excluded.runtime_url, presentation = excluded.presentation");
+                         ") VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT(id) DO UPDATE "
+                         "SET name = excluded.name, asset_id = excluded.asset_id, description = excluded.description, "
+                         "model_id = excluded.model_id, ticks_per_unit = excluded.ticks_per_unit, runtime_url = "
+                         "excluded.runtime_url, presentation = excluded.presentation, blueprint_id = "
+                         "excluded.blueprint_id, blueprint_version = excluded.blueprint_version, instance_config = "
+                         "excluded.instance_config, world_url = excluded.world_url, desired_state = excluded.desired_state");
     if (!q) return std::move(q).error();
     q.value()
         .bind(1, t.id)
@@ -128,7 +143,12 @@ Status TwinRepository::upsert_twin(const Twin& t) {
         .bind(6, t.ticks_per_unit)
         .bind(7, t.runtime_url)
         .bind(8, t.presentation.dump())
-        .bind(9, t.created_at.empty() ? iso8601_utc(clock_.now_ms()) : t.created_at);
+        .bind(9, t.created_at.empty() ? iso8601_utc(clock_.now_ms()) : t.created_at)
+        .bind(10, t.blueprint_id)
+        .bind(11, t.blueprint_version)
+        .bind(12, t.instance_config.dump())
+        .bind(13, t.world_url)
+        .bind(14, t.desired_state);
     return q.value().run();
 }
 
@@ -220,7 +240,11 @@ Result<Deployment> TwinRepository::deploy(std::string_view twin_id, std::string_
     if (!tx.begun()) return tx.begun().error();
     auto pkg = package(package_id);
     if (!pkg) return std::move(pkg).error();
-    if (pkg.value().twin_id != twin_id) {
+    auto owner = twin(twin_id);
+    if (!owner) return std::move(owner).error();
+    const bool blueprint_package =
+        owner.value().blueprint_id && pkg.value().twin_id == blueprint_owner(*owner.value().blueprint_id);
+    if (pkg.value().twin_id != twin_id && !blueprint_package) {
         return make_error(ErrorCode::InvalidArgument, "package belongs to a different twin")
             .with("package", std::string(package_id));
     }
@@ -376,7 +400,12 @@ json::Json to_json(const Twin& t) {
             {"ticksPerUnit", t.ticks_per_unit},
             {"runtimeUrl", t.runtime_url ? json::Json(*t.runtime_url) : json::Json(nullptr)},
             {"presentation", t.presentation},
-            {"createdAt", t.created_at}};
+            {"createdAt", t.created_at},
+            {"blueprintId", t.blueprint_id ? json::Json(*t.blueprint_id) : json::Json(nullptr)},
+            {"blueprintVersion", t.blueprint_version ? json::Json(*t.blueprint_version) : json::Json(nullptr)},
+            {"instanceConfig", t.instance_config},
+            {"worldUrl", t.world_url ? json::Json(*t.world_url) : json::Json(nullptr)},
+            {"desiredState", t.desired_state}};
 }
 
 json::Json to_json(const PackageRecord& p) {

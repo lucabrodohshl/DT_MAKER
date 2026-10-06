@@ -57,7 +57,14 @@ struct StudioConfig {
     std::filesystem::path data_dir{"var/studio"};  ///< Database, objects, packages, work files, logs.
     unsigned solver_timeout_ms{10000};             ///< Per-query Z3 timeout for ontology checks.
     bool legacy_system_declaration{false};         ///< Passed to compiler/aligner (legacy corpora).
+    std::filesystem::path templates_dir{"examples/templates"};  ///< Blueprint templates and tool palettes.
+    std::filesystem::path bin_dir;                 ///< twin-runtime, twin-world, twin-pt-feed (empty: next to twin-studio).
+    int port_range_begin{18100};                   ///< First local port the supervisor allocates to instances.
+    int port_range_end{18999};                     ///< Last local port the supervisor allocates.
 };
+
+class BlueprintService;
+class Supervisor;
 
 /// @brief Identity of the caller (for audit). Not an authentication mechanism.
 struct Actor {
@@ -139,6 +146,24 @@ public:
     [[nodiscard]] Result<json::Json> build_package(std::string_view twin_id,
                                                    const std::vector<platform::Binding>& bindings,
                                                    const std::optional<std::string>& change_id, const Actor& actor);
+
+    /// @brief What a package or a compilation is built for (a twin, or a Blueprint version).
+    struct BuildTarget {
+        std::string owner;                 ///< Package owner: a twin id or platform::blueprint_owner().
+        std::string model_id;              ///< Model id stamped into IR and manifest.
+        std::int64_t ticks_per_unit{1000}; ///< Logical-time resolution R.
+        std::optional<std::string> model_version;        ///< Model version (default: "1.<n>.0" by package count).
+        std::optional<std::filesystem::path> monitors;   ///< Monitor document shipped in the package.
+        std::optional<json::Json> type_metadata;         ///< Type metadata shipped in the package (meta/type.json).
+        bool source_models{false};         ///< Ship canonical PT/DT models (when the artefacts hold twin-ta/1 content).
+    };
+    /// @brief run_compile() for an explicit target (no twin record needed).
+    [[nodiscard]] Result<json::Json> run_compile_for(const BuildTarget& target, const std::vector<platform::Binding>& bindings,
+                                                     const std::optional<std::string>& change_id, const Actor& actor);
+    /// @brief build_package() for an explicit target (no twin record needed).
+    [[nodiscard]] Result<json::Json> build_package_for(const BuildTarget& target,
+                                                       const std::vector<platform::Binding>& bindings,
+                                                       const std::optional<std::string>& change_id, const Actor& actor);
     /// @brief Re-verify a stored package now (live integrity checks).
     [[nodiscard]] Result<json::Json> verify_package(std::string_view package_id);
     /// @brief One evidence record with its document.
@@ -282,6 +307,13 @@ public:
 
     /// @brief Opaque implementation state (defined in src/studio/services_impl.hpp).
     struct Impl;
+    /// @brief The implementation state, for the other Studio services (BlueprintService, Supervisor).
+    [[nodiscard]] Impl& internals() noexcept { return *impl_; }
+
+    /// @brief Blueprint Studio (Twin Blueprints, instances, deployment).
+    [[nodiscard]] BlueprintService& blueprints() noexcept { return *blueprints_; }
+    /// @brief The deployment supervisor (instance processes).
+    [[nodiscard]] Supervisor& supervisor() noexcept { return *supervisor_; }
 
 private:
     Services(StudioConfig config, std::unique_ptr<platform::Clock> clock);
@@ -291,6 +323,8 @@ private:
     std::unique_ptr<platform::AppLog> log_;
     EventHub events_;
     std::unique_ptr<Impl> impl_;
+    std::unique_ptr<BlueprintService> blueprints_;
+    std::unique_ptr<Supervisor> supervisor_;
 };
 
 }  // namespace twin::studio

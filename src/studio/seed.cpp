@@ -12,6 +12,11 @@
 #include <sstream>
 #include <thread>
 
+#include "blueprints_impl.hpp"
+#include "twin/authoring/import.hpp"
+#include "twin/core/large_stack.hpp"
+#include "twin/studio/blueprints.hpp"
+
 namespace twin::studio {
 
 namespace fs = std::filesystem;
@@ -110,62 +115,41 @@ TelemetrySample ProfileGenerator::live_sample(std::int64_t t_ms) {
 
 // --- seeding --------------------------------------------------------------------------
 
-Result<json::Json> seed_example(Services& services, const std::filesystem::path& example_dir, const SeedOptions& options) {
-    auto manifest = read_manifest(example_dir);
-    if (!manifest) return std::move(manifest).error();
-    const json::Json& m = manifest.value();
-    const json::Json& tw = m.at("twin");
-    const std::string twin_id = tw.at("id").get<std::string>();
-    if (services.twin_record(twin_id)) {
-        return make_error(ErrorCode::StateError, "example already seeded").with("twin", twin_id);
-    }
-    const Actor& actor = options.actor;
-    services.app_log().write(LogLevel::Info, "studio.seed", "seeding example", {{"example", m.value("id", std::string())}});
+namespace {
 
-    // 1. Assets and relationships (the operational knowledge graph).
-    for (const auto& a : m.value("assets", json::Json::array())) {
-        Asset asset;
-        asset.id = a.at("id").get<std::string>();
-        asset.name = a.at("name").get<std::string>();
-        asset.type = a.at("type").get<std::string>();
-        asset.parent_id = opt_string(a, "parentId");
-        asset.description = a.value("description", std::string());
-        asset.tags = a.value("tags", json::Json::array());
-        asset.properties = a.value("properties", json::Json::object());
-        asset.twin_id = opt_string(a, "twinId");
-        if (auto st = services.upsert_asset(asset); !st) return st.error();
-    }
-    for (const auto& r : m.value("relationships", json::Json::array())) {
-        if (auto st = services.relate(r.at(0).get<std::string>(), r.at(1).get<std::string>(), r.at(2).get<std::string>()); !st) {
-            return st.error();
-        }
-    }
-    Twin twin;
-    twin.id = twin_id;
-    twin.name = tw.at("name").get<std::string>();
-    twin.asset_id = opt_string(tw, "assetId");
-    twin.description = tw.value("description", std::string());
-    twin.model_id = tw.at("modelId").get<std::string>();
-    twin.ticks_per_unit = tw.value("ticksPerUnit", std::int64_t{1000});
-    twin.presentation = tw.value("presentation", json::Json::object());
-    if (auto st = services.upsert_twin(twin); !st) return st.error();
-
-    // 2. Formal artefacts: import, validate (real checks), publish.
-    std::vector<std::pair<std::string, ArtifactRef>> roles;
+/// Formal artefacts of an example: model files are imported into the canonical twin-ta/1 form
+/// (unsupported constructs abort the seed); the diagram layout found in the file is returned.
+Result<std::map<std::string, ArtifactRef>> seed_formal(Services& services, const fs::path& dir, const json::Json& formal,
+                                                       const Actor& actor, json::Json& layouts) {
+    std::map<std::string, ArtifactRef> pins;
     std::string ontology_ref;
-    json::Json imported = json::Json::array();
     for (const std::string role : {"ontology", "pt_interpretation", "dt_interpretation", "pt_model", "dt_model"}) {
-        const json::Json& spec = m.at("artifacts").at(role);
-        auto text = read_text(example_dir / spec.at("file").get<std::string>());
+        if (!formal.contains(role)) continue;
+        const json::Json& spec = formal.at(role);
+        const std::string file = spec.at("file").get<std::string>();
+        auto text = read_text(dir / file);
         if (!text) return std::move(text).error();
+        std::string content = text.value();
         json::Json refs = json::Json::object();
         if (role_kinds().at(role) == ArtifactKind::Interpretation) {
             refs["ontology"] = ontology_ref;
             refs["twinRole"] = role == "pt_interpretation" ? "pt" : "dt";
         }
+        if (role == "pt_model" || role == "dt_model") {
+            authoring::ImportOptions options;
+            options.filename = fs::path(file).filename().string();
+            const authoring::ImportResult r = run_with_large_stack([&] { return authoring::import_any(content, options); });
+            if (!r.model) {
+                Error e = make_error(ErrorCode::UnsupportedConstruct, "example model does not import").with("file", file);
+                for (const auto& d : r.diagnostics) e.with(d.code, d.message);
+                return e;
+            }
+            content = json::canonical_dump(authoring::to_json(*r.model)).value();
+            if (!r.layout.locations.empty()) layouts[role == "pt_model" ? "pt" : "dt"] = authoring::to_json(r.layout);
+        }
         const std::string id = spec.at("id").get<std::string>();
-        auto created = services.create_artifact(role_kinds().at(role), id, spec.value("name", id),
-                                                spec.value("description", std::string()), text.value(), refs, actor);
+        auto created = services.create_artifact(role_kinds().at(role), id, spec.value("name", id), spec.value("description", std::string()),
+                                                content, refs, actor);
         if (!created) return std::move(created).error();
         const ArtifactRef ref{id, 1};
         auto validated = services.validate(ref, actor);
@@ -176,84 +160,189 @@ Result<json::Json> seed_example(Services& services, const std::filesystem::path&
         auto published = services.publish(ref, actor);
         if (!published) return std::move(published).error();
         if (role == "ontology") ontology_ref = ref.str();
-        roles.emplace_back(role, ref);
-        imported.push_back(ref.str());
+        pins[role] = ref;
+    }
+    return pins;
+}
+
+Status write_history(Services& services, const json::Json& history, const json::Json& profiles, const std::string& instance,
+                     std::int64_t& samples_written) {
+    const std::int64_t now = services.clock().now_ms();
+    const std::int64_t days = history.value("days", std::int64_t{7});
+    const std::int64_t period = history.value("periodSeconds", std::int64_t{30}) * 1000;
+    const auto seed = history.value("seed", std::uint32_t{1});
+    std::uint32_t channel_index = 0;
+    auto channels = services.telemetry_channels_all();
+    if (!channels) return channels.error();
+    for (const auto& [name, profile] : profiles.items()) {
+        const std::string channel_id = instance + "." + name;
+        auto it = std::find_if(channels.value().begin(), channels.value().end(), [&](const TelemetryChannel& c) { return c.id == channel_id; });
+        if (it == channels.value().end()) continue;
+        ProfileGenerator gen(profile, it->value_type, now, seed + channel_index++);
+        std::vector<TelemetrySample> batch;
+        const std::int64_t start = ((now - days * 86400000) / period) * period;
+        for (std::int64_t t = start; t <= now; t += period) {
+            if (auto smp = gen.sample(t)) batch.push_back(*smp);
+            if (batch.size() >= 5000) {
+                auto n = services.ingest_samples(channel_id, batch);
+                if (!n) return n.error();
+                samples_written += n.value();
+                batch.clear();
+            }
+        }
+        auto n = services.ingest_samples(channel_id, batch);
+        if (!n) return n.error();
+        samples_written += n.value();
+    }
+    return {};
+}
+
+}  // namespace
+
+Result<json::Json> seed_example(Services& services, const std::filesystem::path& example_dir, const SeedOptions& options) {
+    auto manifest = read_manifest(example_dir);
+    if (!manifest) return std::move(manifest).error();
+    const json::Json& m = manifest.value();
+    if (m.value("format", std::string()) != "twin-example/2") {
+        return make_error(ErrorCode::InvalidArgument, "examples use format twin-example/2 (a Blueprint plus instances)")
+            .with("example", example_dir.string());
+    }
+    const json::Json bp = m.at("blueprint");
+    const std::string bp_id = bp.at("id").get<std::string>();
+    BlueprintService& blueprints = services.blueprints();
+    if (blueprints.get(bp_id)) return make_error(ErrorCode::StateError, "example already seeded").with("blueprint", bp_id);
+    const Actor& actor = options.actor;
+    services.app_log().write(LogLevel::Info, "studio.seed", "seeding example", {{"example", m.value("id", std::string())}});
+
+    // 1. The estate: site assets that exist independently of any Blueprint.
+    for (const auto& a : m.value("estate", json::Json::object()).value("assets", json::Json::array())) {
+        Asset asset;
+        asset.id = a.at("id").get<std::string>();
+        asset.name = a.at("name").get<std::string>();
+        asset.type = a.at("type").get<std::string>();
+        asset.parent_id = opt_string(a, "parentId");
+        asset.description = a.value("description", std::string());
+        asset.tags = a.value("tags", json::Json::array());
+        asset.properties = a.value("properties", json::Json::object());
+        if (auto st = services.upsert_asset(asset); !st) return st.error();
     }
 
-    // 3. Initial deployment through the real package pipeline (compile + align + verify).
-    auto bindings = services.make_bindings(roles);
-    if (!bindings) return std::move(bindings).error();
-    auto boot = services.bootstrap_twin(twin_id, bindings.value(), actor);
-    if (!boot) return std::move(boot).error();
+    // 2. Formal artefacts (imported, validated and published by the real tools).
+    json::Json layouts = json::Json::object();
+    auto pins = seed_formal(services, example_dir, bp.at("formal"), actor, layouts);
+    if (!pins) return std::move(pins).error();
 
-    // 4. Maintenance history (e.g. a rejected ontology change with real refinement evidence).
+    // 3. The Blueprint document over those artefacts.
+    auto doc_text = read_text(example_dir / bp.at("document").get<std::string>());
+    if (!doc_text) return std::move(doc_text).error();
+    auto doc = json::parse(doc_text.value());
+    if (!doc) return std::move(doc).error();
+    auto resolved = resolve_includes(std::move(doc).value(), example_dir);
+    if (!resolved) return std::move(resolved).error();
+    json::Json document = std::move(resolved).value();
+    for (const char* role : {"pt", "dt"}) {
+        if (layouts.contains(role) && document["behavior"][role].value("layout", json::Json()).is_null()) {
+            document["behavior"][role]["layout"] = layouts[role];
+        }
+    }
+    json::Json pin_json = json::Json::object();
+    for (const auto& [role, ref] : pins.value()) pin_json[role] = ref.str();
+    auto created = blueprints.create({{"mode", "document"},
+                                      {"id", bp_id},
+                                      {"name", bp.value("name", bp_id)},
+                                      {"description", bp.value("description", std::string())},
+                                      {"domain", bp.value("domain", std::string("generic"))},
+                                      {"icon", bp.value("icon", std::string("boxes"))},
+                                      {"document", document},
+                                      {"pins", pin_json}},
+                                     actor);
+    if (!created) return std::move(created).error();
+
+    // 4. Verification, tests, packaging and release through the ordinary checks.
+    json::Json checks = json::Json::object();
+    for (const char* check : {"alignment", "compile", "scenarios", "package"}) {
+        auto r = blueprints.run_check(bp_id, 1, check, json::Json::object(), actor);
+        if (!r) return std::move(r).error().with("check", check);
+        checks[check] = r.value().value("outcome", r.value().value("built", false) ? std::string("pass") : std::string("fail"));
+        if (std::string(check) == "scenarios" && r.value().value("outcome", std::string()) != "pass") {
+            Error e = make_error(ErrorCode::ValidationError, "an example scenario test fails");
+            for (const auto& res : r.value()["results"]) {
+                for (const auto& st : res["steps"]) {
+                    const std::string status = st.value("status", std::string());
+                    if (status == "ok" || status == "pass") continue;
+                    e.with(res.value("id", std::string()) + "#" + st.value("id", std::string()), st.dump());
+                }
+            }
+            return e;
+        }
+    }
+    auto published = blueprints.publish(bp_id, 1, actor);
+    if (!published) return std::move(published).error();
+
+    // 5. Instances: assets, channels, twin record and the deployment record. Processes are started
+    //    by the deployment supervisor when Studio serves (desired state "running").
+    json::Json instances = json::Json::array();
+    std::int64_t samples_written = 0;
+    for (const auto& inst : m.value("instances", json::Json::array())) {
+        json::Json body = inst;
+        body["blueprintId"] = bp_id;
+        body["version"] = 1;
+        auto made = blueprints.create_instance(body, actor);
+        if (!made) return std::move(made).error();
+        const std::string id = inst.at("id").get<std::string>();
+        for (const auto& r : inst.value("estateRelationships", json::Json::array())) {
+            (void)services.relate(r.at(0).get<std::string>(), r.at(1).get<std::string>(), r.at(2).get<std::string>());
+        }
+        if (inst.value("deploy", false)) {
+            auto ver = blueprints.version(bp_id, 1);
+            if (!ver) return std::move(ver).error();
+            auto d = services.deploy(id, ver.value()["packageId"].get<std::string>(), "initial deployment", actor);
+            if (!d) return std::move(d).error();
+            auto t = services.twin_record(id);
+            if (t) {
+                auto rec = t.value();
+                rec.desired_state = "running";
+                (void)services.upsert_twin(rec);
+            }
+        }
+        if (options.telemetry_history && inst.contains("profiles")) {
+            if (auto st = write_history(services, inst.value("history", json::Json::object()), inst.at("profiles"), id, samples_written); !st) {
+                return st.error();
+            }
+        }
+        instances.push_back(id);
+    }
+
+    // 6. Maintenance history (e.g. a rejected ontology change with real refinement evidence).
     json::Json history = json::Json::array();
     for (const auto& h : m.value("maintenanceHistory", json::Json::array())) {
-        if (h.value("kind", std::string()) != "rejected-ontology-change") continue;
+        if (h.value("kind", std::string()) != "rejected-ontology-change" || instances.empty()) continue;
+        const std::string twin_id = instances.front().get<std::string>();
         auto change = services.create_change(twin_id, h.at("title").get<std::string>(), h.value("description", std::string()), actor);
         if (!change) return std::move(change).error();
         const std::string change_id = change.value()["id"].get<std::string>();
-        const std::string ont_id = m.at("artifacts").at("ontology").at("id").get<std::string>();
+        const std::string ont_id = bp.at("formal").at("ontology").at("id").get<std::string>();
         auto draft = services.add_to_change(change_id, ont_id, h.at("title").get<std::string>(), actor);
         if (!draft) return std::move(draft).error();
         const ArtifactRef dref{ont_id, draft.value()["version"].get<std::int64_t>()};
         auto text = read_text(example_dir / h.at("file").get<std::string>());
         if (!text) return std::move(text).error();
-        if (auto s = services.save_draft(dref, text.value(), std::nullopt, std::nullopt, actor); !s) return std::move(s).error();
+        if (auto sv = services.save_draft(dref, text.value(), std::nullopt, std::nullopt, actor); !sv) return std::move(sv).error();
         if (auto v = services.validate(dref, actor); !v) return std::move(v).error();
         auto refinement = services.run_stage(change_id, "refinement", actor);
         if (!refinement) return std::move(refinement).error();
         auto abandoned = services.abandon_change(change_id, h.value("description", std::string("rejected")), actor);
         if (!abandoned) return std::move(abandoned).error();
-        history.push_back({{"changeId", change_id}, {"refinementEvidence", refinement.value()["id"]},
-                           {"verdict", refinement.value()["verdict"]}});
-    }
-
-    // 5. Telemetry channels and synthetic history.
-    std::int64_t samples_written = 0;
-    const json::Json hist = m.value("history", json::Json::object());
-    const std::int64_t now = services.clock().now_ms();
-    const std::int64_t days = hist.value("days", std::int64_t{7});
-    const std::int64_t period = hist.value("periodSeconds", std::int64_t{30}) * 1000;
-    const auto seed = hist.value("seed", std::uint32_t{1});
-    std::uint32_t channel_index = 0;
-    for (const auto& c : m.value("telemetry", json::Json::array())) {
-        TelemetryChannel ch;
-        ch.id = c.at("id").get<std::string>();
-        ch.asset_id = c.at("assetId").get<std::string>();
-        ch.name = c.at("name").get<std::string>();
-        ch.value_type = c.at("valueType").get<std::string>();
-        ch.unit = c.value("unit", std::string());
-        ch.ontology_symbol = opt_string(c, "ontologySymbol");
-        ch.source = c.value("source", std::string());
-        ch.expected_period_ms = c.value("expectedPeriodMs", std::int64_t{1000});
-        ch.presentation = c.value("presentation", json::Json::object());
-        if (auto st = services.upsert_channel(ch); !st) return st.error();
-        // Live-only channels (no profile, e.g. fed by a runtime) get no synthetic history.
-        if (!options.telemetry_history || !c.contains("profile")) continue;
-        ProfileGenerator gen(c.value("profile", json::Json::object()), ch.value_type, now, seed + channel_index++);
-        std::vector<TelemetrySample> batch;
-        // Align sample times to the period grid so all channels share timestamps.
-        const std::int64_t start = ((now - days * 86400000) / period) * period;
-        for (std::int64_t t = start; t <= now; t += period) {
-            if (auto s = gen.sample(t)) batch.push_back(*s);
-            if (batch.size() >= 5000) {
-                auto n = services.ingest_samples(ch.id, batch);
-                if (!n) return std::move(n).error();
-                samples_written += n.value();
-                batch.clear();
-            }
-        }
-        auto n = services.ingest_samples(ch.id, batch);
-        if (!n) return std::move(n).error();
-        samples_written += n.value();
+        // The rejected proposal must not stay open: the Blueprint's next draft derives from the published ontology.
+        (void)services.reject(dref, h.value("description", std::string("rejected")), actor);
+        history.push_back({{"changeId", change_id}, {"refinementEvidence", refinement.value()["id"]}, {"verdict", refinement.value()["verdict"]}});
     }
     services.app_log().write(LogLevel::Info, "studio.seed", "example seeded",
-                             {{"twin", twin_id}, {"telemetrySamples", samples_written}});
+                             {{"blueprint", bp_id}, {"instances", instances}, {"telemetrySamples", samples_written}});
     return json::Json{{"example", m.value("id", std::string())},
-                      {"twin", twin_id},
-                      {"artifacts", imported},
-                      {"bootstrap", boot.value()},
+                      {"blueprint", bp_id},
+                      {"instances", instances},
+                      {"checks", checks},
                       {"maintenanceHistory", history},
                       {"telemetrySamples", samples_written}};
 }

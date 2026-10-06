@@ -1,121 +1,72 @@
 {
-  "id": "indoor-drone",
-  "name": "Indoor inspection drone Drone-01",
-  "description": "Showcase example: an indoor inspection drone whose mission supervisor is a verified Digital Twin. The twin plans over partial building knowledge, learns the building through the environment API, replans when new information invalidates its route, and records every semantic decision in a tamper-evident ledger.",
-  "assets": [
-    {"id": "building-a", "name": "Building A", "type": "Building", "description": "Logistics and technical building", "tags": ["site"], "properties": {"address": "Campus North, Building A", "floors": "3", "facilityPlan": "rev. C (2019)"}},
-    {"id": "floor-1", "name": "Floor 1", "type": "Floor", "parentId": "building-a", "description": "Ground floor: lobby, technical rooms, open-plan office", "properties": {"area": "28 m x 15 m", "gridResolution": "0.5 m", "planStatus": "partially outdated"}},
-    {"id": "lobby-l1", "name": "Lobby L-1", "type": "Room", "parentId": "floor-1", "description": "Entrance lobby with the drone landing pad"},
-    {"id": "pad-p1", "name": "Landing pad P-1", "type": "LandingPad", "parentId": "lobby-l1", "description": "Home and charging pad of Drone-01", "properties": {"cell": "[6, 23]"}},
-    {"id": "corridor-c1", "name": "Central corridor C-1", "type": "Corridor", "parentId": "floor-1", "description": "East-west service corridor"},
-    {"id": "fire-door-fd2", "name": "Fire door FD-2", "type": "FireDoor", "parentId": "corridor-c1", "description": "Self-closing fire door across corridor C-1", "tags": ["safety"], "properties": {"planState": "open (facility plan)"}},
-    {"id": "storage-s2", "name": "North storage S-2", "type": "Room", "parentId": "floor-1", "description": "Racked storage"},
-    {"id": "riser-sr2", "name": "Sprinkler riser valve SR-2", "type": "Valve", "parentId": "storage-s2", "description": "Inspection target T2 (visual inspection)", "tags": ["inspection-target", "fire-protection"], "properties": {"target": "T2", "cell": "[20, 4]"}},
-    {"id": "server-s1", "name": "Server room S-1", "type": "Room", "parentId": "floor-1", "description": "IT racks; connects to storage S-2"},
-    {"id": "electrical-e1", "name": "Electrical room E-1", "type": "Room", "parentId": "floor-1", "description": "Low-voltage distribution"},
-    {"id": "switchboard-msb1", "name": "Main switchboard MSB-1", "type": "Switchboard", "parentId": "electrical-e1", "description": "Inspection target T1 (thermal inspection)", "tags": ["inspection-target", "electrical"], "properties": {"target": "T1", "cell": "[48, 5]"}},
-    {"id": "office-o1", "name": "Open-plan office O-1", "type": "Room", "parentId": "floor-1", "description": "Refurbished in 2025; layout not in the facility plan", "tags": ["unmapped"]},
-    {"id": "fleet", "name": "Inspection fleet", "type": "Fleet", "description": "Autonomous indoor inspection drones"},
-    {"id": "drone-01", "name": "Drone-01", "type": "InspectionDrone", "parentId": "fleet", "description": "Indoor quadrotor with lidar, visual-inertial navigation and a gimbal camera", "tags": ["autonomous", "verified-twin"], "properties": {"model": "Quadrotor X4 indoor", "serial": "X4-0117", "battery": "10 Wh", "maxSpeed": "1.2 m/s", "cruiseHeight": "1.5 m"}, "twinId": "indoor-drone-dt"},
-    {"id": "drone-01-fc", "name": "Flight controller FC-01", "type": "FlightController", "parentId": "drone-01", "description": "Firmware modes FC_IDLE ... FC_DISARMED (the Physical Twin's own state machine)"},
-    {"id": "drone-01-nav", "name": "Navigation sensor NAV-01", "type": "NavigationSensor", "parentId": "drone-01", "description": "Visual-inertial odometry: position, velocity, heading"},
-    {"id": "drone-01-lidar", "name": "Range sensor LIDAR-01", "type": "RangeSensor", "parentId": "drone-01", "description": "2-D lidar, 3 m range; feeds the building-information service"},
-    {"id": "drone-01-battery", "name": "Battery system BAT-01", "type": "BatterySystem", "parentId": "drone-01", "description": "10 Wh pack with firmware reserve (20 %)"},
-    {"id": "drone-01-camera", "name": "Inspection camera CAM-01", "type": "Camera", "parentId": "drone-01", "description": "Radiometric camera on a 360-degree gimbal"},
-    {"id": "map-service", "name": "Building information service", "type": "EnvironmentService", "description": "Publishes the facility plan, onboard-sensing observations and facility notices (the twin's only source of map knowledge)"},
-    {"id": "mission-ins-042", "name": "Mission INS-042", "type": "Mission", "description": "Floor 1 inspection: MSB-1 (thermal), SR-2 (visual), return to P-1", "properties": {"targets": "T1, T2", "priority": "routine"}}
-  ],
-  "relationships": [
-    ["drone-01", "locatedIn", "floor-1"],
-    ["drone-01", "homesAt", "pad-p1"],
-    ["mission-ins-042", "assignedTo", "drone-01"],
-    ["mission-ins-042", "inspects", "switchboard-msb1"],
-    ["mission-ins-042", "inspects", "riser-sr2"],
-    ["map-service", "describes", "floor-1"],
-    ["drone-01-lidar", "observes", "floor-1"],
-    ["drone-01-lidar", "feeds", "map-service"],
-    ["map-service", "informs", "drone-01"],
-    ["drone-01-nav", "monitors", "drone-01"],
-    ["drone-01-battery", "powers", "drone-01"],
-    ["drone-01-camera", "inspects", "switchboard-msb1"],
-    ["drone-01-camera", "inspects", "riser-sr2"],
-    ["drone-01-fc", "controls", "drone-01"],
-    ["fire-door-fd2", "separates", "corridor-c1"],
-    ["storage-s2", "connectsTo", "server-s1"]
-  ],
-  "twin": {
-    "id": "indoor-drone-dt",
-    "name": "Drone-01 mission twin",
-    "assetId": "drone-01",
-    "modelId": "indoor-drone-dt",
-    "modelVersion": "1.0.0",
-    "ticksPerUnit": 1000,
-    "description": "Behavioural Digital Twin of Drone-01's mission supervisor (V_D): mission modes, admissible decisions and their timing, executed by the verified semantic kernel; aligned with the flight controller's view (V_P).",
-    "presentation": {
-      "plugin": "drone",
-      "timeUnit": "s",
-      "states": {
-        "INITIALIZING": {"label": "Initializing", "tone": "neutral", "summary": "Waiting for the mission to be loaded."},
-        "READY": {"label": "Ready", "tone": "info", "summary": "Mission loaded; pre-flight checks pending."},
-        "TAKING_OFF": {"label": "Taking off", "tone": "info", "summary": "Motors spinning up; climbing to cruise height."},
-        "NAVIGATING": {"label": "Navigating", "tone": "ok", "summary": "Following a validated route to the current target."},
-        "REPLANNING": {"label": "Replanning", "tone": "warning", "summary": "The route was invalidated; a new admissible route is due within 5 s."},
-        "HOVERING": {"label": "Hovering (obstacle)", "tone": "warning", "summary": "Collision-avoidance brake: holding position in front of an obstacle."},
-        "INSPECTING": {"label": "Inspecting", "tone": "info", "summary": "360-degree inspection of the target in progress."},
-        "RETURNING": {"label": "Returning", "tone": "info", "summary": "Flying back to the landing pad."},
-        "RETURN_REPLANNING": {"label": "Replanning (return)", "tone": "warning", "summary": "The way home was invalidated; replanning."},
-        "LANDING": {"label": "Landing", "tone": "info", "summary": "Descending onto the landing pad."},
-        "LANDED": {"label": "Landed", "tone": "ok", "summary": "Mission complete; motors disarmed."},
-        "MISSION_FAILED": {"label": "Mission failed", "tone": "critical", "summary": "No admissible plan within the replanning deadline."}
-      },
-      "events": {
-        "mission_loaded!": {"label": "Mission loaded"},
-        "start_mission!": {"label": "Start mission"},
-        "takeoff_complete!": {"label": "Take-off complete"},
-        "waypoint_reached!": {"label": "Waypoint reached"},
-        "path_invalidated!": {"label": "Route invalidated"},
-        "replan_requested!": {"label": "Better route requested"},
-        "obstacle_detected!": {"label": "Obstacle detected"},
-        "obstacle_cleared!": {"label": "Obstacle cleared"},
-        "target_reached!": {"label": "Target reached"},
-        "inspection_complete!": {"label": "Inspection complete"},
-        "return_requested!": {"label": "Return requested"},
-        "battery_low!": {"label": "Battery reserve reached"},
-        "plan_accepted!": {"label": "New route accepted"},
-        "replan_timeout!": {"label": "Replanning deadline missed"},
-        "home_reached!": {"label": "Home reached"},
-        "landing_complete!": {"label": "Landing complete"}
-      },
-      "keyTelemetry": ["drone-01.battery", "drone-01.speed", "drone-01.altitude", "drone-01.fc_mode"]
+ "format": "twin-example/2",
+ "id": "indoor-drone",
+ "name": "Indoor inspection drone Drone-01",
+ "description": "Showcase example: an indoor inspection drone whose mission supervisor is a verified Digital Twin. The twin plans over partial building knowledge, learns the building through the environment API, replans when new information invalidates its route, and records every semantic decision in a tamper-evident ledger.",
+ "blueprint": {
+  "id": "indoor-inspection-drone",
+  "name": "Indoor Inspection Drone",
+  "domain": "mobile-robot",
+  "icon": "drone",
+  "description": "Indoor inspection drone with a verified mission-supervisor twin (co-simulation with the drone simulator).",
+  "document": "blueprint.json",
+  "formal": {
+   "ontology": {
+    "id": "indoor-drone-domain",
+    "name": "Indoor drone domain",
+    "description": "Domain theory shared by the flight controller (firmware units) and the mission twin (SI units): bridge axioms, battery energy, mission parameters.",
+    "file": "../../models/indoor_drone/domain.ont"
+   },
+   "pt_interpretation": {
+    "id": "drone-pt-semantics",
+    "name": "Flight controller interpretation (I_P)",
+    "description": "Meaning of the flight controller's modes and events in the domain theory.",
+    "file": "../../models/indoor_drone/pt.interp"
+   },
+   "dt_interpretation": {
+    "id": "drone-dt-semantics",
+    "name": "Mission twin interpretation (I_D)",
+    "description": "Meaning of the mission supervisor's locations and events in the domain theory.",
+    "file": "../../models/indoor_drone/dt.interp"
+   },
+   "pt_model": {
+    "id": "drone-pt-view",
+    "name": "PT view: flight controller (FlightControllerPT)",
+    "description": "Timed-automaton view of the flight-controller firmware (V_P).",
+    "file": "../../models/indoor_drone/V_P_flight_controller.xml"
+   },
+   "dt_model": {
+    "id": "drone-dt-view",
+    "name": "DT view: mission supervisor (MissionSupervisorDT)",
+    "description": "Behavioural Digital Twin executed by the kernel (V_D).",
+    "file": "../../models/indoor_drone/V_D_mission_supervisor.xml"
+   }
+  }
+ },
+ "instances": [
+  {
+   "id": "indoor-drone-dt",
+   "name": "Drone-01",
+   "description": "Behavioural Digital Twin of Drone-01's mission supervisor (V_D): mission modes, admissible decisions and their timing, executed by the verified semantic kernel; aligned with the flight controller's view (V_P).",
+   "assetIds": {
+    "drone": "drone-01",
+    "fc": "drone-01-fc",
+    "nav": "drone-01-nav",
+    "lidar": "drone-01-lidar",
+    "battery": "drone-01-battery",
+    "camera": "drone-01-camera"
+   },
+   "properties": {
+    "drone": {
+     "serial": "X4-0117"
     }
-  },
-  "artifacts": {
-    "ontology": {"id": "indoor-drone-domain", "name": "Indoor drone domain", "description": "Domain theory shared by the flight controller (firmware units) and the mission twin (SI units): bridge axioms, battery energy, mission parameters.", "file": "../../models/indoor_drone/domain.ont"},
-    "pt_interpretation": {"id": "drone-pt-semantics", "name": "Flight controller interpretation (I_P)", "description": "Meaning of the flight controller's modes and events in the domain theory.", "file": "../../models/indoor_drone/pt.interp"},
-    "dt_interpretation": {"id": "drone-dt-semantics", "name": "Mission twin interpretation (I_D)", "description": "Meaning of the mission supervisor's locations and events in the domain theory.", "file": "../../models/indoor_drone/dt.interp"},
-    "pt_model": {"id": "drone-pt-view", "name": "PT view: flight controller (FlightControllerPT)", "description": "Timed-automaton view of the flight-controller firmware (V_P).", "file": "../../models/indoor_drone/V_P_flight_controller.xml"},
-    "dt_model": {"id": "drone-dt-view", "name": "DT view: mission supervisor (MissionSupervisorDT)", "description": "Behavioural Digital Twin executed by the kernel (V_D).", "file": "../../models/indoor_drone/V_D_mission_supervisor.xml"}
-  },
-  "telemetry": [
-    {"id": "drone-01.battery", "assetId": "drone-01-battery", "name": "battery_permille", "valueType": "number", "unit": "‰", "source": "runtime:indoor-drone-dt/telemetry#battery_permille", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Battery", "category": "Power", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.energy", "assetId": "drone-01-battery", "name": "energy_mwh", "valueType": "number", "unit": "mWh", "source": "runtime:indoor-drone-dt/telemetry#energy_mwh", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Remaining energy", "category": "Power", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.speed", "assetId": "drone-01-nav", "name": "speed_mm_s", "valueType": "number", "unit": "mm/s", "source": "runtime:indoor-drone-dt/telemetry#speed_mm_s", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Ground speed", "category": "Navigation", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.altitude", "assetId": "drone-01-nav", "name": "alt_mm", "valueType": "number", "unit": "mm", "source": "runtime:indoor-drone-dt/telemetry#alt_mm", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Altitude", "category": "Navigation", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.position_x", "assetId": "drone-01-nav", "name": "x_mm", "valueType": "number", "unit": "mm", "source": "runtime:indoor-drone-dt/telemetry#x_mm", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Position east", "category": "Navigation", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.position_y", "assetId": "drone-01-nav", "name": "y_mm", "valueType": "number", "unit": "mm", "source": "runtime:indoor-drone-dt/telemetry#y_mm", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Position south", "category": "Navigation", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.heading", "assetId": "drone-01-nav", "name": "heading_cdeg", "valueType": "number", "unit": "cdeg", "source": "runtime:indoor-drone-dt/telemetry#heading_cdeg", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Heading", "category": "Navigation", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.gimbal", "assetId": "drone-01-camera", "name": "gimbal_cdeg", "valueType": "number", "unit": "cdeg", "source": "runtime:indoor-drone-dt/telemetry#gimbal_cdeg", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Gimbal sweep", "category": "Inspection", "precision": 0, "preferredView": "line"}},
-    {"id": "drone-01.fc_mode", "assetId": "drone-01-fc", "name": "mode", "valueType": "category", "unit": "", "source": "runtime:indoor-drone-dt/telemetry#mode", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Flight-controller mode", "category": "Flight control", "preferredView": "state"}},
-    {"id": "drone-01.route", "assetId": "drone-01-fc", "name": "route_id", "valueType": "number", "unit": "", "source": "runtime:indoor-drone-dt/telemetry#route_id", "expectedPeriodMs": 1000,
-     "presentation": {"label": "Active route id", "category": "Flight control", "precision": 0, "preferredView": "state"}}
-  ]
+   },
+   "target": {
+    "kind": "local",
+    "speed": "1.5",
+    "paused": true
+   },
+   "deploy": true
+  }
+ ]
 }

@@ -37,12 +37,12 @@ namespace twin::monitoring {
 /// @brief Format tag of monitor documents.
 inline constexpr std::string_view kMonitorsFormat = "twin-monitors/1";
 
-/// @brief A requirement of the Twin Type (safety, performance, operational).
+/// @brief A requirement of the Twin Type (safety, mission, performance, timing, operational).
 struct Requirement {
     std::string id;                     ///< e.g. "REQ-S1".
     std::string title;                  ///< Short title.
     std::string description;            ///< Free text.
-    std::string category;               ///< "safety", "performance" or "operational".
+    std::string category;               ///< "safety", "mission", "performance", "timing" or "operational".
     std::string severity;               ///< "info", "warning" or "critical".
     std::vector<std::string> monitors;  ///< Monitors that check it.
     std::string formal;                 ///< Optional formal expression (property syntax).

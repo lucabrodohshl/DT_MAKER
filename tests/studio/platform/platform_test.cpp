@@ -312,7 +312,11 @@ TEST_F(PlatformTest, TelemetryFreshnessAndDownsampling) {
 
 TEST_F(PlatformTest, DeploymentsAreAppendOnlyAndRollbackNeedsAReason) {
     TwinRepository twins(*db_, clock_);
-    ASSERT_TRUE(twins.upsert_twin({"pump-dt", "Pump DT", std::nullopt, "", "pump", 1000, std::nullopt, json::Json::object(), ""}).ok());
+    Twin pump_dt;
+    pump_dt.id = "pump-dt";
+    pump_dt.name = "Pump DT";
+    pump_dt.model_id = "pump";
+    ASSERT_TRUE(twins.upsert_twin(pump_dt).ok());
     PackageRecord p;
     p.twin_id = "pump-dt";
     p.directory = "/tmp/x";

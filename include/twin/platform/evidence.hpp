@@ -34,9 +34,9 @@
 
 namespace twin::platform {
 
-/// @brief Kind of formal check.
-enum class EvidenceKind { Validation, Refinement, Alignment, Compilation, Package };
-/// @brief "validation" / "refinement" / "alignment" / "compilation" / "package".
+/// @brief Kind of check. Scenario records are TEST results (regression tests of a Blueprint), never proofs.
+enum class EvidenceKind { Validation, Refinement, Alignment, Compilation, Package, Scenario };
+/// @brief "validation" / "refinement" / "alignment" / "compilation" / "package" / "scenario".
 [[nodiscard]] std::string_view to_string(EvidenceKind kind) noexcept;
 /// @brief Inverse of to_string(EvidenceKind).
 [[nodiscard]] Result<EvidenceKind> evidence_kind_from_string(std::string_view text);

@@ -11,12 +11,13 @@ namespace twin::platform {
 
 namespace {
 
-constexpr std::array<std::pair<EvidenceKind, std::string_view>, 5> kKinds = {{
+constexpr std::array<std::pair<EvidenceKind, std::string_view>, 6> kKinds = {{
     {EvidenceKind::Validation, "validation"},
     {EvidenceKind::Refinement, "refinement"},
     {EvidenceKind::Alignment, "alignment"},
     {EvidenceKind::Compilation, "compilation"},
     {EvidenceKind::Package, "package"},
+    {EvidenceKind::Scenario, "scenario"},
 }};
 
 constexpr std::array<std::pair<Outcome, std::string_view>, 4> kOutcomes = {{
