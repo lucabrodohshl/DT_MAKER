@@ -33,6 +33,7 @@ import { Button, Callout, Dialog, EmptyState, ErrorBlock, Skeleton, StatusBadge,
 import { EditorProvider, useEditor } from './editor';
 import { BLUEPRINT_NAV, locateBp } from './nav';
 import { ReleaseVerdictBadge, SaveIndicator, SectionDot, VersionStateBadge } from './status';
+import { WizardBar } from './wizard';
 import { WorkspaceProvider, useWorkspace, type OutputEntry } from './workspace';
 import './blueprint.css';
 
@@ -482,6 +483,7 @@ function Frame() {
       <Sidebar collapsed={collapsed} onToggle={toggle} />
       <div className="vts-bp-main">
         <TopBar />
+        <WizardBar />
         <Banners />
         <div className="vts-bp-body">
           <Outlet />

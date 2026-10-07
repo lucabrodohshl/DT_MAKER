@@ -426,6 +426,11 @@ Result<Json> BlueprintService::list() {
             const auto findings = impl_->validate_sections(*draft);
             j["draftErrors"] = std::count_if(findings.begin(), findings.end(), [](const SectionFinding& f) { return f.severity == "error"; });
             j["draftWarnings"] = std::count_if(findings.begin(), findings.end(), [](const SectionFinding& f) { return f.severity == "warning"; });
+            // The release gate of the draft (evidence for exactly its inputs): "Verification required".
+            if (auto st = status(b.id, draft->version)) {
+                j["draftReadiness"] = st.value()["readiness"].value("verdict", std::string("blocked"));
+                j["draftBlockers"] = static_cast<std::int64_t>(st.value()["readiness"].value("blockers", Json::array()).size());
+            }
         }
         out.push_back(j);
     }
@@ -701,6 +706,12 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
     doc["identity"]["domain"] = domain;
     doc["identity"]["icon"] = doc["identity"].value("icon", icon);
     if (!description.empty()) doc["identity"]["description"] = description;
+    // Identity details chosen when creating (runtime mode, time base, tags); validated with the section.
+    if (body.contains("identity") && body.at("identity").is_object()) {
+        for (const auto& [k, val] : body.at("identity").items()) {
+            if (k == "runtimeMode" || k == "timeUnit" || k == "ticksPerUnit" || k == "tags" || k == "plugin" || k == "icon") doc["identity"][k] = val;
+        }
+    }
     if (mode != "clone" && mode != "import" && mode != "document") doc["identity"]["modelId"] = id;
     if (!doc["presentation"].contains("displayName") || doc["presentation"]["displayName"].get<std::string>().empty()) {
         doc["presentation"]["displayName"] = name;

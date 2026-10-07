@@ -682,6 +682,9 @@ export interface BlueprintListItem extends BlueprintMeta {
   instanceCount: number;
   draftErrors?: number;
   draftWarnings?: number;
+  /** Release gate of the draft for exactly its inputs (absent without a draft). */
+  draftReadiness?: 'ready' | 'blocked';
+  draftBlockers?: number;
 }
 
 export interface BlueprintDetail extends BlueprintMeta {

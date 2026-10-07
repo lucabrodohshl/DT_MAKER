@@ -1,18 +1,24 @@
 /**
- * Studio home: what is being changed (open changes), the definitions under engineering
- * control, and the entry points used across the product ("Create in Studio", "Import",
- * "Add asset → Create in Studio"). Only operations the platform actually supports are offered.
+ * Studio home: the Twin Blueprints (all, drafts, published, verification required, recently
+ * modified), the ways to start one (new, from a template, clone, import) and the templates,
+ * then the engineering library behind them (changes to deployed twins, the shared formal
+ * artefacts, recent engineering activity). States are the backend's: "verification required"
+ * is a draft whose release gate does not pass for exactly its inputs.
  */
-import { BookOpen, Boxes, FileCode2, FileUp, GitPullRequest, Plus, Workflow } from 'lucide-react';
+import { BookOpen, Copy, FileCode2, FileUp, GitPullRequest, LayoutTemplate, Lock, Plus, Search, ShieldCheck, Workflow } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { blueprintRoute, useBlueprintTemplates, useBlueprints } from '@/api/blueprints';
 import { api } from '@/api/client';
 import { useArtifacts, useChanges, useEngineeringMutation, useTwin } from '@/api/queries';
-import type { ArtifactKind, AssetDetail, VersionDetail } from '@/api/types';
-import { Button, Callout, Dialog, EmptyState, ErrorBlock, LifecycleBadge, PageHeader, Panel, QueryState, StatusBadge, TimeStamp } from '@/design';
+import type { ArtifactKind, AssetDetail, BlueprintListItem, VersionDetail } from '@/api/types';
+import { Button, Dialog, EmptyState, ErrorBlock, PageHeader, Panel, QueryState, StatusBadge, TimeStamp } from '@/design';
 import { AuditTable } from '@/features/audit/EngineeringAuditPage';
 import { NewChangeDialog } from '@/features/maintenance/ChangesPage';
 import { versionRoute } from '@/features/common/links';
+import { iconFor } from '@/features/blueprint/icons';
+import '@/features/blueprint/blueprint.css';
+import '@/features/twins/twins.css';
 
 const KIND_LABEL: Record<ArtifactKind, string> = { ontology: 'Ontology', interpretation: 'Interpretation', pt_model: 'PT view (model)', dt_model: 'DT view (model)' };
 
@@ -118,73 +124,248 @@ function NewAssetPanel({ twinId }: { twinId: string }) {
   );
 }
 
+type Shelf = 'all' | 'drafts' | 'published' | 'verify' | 'recent';
+
+function BlueprintCard({ b }: { b: BlueprintListItem }) {
+  const open = b.draft ?? b.latest;
+  const to = open ? blueprintRoute(b.id, open.version) : `/studio/blueprints/${encodeURIComponent(b.id)}`;
+  return (
+    <article className="vts-bp-card" aria-label={b.name}>
+      <Link to={to} className="vts-bp-card__open" aria-label={`Open ${b.name}`} />
+      <div className="vts-bp-card__top">
+        <div className="vts-bp-card__icon">{iconFor(b.icon)}</div>
+        <div className="stack-sm" style={{ gap: 2, minWidth: 0 }}>
+          <h3 className="truncate">{b.name}</h3>
+          <span className="xsmall subtle truncate">
+            {b.domain} · <span className="mono">{b.id}</span>
+          </span>
+        </div>
+      </div>
+      {b.description && (
+        <p className="small muted" style={{ margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {b.description}
+        </p>
+      )}
+      <div className="row-wrap" style={{ gap: 6 }}>
+        {b.published && <StatusBadge tone="ok" icon={Lock} label={`PUBLISHED v${b.published.version}`} />}
+        {b.draft && <StatusBadge tone="info" label={`DRAFT v${b.draft.version}`} />}
+        {b.draft && b.draftReadiness === 'ready' && <StatusBadge tone="formal" icon={ShieldCheck} label="READY TO RELEASE" />}
+        {b.draft && b.draftReadiness === 'blocked' && <StatusBadge tone="warning" label={`VERIFICATION REQUIRED · ${b.draftBlockers ?? 0}`} title="Release gate items not passing for the draft" />}
+        {(b.draftErrors ?? 0) > 0 && <StatusBadge tone="critical" label={`${b.draftErrors} error(s)`} />}
+      </div>
+      <div className="xsmall subtle">
+        {b.instanceCount} instance{b.instanceCount === 1 ? '' : 's'} · updated <TimeStamp value={b.updatedAt} relative />
+      </div>
+      <div className="vts-bp-card__actions">
+        {b.draft && (
+          <Link to={blueprintRoute(b.id, b.draft.version)} className="vts-btn vts-btn--sm vts-btn--primary">
+            Open draft
+          </Link>
+        )}
+        {b.published && (
+          <Link to={blueprintRoute(b.id, b.published.version)} className="vts-btn vts-btn--sm vts-btn--secondary">
+            v{b.published.version}
+          </Link>
+        )}
+        {b.published && (
+          <Link to={blueprintRoute(b.id, b.published.version, 'release/instances')} className="vts-btn vts-btn--sm vts-btn--ghost">
+            Instances
+          </Link>
+        )}
+        <Link to={`/studio/new?mode=clone&from=${encodeURIComponent(b.id)}`} className="vts-btn vts-btn--sm vts-btn--ghost">
+          <Copy size={13} aria-hidden="true" /> Clone
+        </Link>
+      </div>
+    </article>
+  );
+}
+
 export default function StudioHomePage() {
   const [params, setParams] = useSearchParams();
   const start = params.get('start');
   const twinId = params.get('twin');
+  const navigate = useNavigate();
+  const blueprints = useBlueprints();
+  const templates = useBlueprintTemplates();
   const changes = useChanges('open');
   const artifacts = useArtifacts();
   const [newChange, setNewChange] = useState(false);
-  const [artifactDialog, setArtifactDialog] = useState<'new' | 'import' | null>(start === 'import' ? 'import' : start === 'create' ? 'new' : null);
-  const clearStart = () => { const p = new URLSearchParams(params); p.delete('start'); setParams(p, { replace: true }); };
+  const [artifactDialog, setArtifactDialog] = useState<'new' | 'import' | null>(start === 'import-artifact' ? 'import' : null);
+  const shelf = (params.get('shelf') as Shelf | null) ?? 'all';
+  const q = params.get('q') ?? '';
+  const [now] = useState(() => Date.now());
+  const clearStart = () => {
+    const p = new URLSearchParams(params);
+    p.delete('start');
+    setParams(p, { replace: true });
+  };
+  const set = (k: string, v: string) => {
+    const p = new URLSearchParams(params);
+    if (v) p.set(k, v);
+    else p.delete(k);
+    setParams(p, { replace: true });
+  };
+  // Earlier entry points (?start=create|import|instantiate) now lead to the Blueprint flows.
+  if (start === 'create' || start === 'import' || start === 'instantiate') {
+    const to = start === 'create' ? '/studio/new' : start === 'import' ? '/studio/new?mode=import' : '/twins?create=instantiate';
+    return <Navigate to={to} replace />;
+  }
+  const list = blueprints.data ?? [];
+  const recentCut = now - 7 * 24 * 3600 * 1000;
+  const shelves: { id: Shelf; label: string; test: (b: BlueprintListItem) => boolean }[] = [
+    { id: 'all', label: 'All Blueprints', test: () => true },
+    { id: 'drafts', label: 'Drafts', test: (b) => !!b.draft },
+    { id: 'published', label: 'Published', test: (b) => !!b.published },
+    { id: 'verify', label: 'Verification required', test: (b) => !!b.draft && b.draftReadiness !== 'ready' },
+    { id: 'recent', label: 'Recently modified', test: (b) => new Date(b.updatedAt).getTime() >= recentCut },
+  ];
+  const active = shelves.find((s) => s.id === shelf) ?? shelves[0]!;
+  const shown = list
+    .filter(active.test)
+    .filter((b) => !q || `${b.name} ${b.id} ${b.domain} ${b.description}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => (shelf === 'recent' ? b.updatedAt.localeCompare(a.updatedAt) : a.name.localeCompare(b.name)));
 
   return (
     <div className="vts-page stack">
       <PageHeader
         eyebrow="Studio"
-        title="Studio"
-        meta={<span>Author and evolve twin definitions: models, ontologies and interpretations, verified and released through changes</span>}
+        title="Twin Blueprints"
+        meta={<span>Design, verify and release Digital Twin types; create and deploy their instances.</span>}
         actions={
           <>
-            <Button icon={<FileUp size={14} />} onClick={() => setArtifactDialog('import')}>Import artefact</Button>
-            <Button icon={<Plus size={14} />} onClick={() => setArtifactDialog('new')}>New artefact</Button>
-            <Button variant="primary" icon={<GitPullRequest size={14} />} onClick={() => setNewChange(true)}>New change</Button>
+            <Button icon={<FileUp size={14} />} onClick={() => navigate('/studio/new?mode=import')}>
+              Import
+            </Button>
+            <Button icon={<Copy size={14} />} onClick={() => navigate('/studio/new?mode=clone')}>
+              Clone existing
+            </Button>
+            <Button icon={<LayoutTemplate size={14} />} onClick={() => navigate('/studio/new?mode=template')}>
+              From template
+            </Button>
+            <Button variant="primary" icon={<Plus size={14} />} onClick={() => navigate('/studio/new')}>
+              New Blueprint
+            </Button>
           </>
         }
       />
 
       {start === 'asset' && twinId && <NewAssetPanel twinId={twinId} />}
-      {start === 'instantiate' && (
-        <Callout tone="info" title="Instantiating an existing twin type">
-          Released packages are listed under <Link to="/studio/packages">Packages</Link> and can be deployed to an existing twin from
-          <Link to="/studio/deployments"> Deployments</Link>. Registering a brand-new twin instance (its own asset, runtime and data
-          sources) is done with <span className="mono">twin-studio seed &lt;example&gt;</span> in this version; in-app registration is not available yet.
-          <div style={{ marginTop: 8 }}><Button size="sm" onClick={clearStart}>Dismiss</Button></div>
-        </Callout>
-      )}
-      {start === 'create' && (
-        <Callout tone="info" title="Creating a new twin">
-          A twin is defined by four kinds of artefact: the PT and DT views (timed automata), an ontology and two interpretations.
-          Create or import each one here; a change then validates them, checks alignment, compiles the DT view and builds a verified
-          package. Registering the new twin instance itself uses <span className="mono">twin-studio seed</span> in this version.
-          <div style={{ marginTop: 8 }}><Button size="sm" onClick={clearStart}>Dismiss</Button></div>
-        </Callout>
-      )}
 
+      <div className="vts-lib__tools" role="search">
+        <label className="vts-lib__search">
+          <Search size={15} aria-hidden="true" />
+          <input type="search" value={q} onChange={(e) => set('q', e.target.value)} placeholder="Search Blueprints…" aria-label="Search Blueprints" />
+        </label>
+        <div className="row-wrap" role="tablist" aria-label="Blueprint shelves">
+          {shelves.map((s) => (
+            <button key={s.id} type="button" role="tab" aria-selected={shelf === s.id} className="vts-chip" aria-pressed={shelf === s.id} onClick={() => set('shelf', s.id === 'all' ? '' : s.id)}>
+              {s.label} <span className="vts-tag">{list.filter(s.test).length}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <QueryState
+        query={blueprints}
+        isEmpty={(d) => d.length === 0}
+        empty={
+          <EmptyState title="No Blueprints yet" action={<Button variant="primary" icon={<Plus size={14} />} onClick={() => navigate('/studio/new')}>New Blueprint</Button>}>
+            A Blueprint defines a type of twin. Start blank, from a template, or import the formal models of an existing twin.
+          </EmptyState>
+        }
+      >
+        {() =>
+          shown.length === 0 ? (
+            <EmptyState compact title="Nothing on this shelf">{q ? 'No Blueprint matches the search.' : 'Choose another shelf.'}</EmptyState>
+          ) : (
+            <div className="vts-bp-cards">
+              {shown.map((b) => (
+                <BlueprintCard key={b.id} b={b} />
+              ))}
+            </div>
+          )
+        }
+      </QueryState>
+
+      <Panel title="Templates" subtitle="Domain starting points: asset types, world palette, simulator and data contract">
+        <QueryState query={templates} isEmpty={(d) => d.length === 0} empty={<EmptyState compact title="No templates installed" />}>
+          {(list2) => (
+            <div className="vts-bp-cards">
+              {list2.map((t) => (
+                <article key={t.id} className="vts-bp-card" aria-label={t.name}>
+                  <Link to={`/studio/new?mode=template&template=${encodeURIComponent(t.id)}`} className="vts-bp-card__open" aria-label={`Create a Blueprint from ${t.name}`} />
+                  <div className="vts-bp-card__top">
+                    <div className="vts-bp-card__icon">{iconFor(t.icon)}</div>
+                    <div className="stack-sm" style={{ gap: 2, minWidth: 0 }}>
+                      <h3>{t.name}</h3>
+                      <span className="xsmall subtle">{t.domain}</span>
+                    </div>
+                  </div>
+                  <p className="small muted" style={{ margin: 0 }}>
+                    {t.description}
+                  </p>
+                  {t.includes.length > 0 && <span className="xsmall subtle">{t.includes.join(' · ')}</span>}
+                </article>
+              ))}
+            </div>
+          )}
+        </QueryState>
+      </Panel>
+
+      <h2 style={{ margin: 'var(--s-4) 0 0', fontSize: 'var(--text-lg)' }}>Engineering library</h2>
       <div className="grid-main-side">
-        <Panel title="Changes in progress" actions={<Link className="small" to="/studio/changes">All changes</Link>} flush>
-          <QueryState query={changes} isEmpty={(d) => d.length === 0} empty={<EmptyState compact title="No change in progress" action={<Button size="sm" onClick={() => setNewChange(true)}>Open a change</Button>} />}>
-            {(list) => (
+        <Panel
+          title="Changes in progress"
+          actions={
+            <>
+              <Button size="sm" variant="ghost" icon={<GitPullRequest size={13} />} onClick={() => setNewChange(true)}>
+                New change
+              </Button>
+              <Link className="small" to="/studio/changes">
+                All changes
+              </Link>
+            </>
+          }
+          flush
+        >
+          <QueryState query={changes} isEmpty={(d) => d.length === 0} empty={<EmptyState compact title="No change in progress">Changes evolve the artefacts of deployed twins through verification.</EmptyState>}>
+            {(cl) => (
               <ul className="vts-list" style={{ padding: '0 var(--s-4)' }}>
-                {list.map((c) => (
+                {cl.map((c) => (
                   <li key={c.id} className="row-wrap small">
-                    <Link to={`/studio/changes/${c.id}`} className="strong">{c.title}</Link>
+                    <Link to={`/studio/changes/${c.id}`} className="strong">
+                      {c.title}
+                    </Link>
                     <span className="muted">{c.twinId}</span>
                     <span className="mono xsmall">{c.artifacts.join(', ')}</span>
                     <span className="grow" />
-                    <span className="xsmall subtle">opened <TimeStamp value={c.createdAt} relative /></span>
+                    <span className="xsmall subtle">
+                      opened <TimeStamp value={c.createdAt} relative />
+                    </span>
                   </li>
                 ))}
               </ul>
             )}
           </QueryState>
         </Panel>
-        <Panel title="Definitions">
+        <Panel
+          title="Formal artefacts"
+          actions={
+            <>
+              <Button size="sm" variant="ghost" icon={<FileUp size={13} />} onClick={() => setArtifactDialog('import')}>
+                Import
+              </Button>
+              <Button size="sm" variant="ghost" icon={<Plus size={13} />} onClick={() => setArtifactDialog('new')}>
+                New
+              </Button>
+            </>
+          }
+        >
           <QueryState query={artifacts}>
-            {(list) => (
+            {(al) => (
               <div className="stack-sm">
                 {([['models', Workflow, ['pt_model', 'dt_model']], ['ontologies', BookOpen, ['ontology']], ['interpretations', FileCode2, ['interpretation']]] as const).map(([section, Icon, kinds]) => {
-                  const items = list.filter((a) => (kinds as readonly string[]).includes(a.kind));
+                  const items = al.filter((a) => (kinds as readonly string[]).includes(a.kind));
                   const drafts = items.filter((a) => a.open).length;
                   return (
                     <Link key={section} to={`/studio/${section}`} className="row small" style={{ gap: 8 }}>
@@ -194,34 +375,26 @@ export default function StudioHomePage() {
                     </Link>
                   );
                 })}
-                <Link to="/twins" className="row small" style={{ gap: 8 }}><Boxes size={15} aria-hidden="true" /> <strong>Twins</strong> <span className="muted">operate deployed twins</span></Link>
+                <span className="xsmall subtle">Shared, versioned artefacts; Blueprints pin exact versions of them.</span>
               </div>
             )}
           </QueryState>
         </Panel>
       </div>
-      <Panel title="Open drafts" flush>
-        <QueryState query={artifacts} isEmpty={(d) => !d.some((a) => a.open)} empty={<EmptyState compact title="No open drafts" />}>
-          {(list) => (
-            <ul className="vts-list" style={{ padding: '0 var(--s-4)' }}>
-              {list.filter((a) => a.open).map((a) => (
-                <li key={a.id} className="row-wrap small">
-                  <Link to={versionRoute(a.kind, a.open!.ref)} className="mono">{a.open!.ref}</Link>
-                  <span>{a.name}</span>
-                  <LifecycleBadge state={a.open!.state} />
-                  <span className="grow" />
-                  <span className="xsmall subtle">{a.open!.changeDescription}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </QueryState>
-      </Panel>
       <Panel title="Recent engineering activity" actions={<Link className="small" to="/studio/audit">Engineering audit</Link>} flush>
         <AuditTable />
       </Panel>
       <NewChangeDialog open={newChange} onOpenChange={setNewChange} defaultTwin={twinId ?? undefined} />
-      <NewArtifactDialog open={artifactDialog !== null} onOpenChange={(o) => { if (!o) { setArtifactDialog(null); clearStart(); } }} importMode={artifactDialog === 'import'} />
+      <NewArtifactDialog
+        open={artifactDialog !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setArtifactDialog(null);
+            clearStart();
+          }
+        }}
+        importMode={artifactDialog === 'import'}
+      />
     </div>
   );
 }

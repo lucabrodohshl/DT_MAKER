@@ -185,14 +185,22 @@
 .vts-bp-card h3 { margin: 0; font-size: var(--text-md); }
 .vts-bp-card__actions { position: relative; z-index: 2; display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 
-/* Wizard */
-.vts-wizard { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--s-4); min-height: 420px; }
-.vts-wizard__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--divider); padding-right: var(--s-3); }
-.vts-wizard__step { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--text-muted); border: 0; background: transparent; text-align: left; cursor: pointer; font: inherit; }
-.vts-wizard__step[aria-current="step"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
-.vts-wizard__num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-strong); font-size: 11px; flex: none; }
-.vts-wizard__step.is-done .vts-wizard__num { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
-@media (max-width: 800px) { .vts-wizard { grid-template-columns: minmax(0, 1fr); } .vts-wizard__steps { border-right: 0; flex-direction: row; overflow-x: auto; } }
+/* Wizard: horizontal step bar above the workspace page (and the New Blueprint page) */
+.vts-wizard { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.vts-wizard__steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; }
+.vts-wizard__step { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 12px; color: var(--text-muted); border: 1px solid transparent; background: transparent; text-align: left; cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }
+.vts-wizard__step:hover:not(:disabled) { background: var(--surface-hover); }
+.vts-wizard__step:disabled { cursor: default; }
+.vts-wizard__step[aria-current="step"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.vts-wizard__num { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border-strong); font-size: 10px; flex: none; }
+.vts-wizard__step.is-done .vts-wizard__num, .vts-wizard__step:disabled .vts-wizard__num { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.vts-wizard__bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 900px) { .vts-wizard__label { display: none; } .vts-wizard__step[aria-current="step"] .vts-wizard__label { display: inline; } }
+
+/* New Blueprint page */
+.vts-newbp { max-width: 980px; margin: 0 auto; padding: var(--s-6) var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+.vts-newbp__opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-3); }
+.vts-newbp__tpl { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s-2); }
 
 /* Preview */
 .vts-preview-banner {

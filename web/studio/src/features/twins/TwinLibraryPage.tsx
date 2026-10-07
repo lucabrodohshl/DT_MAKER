@@ -5,10 +5,11 @@
  * opens the twin's workspace. All values come from the backend (runtime and twin-studio).
  */
 import { useQueries } from '@tanstack/react-query';
-import { ArrowRight, Boxes, FileUp, Plus, Search, Wand2, Copy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ArrowRight, Boxes, FileUp, LayoutTemplate, Plus, Search, Upload, Wand2, Copy } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client';
+import { useBlueprints } from '@/api/blueprints';
 import { keys, useTwins } from '@/api/queries';
 import type { AssetDetail, TelemetryChannels, TwinDetail, TwinSummary } from '@/api/types';
 import { runtimeApi, runtimeKeys } from '@/runtime/client';
@@ -124,35 +125,78 @@ function TwinCard({ r }: { r: Row }) {
   );
 }
 
-/** "+ Create / Import Twin": the three ways a twin comes into existence. */
-export function CreateTwinDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** "+ Create / Import Twin": the five ways a twin comes into existence. */
+export function CreateTwinDialog({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (o: boolean) => void; initial?: 'instantiate' }) {
   const navigate = useNavigate();
-  const go = (to: string) => { onOpenChange(false); navigate(to); };
+  const blueprints = useBlueprints();
+  const [step, setStep] = useState<'choose' | 'instantiate'>(initial ?? 'choose');
+  const go = (to: string) => {
+    onOpenChange(false);
+    setStep('choose');
+    navigate(to);
+  };
+  const instantiable = (blueprints.data ?? []).filter((b) => b.published);
+  const options: { icon: ReactNode; title: string; text: string; onClick: () => void }[] = [
+    { icon: <Wand2 size={20} aria-hidden="true" />, title: 'New Blueprint', text: 'Design a new type of twin in Studio, guided step by step: structure, world, data, behaviour views, semantics, assurance.', onClick: () => go('/studio/new') },
+    { icon: <LayoutTemplate size={20} aria-hidden="true" />, title: 'From a template', text: 'Start from a domain template (mobile robot, process equipment…) with asset types, a world palette, a simulator and a data contract.', onClick: () => go('/studio/new?mode=template') },
+    { icon: <Copy size={20} aria-hidden="true" />, title: 'Instantiate an existing Blueprint', text: 'Create another concrete twin from a published Blueprint version, with its own assets, identity and deployment.', onClick: () => setStep('instantiate') },
+    { icon: <Upload size={20} aria-hidden="true" />, title: 'Import a twin', text: 'Import a Blueprint bundle exported from another Studio, with its formal artefacts.', onClick: () => go('/studio/new?mode=import') },
+    { icon: <FileUp size={20} aria-hidden="true" />, title: 'Import formal models', text: 'Bring an existing verified twin: UPPAAL PT and DT views, ontology and interpretations become a new Blueprint.', onClick: () => go('/studio/new?mode=formal') },
+  ];
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Create or import a twin" description="A twin is defined in Studio (models, ontology, interpretations), verified, packaged and then deployed.">
-      <div className="vts-choice">
-        <button type="button" className="vts-choice__opt" onClick={() => go('/studio?start=create')}>
-          <Wand2 size={20} aria-hidden="true" />
-          <div>
-            <strong>Create in Studio</strong>
-            <span>Define a new twin: its PT and DT views, ontology and interpretations, then verify alignment and build a package.</span>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setStep('choose');
+      }}
+      wide
+      title={step === 'choose' ? 'Create or import a twin' : 'Instantiate an existing Blueprint'}
+      description={step === 'choose' ? 'Twins are instances of Blueprints: a Blueprint defines a type of twin, is verified and published, then instantiated for each real asset.' : 'Choose the Blueprint; its latest published version is offered by default.'}
+    >
+      {step === 'choose' ? (
+        <div className="vts-choice">
+          {options.map((o) => (
+            <button key={o.title} type="button" className="vts-choice__opt" onClick={o.onClick}>
+              {o.icon}
+              <div>
+                <strong>{o.title}</strong>
+                <span>{o.text}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="stack-sm">
+          {blueprints.isPending ? (
+            <span className="small muted">Loading Blueprints…</span>
+          ) : instantiable.length === 0 ? (
+            <EmptyState compact title="No published Blueprint yet" action={<Button size="sm" onClick={() => go('/studio')}>Open Studio</Button>}>
+              Publish a Blueprint version first; instances are created from published versions only.
+            </EmptyState>
+          ) : (
+            <div className="vts-choice">
+              {instantiable.map((b) => (
+                <button key={b.id} type="button" className="vts-choice__opt" onClick={() => go(`/studio/blueprints/${encodeURIComponent(b.id)}/v/${b.published!.version}/release/instances?new=1`)}>
+                  <Boxes size={20} aria-hidden="true" />
+                  <div>
+                    <strong>{b.name}</strong>
+                    <span>
+                      v{b.published!.version} published · {b.instanceCount} instance{b.instanceCount === 1 ? '' : 's'}
+                      {b.description ? ` · ${b.description}` : ''}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="row">
+            <Button size="sm" variant="ghost" onClick={() => setStep('choose')}>
+              Back
+            </Button>
           </div>
-        </button>
-        <button type="button" className="vts-choice__opt" onClick={() => go('/studio?start=import')}>
-          <FileUp size={20} aria-hidden="true" />
-          <div>
-            <strong>Import twin definition</strong>
-            <span>Import existing artefacts (UPPAAL models, ontology and interpretation files) into Studio as new versions.</span>
-          </div>
-        </button>
-        <button type="button" className="vts-choice__opt" onClick={() => go('/studio?start=instantiate')}>
-          <Copy size={20} aria-hidden="true" />
-          <div>
-            <strong>Instantiate an existing twin type</strong>
-            <span>Create another instance from an already verified package, with its own asset and data sources.</span>
-          </div>
-        </button>
-      </div>
+        </div>
+      )}
     </Dialog>
   );
 }
@@ -160,7 +204,7 @@ export function CreateTwinDialog({ open, onOpenChange }: { open: boolean; onOpen
 export default function TwinLibraryPage() {
   const twins = useTwins();
   const [params, setParams] = useSearchParams();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(() => params.get('create') !== null);
   const q = params.get('q') ?? '';
   const active = new Set((params.get('filter') ?? '').split(',').filter(Boolean) as Filter[]);
   const sort = params.get('sort') ?? 'name';
@@ -275,7 +319,7 @@ export default function TwinLibraryPage() {
           )
         }
       </QueryState>
-      <CreateTwinDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateTwinDialog open={createOpen} onOpenChange={setCreateOpen} initial={params.get('create') === 'instantiate' ? 'instantiate' : undefined} />
       <p className="xsmall subtle" style={{ marginTop: 24 }}>
         Modes, conformance and alerts come from each twin's runtime; verification states from stored evidence.
       </p>

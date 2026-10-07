@@ -73,6 +73,7 @@ const P: Record<string, Loader> = {
   studio: () => import('@/features/studio/StudioLayout') as never,
   studioHome: () => import('@/features/studio/StudioHomePage') as never,
   bpRedirect: () => import('@/features/blueprint/BlueprintRedirect') as never,
+  bpNew: () => import('@/features/blueprint/NewBlueprintPage') as never,
   bpWorkspace: () => import('@/features/blueprint/BlueprintWorkspace') as never,
   bpOverview: () => import('@/features/blueprint/pages/OverviewPage') as never,
   bpStructure: () => import('@/features/blueprint/pages/StructurePage') as never,
@@ -209,6 +210,7 @@ const blueprintChildren: RouteObject[] = [
 
 const studioChildren: RouteObject[] = [
   { index: true, element: page(P.studioHome!) },
+  r('new', page(P.bpNew!)),
   r('changes', page(P.changes!)),
   r('changes/:changeId', page(P.change!)),
   r('refinement/:evidenceId', page(P.refinement!)),

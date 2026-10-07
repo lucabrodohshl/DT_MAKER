@@ -7,7 +7,7 @@
  */
 import { ArrowUpCircle, Boxes, ExternalLink, Plus, Rocket } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { blueprintApi, blueprintRoute, useBlueprint, useBlueprintMutation, useInstances } from '@/api/blueprints';
 import type { InstanceView } from '@/api/types';
 import { Button, Callout, Dialog, EmptyState, ErrorBlock, Skeleton, StatusBadge } from '@/design';
@@ -226,7 +226,8 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 export default function InstancesPage() {
   const e = useEditor();
   const q = useInstances(e.id);
-  const [open, setOpen] = useState(false);
+  const [params] = useSearchParams();
+  const [open, setOpen] = useState(() => params.get('new') === '1');
   const deploy = useBlueprintMutation((x: { id: string; version?: number }) => blueprintApi.deployInstance(x.id, x.version ? { version: x.version } : {}));
   return (
     <EdPage
