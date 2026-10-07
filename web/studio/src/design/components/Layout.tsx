@@ -17,10 +17,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconOnly?: boolean;
 }
 
+/** Plain text of children made of strings and numbers (e.g. `Delete {id}`), for icon-only labels. */
+function textOf(children: ReactNode): string | undefined {
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children) && children.length > 0 && children.every((c) => typeof c === 'string' || typeof c === 'number')) return children.join('');
+  return undefined;
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', icon, loading, iconOnly, children, className, disabled, type = 'button', ...rest },
   ref,
 ) {
+  const label = iconOnly ? textOf(children) : undefined;
   return (
     <button
       ref={ref}
@@ -34,8 +42,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       )}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      aria-label={iconOnly && typeof children === 'string' ? children : rest['aria-label']}
-      title={iconOnly && typeof children === 'string' ? children : rest.title}
+      aria-label={label ?? rest['aria-label']}
+      title={label ?? rest.title}
       {...rest}
     >
       {loading ? <Loader2 size={14} className="vts-spin" aria-hidden="true" /> : icon}

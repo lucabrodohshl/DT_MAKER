@@ -29,4 +29,8 @@ sleep 3  # let the pump feed produce a little live data
 STUDIO_URL="http://127.0.0.1:$STUDIO_PORT" node scripts/screenshots/capture.mjs
 # Tutorial "Safely Evolving an Ontology" (mutates the pump twin: draft, release, deploy).
 STUDIO_URL="http://127.0.0.1:$STUDIO_PORT" node scripts/screenshots/tutorial.mjs
+# Tutorial "Build Your First Twin" (creates, publishes and deploys the Simple Thermal Chamber).
+STUDIO_URL="http://127.0.0.1:$STUDIO_PORT" node scripts/screenshots/first-twin.mjs
+# Blueprint Studio tour (drone draft, checks, preview, package; pump deployment).
+STUDIO_URL="http://127.0.0.1:$STUDIO_PORT" node scripts/screenshots/studio.mjs
 echo "screenshots written to docs/screenshots/"

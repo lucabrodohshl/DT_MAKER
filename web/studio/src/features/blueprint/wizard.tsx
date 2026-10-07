@@ -68,9 +68,17 @@ export function startWizard(id: string, version: number) {
   write({ id, version, step: 3 });
 }
 
+/** The wizard step a workspace page belongs to (sub-pages and sibling pages of a step included). */
 const stepOfRoute = (rel: string): WizardStep | undefined => {
   const path = rel.split('?')[0] ?? '';
-  return WIZARD_STEPS.find((s) => s.route && (path === s.route || (s.id === 'semantics' && path.startsWith('semantics/')) || (s.id === 'assurance' && (path === 'assurance/monitors' || path === 'assurance/alignment'))));
+  const under = (r: string) => path === r || path.startsWith(`${r}/`);
+  const also: Record<string, string[]> = {
+    semantics: ['semantics'],
+    assurance: ['assurance/monitors', 'assurance/alignment'],
+    test: ['test/preview'],
+    verify: ['release'],
+  };
+  return WIZARD_STEPS.find((s) => s.route && (under(s.route) || (also[s.id] ?? []).some(under)));
 };
 
 /** Step bar of the guided flow; renders nothing when the wizard is not active for this draft. */
