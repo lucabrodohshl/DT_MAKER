@@ -1,8 +1,9 @@
 # Verified Twin Studio
 
-**A domain-agnostic Digital Twin platform that combines live operations, semantic
-interpretation, verified behavioural execution, prediction, planning, auditability and
-semantic lifecycle management.** Every behavioural conclusion is computed by a small semantic
+**A domain-agnostic Digital Twin platform for designing, verifying, releasing and operating
+digital twins: Twin Blueprints, live operations, semantic interpretation, verified behavioural
+execution, prediction, planning, auditability and semantic lifecycle management.** Every
+behavioural conclusion is computed by a small semantic
 kernel. That kernel executes a model whose alignment with the physical system has been formally
 verified, and every decision it takes is recorded in a tamper-evident ledger that anyone can
 replay.
@@ -22,8 +23,9 @@ make demo
 ```
 
 Then open **http://127.0.0.1:8080**. The first run builds the C++ engine and the web UI and seeds
-two example twins; later runs start in seconds. In the UI, go to **Assets → Inspection fleet →
-Drone-01 → Mission map** and press **Start mission**.
+two example twins; later runs start in seconds. In **Your twins**, open **Drone-01** and press
+**Start mission** on its mission map. To design a twin of your own, switch to **Studio** and
+follow [Build Your First Twin](docs/studio/tutorial-first-twin.md).
 
 Requirements: macOS or Linux, CMake ≥ 3.25, a C++20 compiler, Node ≥ 20, Python 3, Z3
 (`brew install z3`). `scripts/bootstrap-deps.sh` builds the pinned UPPAAL libraries (UTAP, UDBM)
@@ -51,6 +53,20 @@ to other Macs, sign it with a Developer ID and notarize it (see `scripts/macos/b
 
 The same generic screens also serve a second twin: an industrial process pump, monitored from
 its control system's events and telemetry, with no domain-specific UI code.
+
+## Designing twins
+
+In **Studio** mode a type of twin is designed as a **Twin Blueprint**: structure (asset types,
+assets, relationships), world and layout (a spatial map, a topology or a diagram, with ground
+truth kept apart from the twin's knowledge), data contract and connectivity, the Physical System
+View and the Digital Twin View as timed automata, the ontology and the interpretations,
+requirements, monitors and scenarios. The Scenario Builder shows when each event may happen as
+computed by the kernel; **Run all checks** validates, aligns and compiles; the release gate
+admits a version only on evidence for exactly its inputs. A release is a **Verified Core
+Package** (formally verified) plus a **Deployment Bundle** (integrity-protected); instances are
+created from it and deployed by Studio's supervisor, then monitored in **Operate**. The drone
+and the pump ship as Blueprints; `examples/thermal-chamber` holds a third, built from scratch in
+the tutorial. See [Twin Blueprints](docs/studio/blueprints.md).
 
 ## Architecture in one picture
 
@@ -110,7 +126,8 @@ claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
 | [Supported model fragment](docs/supported-model-fragment.md), [compiler diagnostics](docs/compiler-diagnostics.md) | Which UPPAAL models compile, and why others are refused |
 | [Aligner integration](docs/existing-aligner-integration.md) | How SemPTDTAlignmentICSE is reused, unmodified |
 | [Integration audit](docs/integration-audit.md), [final report](docs/final-integration-report.md) | What exists, how it was integrated, limitations |
-| [Studio manual](docs/studio/) | Using Verified Twin Studio (operations, engineering, maintenance) |
+| [Studio manual](docs/studio/) | Using Verified Twin Studio (designing twins, operations, engineering, maintenance) |
+| [Build Your First Twin](docs/studio/tutorial-first-twin.md) | A thermal-chamber twin from nothing to a monitored instance, step by step |
 | [Screenshots](docs/screenshots/) | Captured from the running product (`scripts/capture-screenshots.sh`) |
 | API reference | `make docs` → `build/docs/html/index.html` (Doxygen) |
 
@@ -140,7 +157,7 @@ include/twin/<module>/, src/<module>/   C++ libraries (core, json, ir, kernel, c
 apps/                                   twin, twin-runtime, twin-world, twin-pt-feed, twin-studio; macos/ (app launcher)
 api/                                    OpenAPI contracts (runtime, Studio)
 web/studio/                             Verified Twin Studio (React + TypeScript); plugins/drone
-models/, examples/, scenarios/          drone models, Studio examples (drone, pump), simulator scenarios
+models/, examples/, scenarios/          drone models, Blueprints and examples (drone, pump, thermal chamber), templates, simulator scenarios
 SemPTDTAlignmentICSE/                   the semantic aligner (unmodified)
 tests/                                  unit, integration, architecture, e2e (GoogleTest); Studio suites
 proof/                                  correctness argument (LaTeX)

@@ -27,7 +27,7 @@ transports, stores or displays.
 
 | Process | Port | Role | Source |
 |---|---|---|---|
-| `twin-studio` | 8080 | Platform API: assets, telemetry history, artefact versions, evidence, packages, deployments, engineering audit. Serves the web UI and proxies runtimes. | `apps/twin-studio`, `src/{studio,platform,ontology}` |
+| `twin-studio` | 8080 | Platform API: assets, telemetry history, artefact versions, evidence, packages, deployments, engineering audit; Twin Blueprints and their instances, previews and the deployment supervisor. Serves the web UI and proxies runtimes. | `apps/twin-studio`, `src/{studio,platform,ontology}` |
 | `twin-runtime` (drone) | 8090 | Co-simulation mode: executes the drone package and drives the Physical Twin simulator. | `apps/twin-runtime`, `src/runtime` |
 | `twin-world` | 8091 | Drone Physical Twin and building-information service. Holds the ground truth. | `apps/twin-world`, `src/world` |
 | `twin-runtime` (pump) | 8092 | Monitor mode: executes the pump package. The Physical Twin pushes events and telemetry to it. | same binary, `--monitor` |
@@ -36,6 +36,44 @@ transports, stores or displays.
 
 `make demo` (`scripts/start-demo.sh`) builds, seeds and starts all of them. It then starts each
 runtime on exactly the package that Studio deployed for its twin.
+
+## Designing a twin: Blueprints
+
+A **Twin Blueprint** is the versioned engineering definition of a type of twin; instances are
+created from its published versions. `BlueprintService` (`include/twin/studio/blueprints.hpp`,
+`src/studio/blueprints_*.cpp`) holds the Blueprint document — structure, world (`twin-world/1`),
+data contract and connectivity, presentation, requirements, monitors (`twin-monitors/1`),
+scenarios — and pins the five formal artefacts (V_P, V_D as canonical `twin-ta/1` models, K,
+I_P, I_D) as ordinary artefact versions. It adds no authority of its own:
+
+| Design-time question | Answered by |
+|---|---|
+| Is a section, an artefact, a monitor valid? | the section validators, the strict parsers and the aligner's parser plus Z3 |
+| Are the views aligned? Does V_D compile? | SemPTDTAlignmentICSE and `twin compile` (translation-validated), exactly as in the lifecycle above |
+| When can this event happen? Does this scenario pass? | the semantic kernel's what-if on the compiled V_D (timing windows with every legal interval, refusals with their reason) |
+| Can this version be released? | the release gate: evidence recorded for exactly the version's inputs |
+| What does this change affect? | section-level impact against the parent version |
+
+Releasing a version builds the **Verified Core Package** (`twin-package/1`, the Verified Twin
+Package: V_D, the Twin IR, K, I_P/I_D, V_P, the alignment and compilation evidence, the monitors)
+and the **Deployment Bundle** (`twin-bundle/1`: the Blueprint document and the generated
+simulator inputs with their hashes; its manifest names the package it belongs to and states the
+verification scope — integrity-protected, not formally verified). **Export** writes a version as
+a `twin-blueprint-bundle/1` document another Studio can import.
+
+The **supervisor** (`src/studio/supervisor.cpp`) deploys instances: on free local ports it starts
+`twin-runtime` on the instance's package (plus `twin-world` with the simulator scenario rasterised
+from the Blueprint's world, or `twin-pt-feed` with its event script), waits for each health
+check, registers the URLs on the twin record and starts the telemetry bridge, so the instance
+appears in Operate. A runtime that exits unexpectedly is reported as failed and never restarted
+automatically (fail-stop is an integrity event). A **Studio preview** runs the same processes
+for a version in its own sandbox under `<data>/previews/` — no twin record, no deployment, no
+stored telemetry.
+
+An instance's **live monitors** (`GET /api/v1/instances/{id}/monitors`) are evaluated by their
+authority: conformance by the runtime, temporal properties by the property evaluator on the
+kernel's committed state with the model of exactly that version, data quality on the stored
+telemetry. A monitor that cannot be evaluated is UNKNOWN with its reason.
 
 ## Libraries and their dependency graph
 
@@ -109,6 +147,7 @@ reveals that the door is closed.
 | Topic | Document |
 |---|---|
 | Runtime API (REST and SSE) | [`runtime-api.md`](runtime-api.md) |
+| Designing twins in Studio | [`studio/blueprints.md`](studio/blueprints.md) and [Build Your First Twin](studio/tutorial-first-twin.md) |
 | What must be trusted | [`trusted-computing-base.md`](trusted-computing-base.md) |
 | Logical time | [`logical-time-model.md`](logical-time-model.md) |
 | Accepted models | [`supported-model-fragment.md`](supported-model-fragment.md) and [`compiler-diagnostics.md`](compiler-diagnostics.md) |
