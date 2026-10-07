@@ -149,6 +149,13 @@ public:
     /// @brief One instance.
     [[nodiscard]] Result<json::Json> instance(std::string_view id);
     /**
+     * @brief Live evaluation of an instance's monitors and alert policy: conformance from its
+     * runtime, property monitors on the runtime's committed state (kernel model of its version),
+     * data-quality monitors on its stored telemetry; "unknown" (with the reason) when a monitor
+     * cannot be evaluated.
+     */
+    [[nodiscard]] Result<json::Json> instance_monitors(std::string_view id);
+    /**
      * @brief Create an instance of a published version: {blueprintId, version, id, name,
      * description?, assetIds?: {blueprintAsset: assetId}, placement?: {parentAssetId?, world?: {...}},
      * properties?: {...}, connectivity?: {sources?, bindings?}, target?: {kind: "local", speed?, paused?}}.

@@ -769,6 +769,7 @@ void StudioServer::Impl::blueprint_routes() {
         return b.create_instance(body.value(), a);
     }, 201);
     route("GET", p + "/instances/:id", [&b](const httplib::Request& r, const auto&) { return b.instance(r.path_params.at("id")); });
+    route("GET", p + "/instances/:id/monitors", [&b](const httplib::Request& r, const auto&) { return b.instance_monitors(r.path_params.at("id")); });
     route("POST", p + "/instances/:id/deploy", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
         auto body = body_json(r);
         if (!body) return std::move(body).error();

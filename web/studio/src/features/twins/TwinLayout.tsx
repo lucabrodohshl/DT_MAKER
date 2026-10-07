@@ -7,7 +7,7 @@
  *  - the page, which reads the twin from useTwinScope() / the outlet context.
  */
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ArrowLeft, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Search, PencilRuler } from 'lucide-react';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
@@ -215,6 +215,13 @@ export default function TwinLayout() {
                     </Link>
                   )}
                   {trust && <TrustBadge state={trust} label="Verification" />}
+                  <Link
+                    to={t.blueprintId ? `/studio/blueprints/${encodeURIComponent(t.blueprintId)}/v/${t.blueprintVersion ?? 1}` : `/studio?twin=${encodeURIComponent(t.id)}`}
+                    className="vts-btn vts-btn--secondary vts-btn--sm"
+                    title={t.blueprintId ? `Open ${t.blueprintId} v${t.blueprintVersion} (this twin's Blueprint) in Studio` : 'Open Studio for this twin'}
+                  >
+                    <PencilRuler size={14} aria-hidden="true" /> Open in Studio
+                  </Link>
                 </div>
                 <TwinCrumbs base={base} twinName={t.name} />
               </header>

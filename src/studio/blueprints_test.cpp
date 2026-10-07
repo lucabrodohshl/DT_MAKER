@@ -198,6 +198,8 @@ Result<std::pair<std::string, std::string>> observation_label(const ScenarioCont
 
 }  // namespace
 
+Result<kernel::StateSet> state_set_from_json(const kernel::Model& model, const Json& state) { return state_from_json(model, state); }
+
 // ------------------------------------------------------------------------------ timing
 
 Result<Json> BlueprintService::timing(std::string_view id, std::int64_t v, const Json& request) {

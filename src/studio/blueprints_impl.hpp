@@ -15,6 +15,7 @@
 
 #include "services_impl.hpp"
 #include "twin/kernel/model.hpp"
+#include "twin/kernel/state_set.hpp"
 #include "twin/platform/blueprints.hpp"
 #include "twin/studio/blueprints.hpp"
 
@@ -26,6 +27,10 @@ struct CompiledDt {
     std::string ir_sha256;                       ///< IR hash.
     std::string source_sha256;                   ///< Hash of the compiled toolchain rendering.
 };
+
+/// @brief A kernel state set from a state view ({configurations: [{location, clocks, time}]}, times as
+/// decimal strings or {text, ticks}), e.g. a what-if state or a runtime's GET /runtime/state.
+[[nodiscard]] Result<kernel::StateSet> state_set_from_json(const kernel::Model& model, const json::Json& state);
 
 /// @brief One finding of the Blueprint validator (sections other than formal artefacts).
 struct SectionFinding {
