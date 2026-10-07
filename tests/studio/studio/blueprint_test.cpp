@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <random>
 #include <set>
@@ -151,6 +152,30 @@ TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     }
     EXPECT_TRUE(reset_later) << timing.value()["final"].dump(2);
 
+    // Scenario Builder timing: a scenario's own steps. The negative-test step leaves the state as is
+    // and the expectation at t = 110 lets time pass; origins name each formal step's source.
+    Json early;
+    const Json chamber_doc = read_json(kChamber / "blueprint.json");
+    for (const Json& sc : chamber_doc["scenarios"]) {
+        if (sc["id"] == "reset-too-early") early = sc;
+    }
+    ASSERT_FALSE(early.is_null());
+    auto sct = bp().timing(id, 1, Json{{"scenarioSteps", early["steps"]}});
+    ASSERT_TRUE(sct.ok()) << sct.error().to_string();
+    EXPECT_EQ(sct.value()["origins"], Json::array({"s1", "s2", "s4"})) << sct.value()["origins"].dump();
+    EXPECT_TRUE(sct.value()["first_invalid"].is_null());
+    EXPECT_EQ(sct.value()["final"]["state"]["time"]["text"], "110");
+    // The same reset as an ordinary step is refused with the earliest legal time the kernel reports.
+    Json steps = early["steps"];
+    steps[2].erase("expectRefused");
+    auto refused = bp().timing(id, 1, Json{{"scenarioSteps", steps}});
+    ASSERT_TRUE(refused.ok()) << refused.error().to_string();
+    ASSERT_EQ(refused.value()["first_invalid"], 2) << refused.value().dump(2).substr(0, 2000);
+    const Json& why = refused.value()["steps"][2]["explanation"];
+    ASSERT_FALSE(why["alternatives"].empty()) << why.dump(2);
+    EXPECT_EQ(why["alternatives"][0]["window"]["earliest_at"]["text"], "130") << why.dump(2);
+    EXPECT_NE(why["reasons"][0]["reason"].get<std::string>().find("too early"), std::string::npos) << why.dump(2);
+
     // The release gate is computed from evidence; packaging makes it ready.
     auto pkg = bp().run_check(id, 1, "package", Json::object(), alice);
     ASSERT_TRUE(pkg.ok()) << pkg.error().to_string();
@@ -193,6 +218,17 @@ TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     // v2: a presentation-only change invalidates no formal evidence.
     auto draft = bp().create_draft(id, 1, "friendlier state names", alice);
     ASSERT_TRUE(draft.ok()) << draft.error().to_string();
+    // The library shows the draft's release gate ("Verification required" until evidence covers it).
+    bool listed = false;
+    const Json library = bp().list().value();
+    for (const Json& b : library) {
+        if (b["id"] != id) continue;
+        listed = true;
+        EXPECT_EQ(b["draft"]["version"], 2);
+        EXPECT_TRUE(b.contains("draftReadiness")) << b.dump(2);
+        EXPECT_EQ(b["published"]["version"], 1);
+    }
+    EXPECT_TRUE(listed);
     Json pres = read_json(kChamber / "blueprint.json")["presentation"];
     pres["states"]["HEATING"]["label"] = "Heating up";
     ASSERT_TRUE(bp().save_section(id, 2, "presentation", revision(id, 2), pres, alice).ok());
@@ -222,6 +258,24 @@ TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     auto monitors = s().search("never-overheated", 10).value()["hits"];
     ASSERT_FALSE(monitors.empty());
     EXPECT_EQ(monitors[0]["kind"], "monitor");
+}
+
+TEST_F(BlueprintTest, CreationTakesIdentityAndRasterNeedsASpatialWorld) {
+    auto created = bp().create(Json{{"mode", "blank"}, {"id", "ident-check"}, {"name", "Identity check"},
+                                    {"identity", {{"runtimeMode", "cosimulation"}, {"timeUnit", "ms"}, {"ticksPerUnit", 1}, {"modelId", "ignored"}}}},
+                               alice);
+    ASSERT_TRUE(created.ok()) << created.error().to_string();
+    const Json identity = bp().version("ident-check", 1).value()["document"]["identity"];
+    EXPECT_EQ(identity["runtimeMode"], "cosimulation");
+    EXPECT_EQ(identity["timeUnit"], "ms");
+    EXPECT_EQ(identity["ticksPerUnit"], 1);
+    EXPECT_EQ(identity["modelId"], "ident-check") << "the model id is the Blueprint's, not a client choice";
+    Json world = bp().version("ident-check", 1).value()["document"]["world"];
+    world["mode"] = "topology";
+    ASSERT_TRUE(bp().save_section("ident-check", 1, "world", revision("ident-check", 1), world, alice).ok());
+    auto raster = bp().world_raster("ident-check", 1);
+    ASSERT_FALSE(raster.ok());
+    EXPECT_EQ(raster.error().code, ErrorCode::StateError);
 }
 
 TEST_F(BlueprintTest, UnsupportedUppaalConstructsAreReportedNeverApproximated) {
@@ -274,9 +328,26 @@ TEST_F(BlueprintTest, SeededInstanceDeploysRealProcesses) {
         }
     }
     EXPECT_TRUE(live) << "no live temperature sample arrived";
+    // Monitors are evaluated live by their authorities.
+    auto mon = bp().instance_monitors("chamber-tc1-dt");
+    ASSERT_TRUE(mon.ok()) << mon.error().to_string();
+    EXPECT_TRUE(mon.value()["runtime"]["available"].get<bool>()) << mon.value()["runtime"].dump();
+    std::map<std::string, Json> by_id;
+    for (const Json& m : mon.value()["monitors"]) by_id[m["id"].get<std::string>()] = m;
+    EXPECT_EQ(by_id["conformance"]["evaluator"], "runtime");
+    EXPECT_TRUE(by_id["conformance"]["status"] == "satisfied" || by_id["conformance"]["status"] == "violated") << by_id["conformance"].dump();
+    EXPECT_EQ(by_id["never-overheated"]["evaluator"], "property evaluator");
+    EXPECT_TRUE(by_id["never-overheated"]["status"] == "satisfied" || by_id["never-overheated"]["status"] == "violated") << by_id["never-overheated"].dump();
+    EXPECT_EQ(by_id["temperature-fresh"]["status"], "satisfied") << by_id["temperature-fresh"].dump();
+    EXPECT_EQ(mon.value()["alerts"].size(), 3U);
     auto stopped = bp().control_instance("chamber-tc1-dt", "stop", alice);
     ASSERT_TRUE(stopped.ok()) << stopped.error().to_string();
     EXPECT_EQ(bp().instance("chamber-tc1-dt").value()["runtime"]["state"], "stopped");
+    auto offline = bp().instance_monitors("chamber-tc1-dt").value();
+    EXPECT_FALSE(offline["runtime"]["available"].get<bool>());
+    for (const Json& m : offline["monitors"]) {
+        if (m["id"] == "conformance") EXPECT_EQ(m["status"], "unknown") << "never a guessed verdict without the runtime";
+    }
 
     // A draft previews in isolation: sandbox build of its core, real runtime and feed, nothing recorded.
     const std::size_t packages_before = s().packages("").value().size();
