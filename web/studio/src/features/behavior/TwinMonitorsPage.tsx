@@ -9,30 +9,9 @@ import { useQuery } from '@tanstack/react-query';
 import { BellRing, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
+import type { InstanceMonitorsView as MonitorsView } from '@/api/types';
 import { Callout, EmptyState, PageHeader, Panel, QueryState, StatusBadge, TimeStamp } from '@/design';
 import { useTwinScope } from '@/app/twinScope';
-
-interface MonitorResult {
-  id: string;
-  name: string;
-  kind: string;
-  severity: string;
-  requirement: string | null;
-  status: 'satisfied' | 'violated' | 'finding' | 'inconclusive' | 'unknown' | 'error';
-  detail: string;
-  evaluator: string;
-}
-
-interface MonitorsView {
-  twin: string;
-  blueprintId: string;
-  blueprintVersion: number;
-  evaluatedAt: string;
-  runtime: { available: boolean; note?: string; time?: { text: string } };
-  monitors: MonitorResult[];
-  alerts: { id: string; monitor: string; on: string; severity: string; message: string; active: boolean; monitorStatus: string }[];
-  requirements: { id: string; title: string; severity: string; category: string; status: string }[];
-}
 
 const STATUS: Record<string, { tone: 'ok' | 'critical' | 'warning' | 'neutral'; label: string }> = {
   satisfied: { tone: 'ok', label: 'SATISFIED' },

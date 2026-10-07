@@ -1,12 +1,17 @@
 /**
- * Global search (⌘K or "/"): assets, twins, artefacts and versions ("process-pump@2"),
- * ontology symbols and axioms, interpretation entries, telemetry channels, evidence,
- * packages, deployments and changes. Results come from GET /api/v1/search.
+ * Command palette and global search (⌘K or "/"). Commands: global actions (new Blueprint, import,
+ * your twins, Studio) and, inside a Blueprint workspace, "Go to" every section of the open
+ * version. Search: Blueprints and their elements (asset types, assets, world objects, signals,
+ * events, commands, sources, requirements, monitors, scenarios, model states), twins, assets,
+ * artefacts and versions ("process-pump@2"), ontology symbols and axioms, interpretation
+ * entries, telemetry channels, evidence, packages, deployments and changes — ranked by the
+ * backend (GET /api/v1/search).
  */
 import * as RadixDialog from '@radix-ui/react-dialog';
-import { Blocks, Boxes, CircleGauge, FileCheck2, GitPullRequest, Package, Rocket, Search, Sigma, SplitSquareHorizontal, Workflow, type LucideIcon } from 'lucide-react';
-import { useId, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Bell, Blocks, Boxes, CircleGauge, ClipboardCheck, FileCheck2, FileUp, FlaskConical, GitPullRequest, LayoutGrid, Map as MapIcon, Package, Plus, Radio, Rocket, Search, Shapes, Sigma, SplitSquareHorizontal, TerminalSquare, Workflow, type LucideIcon } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ALL_ITEMS } from '@/features/blueprint/nav';
 import { useSearch } from '@/api/queries';
 
 const KIND_ICON: Record<string, LucideIcon> = {
@@ -26,6 +31,18 @@ const KIND_ICON: Record<string, LucideIcon> = {
   package: Package,
   deployment: Rocket,
   change: GitPullRequest,
+  blueprint: LayoutGrid,
+  asset_type: Shapes,
+  blueprint_asset: Boxes,
+  world_object: MapIcon,
+  telemetry: CircleGauge,
+  event: Radio,
+  command: TerminalSquare,
+  data_source: CircleGauge,
+  requirement: ClipboardCheck,
+  monitor: Bell,
+  scenario: FlaskConical,
+  state: Workflow,
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -45,15 +62,57 @@ const KIND_LABEL: Record<string, string> = {
   package: 'Package',
   deployment: 'Deployment',
   change: 'Change',
+  blueprint: 'Blueprint',
+  asset_type: 'Asset type',
+  blueprint_asset: 'Blueprint asset',
+  world_object: 'World object',
+  telemetry: 'Signal',
+  event: 'Event',
+  command: 'Command',
+  data_source: 'Data source',
+  requirement: 'Requirement',
+  monitor: 'Monitor',
+  scenario: 'Scenario',
+  state: 'Model state',
 };
+
+interface Command {
+  id: string;
+  label: string;
+  hint: string;
+  route: string;
+  icon: LucideIcon;
+}
+
+const GLOBAL_COMMANDS: Command[] = [
+  { id: 'new-bp', label: 'New Blueprint', hint: 'Guided wizard', route: '/studio/new', icon: Plus },
+  { id: 'studio', label: 'Studio: Twin Blueprints', hint: 'Blueprint library', route: '/studio', icon: LayoutGrid },
+  { id: 'twins', label: 'Your twins', hint: 'Operate', route: '/twins', icon: Boxes },
+  { id: 'template', label: 'New Blueprint from a template', hint: 'Mobile robot, process equipment…', route: '/studio/new?mode=template', icon: Plus },
+  { id: 'import', label: 'Import a twin (Blueprint bundle)', hint: 'twin-blueprint-bundle/1', route: '/studio/new?mode=import', icon: FileUp },
+  { id: 'formal', label: 'Import formal models', hint: 'UPPAAL views, ontology, interpretations', route: '/studio/new?mode=formal', icon: FileUp },
+  { id: 'instantiate', label: 'Instantiate a published Blueprint', hint: 'Create a twin instance', route: '/twins?create=instantiate', icon: Rocket },
+];
 
 export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const navigate = useNavigate();
   const search = useSearch(q);
-  const hits = search.data?.hits ?? [];
+  const location = useLocation();
   const listId = useId();
+  const commands = useMemo(() => {
+    const m = /^\/studio\/blueprints\/([^/]+)\/v\/(\d+)/.exec(location.pathname);
+    const local: Command[] = m
+      ? ALL_ITEMS.map((i) => ({ id: `go-${i.to}`, label: `Go to ${i.label}`, hint: i.hint, route: `/studio/blueprints/${m[1]}/v/${m[2]}${i.to ? `/${i.to}` : ''}`, icon: i.icon }))
+      : [];
+    const all = [...local, ...GLOBAL_COMMANDS];
+    const t = q.trim().replace(/^>/, '').trim().toLowerCase();
+    if (!t) return all.slice(0, 8);
+    return all.filter((c) => `${c.label} ${c.hint}`.toLowerCase().includes(t)).slice(0, 6);
+  }, [location.pathname, q]);
+  const searchHits = q.trim().startsWith('>') ? [] : (search.data?.hits ?? []);
+  const hits = [...commands.map((c) => ({ kind: 'command_palette', id: c.id, title: c.label, subtitle: c.hint, route: c.route, icon: c.icon })), ...searchHits.map((h) => ({ ...h, icon: undefined as LucideIcon | undefined }))];
 
   const setOpen = (o: boolean) => {
     if (!o) {
@@ -81,7 +140,7 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
               autoFocus
               value={q}
               onChange={(e) => { setQ(e.target.value); setActive(0); }}
-              placeholder="Search: Pump P-101, bearing_temp, process-pump@2, EV-0012, CHG-0002…"
+              placeholder="Search or run a command: Pump P-101, bearing_temp, HEATING, REQ-S1, > New Blueprint…"
               role="combobox"
               aria-expanded={hits.length > 0}
               aria-controls={listId}
@@ -101,11 +160,11 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
             />
           </div>
           <ul id={listId} role="listbox" aria-label="Results">
-            {q.trim().length < 2 && <li className="small subtle" style={{ padding: 10 }}>Type at least two characters.</li>}
+            {q.trim().length < 2 && commands.length === 0 && <li className="small subtle" style={{ padding: 10 }}>Type at least two characters.</li>}
             {q.trim().length >= 2 && search.isFetching && hits.length === 0 && <li className="small subtle" style={{ padding: 10 }}>Searching…</li>}
             {q.trim().length >= 2 && !search.isFetching && hits.length === 0 && <li className="small subtle" style={{ padding: 10 }}>No results.</li>}
             {hits.map((h, i) => {
-              const Icon = KIND_ICON[h.kind] ?? Search;
+              const Icon = h.icon ?? KIND_ICON[h.kind] ?? Search;
               return (
                 <li key={`${h.kind}-${h.id}-${i}`} id={`${listId}-${i}`} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)}>
                   <a
@@ -120,7 +179,11 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
                       <span className="strong truncate" style={{ display: 'block' }}>{h.title}</span>
                       <span className="xsmall subtle truncate" style={{ display: 'block' }}>{h.subtitle}</span>
                     </span>
-                    <span className="vts-tag">{KIND_LABEL[h.kind] ?? h.kind}</span>
+                    {h.kind === 'command_palette' ? (
+                      <ArrowRight size={14} aria-label="Command" className="subtle" />
+                    ) : (
+                      <span className="vts-tag">{KIND_LABEL[h.kind] ?? h.kind}</span>
+                    )}
                   </a>
                 </li>
               );

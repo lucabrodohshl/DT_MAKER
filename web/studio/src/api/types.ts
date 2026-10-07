@@ -23,7 +23,7 @@ export type TrustState =
 export type ArtifactKind = 'ontology' | 'interpretation' | 'pt_model' | 'dt_model';
 export type Lifecycle = 'draft' | 'validating' | 'verified' | 'published' | 'superseded' | 'rejected';
 export type Outcome = 'pass' | 'fail' | 'unknown' | 'error';
-export type EvidenceKind = 'validation' | 'refinement' | 'alignment' | 'compilation' | 'package';
+export type EvidenceKind = 'validation' | 'refinement' | 'alignment' | 'compilation' | 'package' | 'scenario';
 
 export interface ApiErrorBody {
   error: { code: string; message: string; context: { key: string; value: string }[] };
@@ -430,7 +430,7 @@ export interface TwinPresentation {
   states?: Record<string, { label?: string; tone?: Tone; summary?: string }>;
   events?: Record<string, { label?: string }>;
   keyTelemetry?: string[];
-  plugin?: string;
+  plugin?: string | null;
   [key: string]: unknown;
 }
 
@@ -1354,6 +1354,31 @@ export interface InstanceView extends TwinSummary {
   latestPublishedVersion: number | null;
   /** A newer published version of the Blueprint exists. */
   upgradeAvailable: boolean;
+}
+
+/** One monitor's live result (GET /instances/{id}/monitors). */
+export interface InstanceMonitorResult {
+  id: string;
+  name: string;
+  kind: string;
+  severity: string;
+  requirement: string | null;
+  /** satisfied | violated | finding | inconclusive | unknown | error */
+  status: string;
+  detail: string;
+  /** runtime | property evaluator | telemetry store | studio */
+  evaluator: string;
+}
+
+export interface InstanceMonitorsView {
+  twin: string;
+  blueprintId: string;
+  blueprintVersion: number;
+  evaluatedAt: string;
+  runtime: { available: boolean; note?: string; time?: TimeValue; session?: string };
+  monitors: InstanceMonitorResult[];
+  alerts: { id: string; monitor: string; on: string; severity: string; message: string; active: boolean; monitorStatus: string }[];
+  requirements: { id: string; title: string; severity: string; category: string; status: string }[];
 }
 
 export interface PreviewView {

@@ -870,6 +870,9 @@ Result<Json> BlueprintService::world_raster(std::string_view id, std::int64_t v)
     if (!ver) return std::move(ver).error();
     auto world = scene::world_from_json(ver.value().document.value("world", Json::object()));
     if (!world) return std::move(world).error();
+    if (world.value().mode != "spatial") {
+        return make_error(ErrorCode::StateError, "only a spatial world is rasterised for the simulator").with("mode", world.value().mode);
+    }
     const Json sim = ver.value().document.value("simulation", Json::object());
     auto r = scene::rasterize(world.value(), sim.value("cellSize", std::int64_t{500}));
     if (!r) return std::move(r).error();

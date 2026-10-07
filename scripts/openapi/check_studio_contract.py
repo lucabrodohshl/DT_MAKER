@@ -52,7 +52,18 @@ def discover():
     _, changes = get("/changes")
     _, packages = get(f"/packages?twin={twin['id']}")
     refs = [v["ref"] for v in onto_detail["versions"]]
+    _, blueprints = get("/blueprints")
+    bp = next((b for b in blueprints if b.get("published")), blueprints[0] if blueprints else None)
+    _, instances = get("/instances")
+    instance = next((i for i in instances if i.get("blueprintId")), None)
     return {
+        "blueprintId": bp["id"] if bp else None,
+        "bpVersion": str((bp.get("published") or bp.get("latest"))["version"]) if bp else None,
+        "viewRole": "dt",
+        "semanticRole": "ontology",
+        "instanceId": instance["id"] if instance else None,
+        "spatialBlueprint": next(((b["id"], str((b.get("published") or b.get("latest"))["version"])) for b in blueprints
+                                  if b.get("domain") == "mobile-robot"), None),
         "assetId": twin["assetId"], "twinId": twin["id"], "artifactId": onto["id"],
         "version": str(onto["published"]["version"]), "symbol": symbol,
         "channelId": telemetry["channels"][0]["id"] if telemetry["channels"] else None,
@@ -84,6 +95,9 @@ def main() -> int:
         if missing:
             print(f"SKIP  GET {path} (no {missing} in this data set)")
             continue
+        if path.endswith("/world/raster") and ids.get("spatialBlueprint"):
+            # Only a spatial world is rasterised (409 otherwise): use a Blueprint with one.
+            url = path.replace("{blueprintId}", ids["spatialBlueprint"][0]).replace("{bpVersion}", ids["spatialBlueprint"][1])
         query = {p["name"]: ids["query"][p["name"]] for p in params if p["in"] == "query" and p.get("required")}
         if path == "/evidence/{evidenceId}/status":
             query["twin"] = ids["twinId"]  # one of twin/change is required
