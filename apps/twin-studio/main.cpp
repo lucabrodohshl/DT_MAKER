@@ -3,8 +3,10 @@
  * @brief `twin-studio` — the Verified Twin Studio server.
  *
  * Commands:
- *   twin-studio serve  [--data-dir DIR] [--host H] [--port N] [--web-root DIR]
+ *   twin-studio serve  [--data-dir DIR] [--host H] [--port N] [--web-root DIR] [--bin-dir DIR] [--templates DIR]
  *                      [--runtime TWIN=URL]... [--world TWIN=URL]... [--simulate-telemetry EXAMPLE_DIR]...
+ *                      Instances whose desired state is "running" are started by the deployment
+ *                      supervisor (twin-runtime, twin-world, twin-pt-feed from --bin-dir).
  *   twin-studio seed   --example DIR [--data-dir DIR] [--no-telemetry]
  *   twin-studio demo   [--data-dir DIR] [--port N] [--web-root DIR] [--runtime TWIN=URL]...
  *                      (seeds examples/industrial-pump into an empty data dir, then serves
@@ -25,6 +27,7 @@
 #include "twin/studio/runtime_bridge.hpp"
 #include "twin/studio/seed.hpp"
 #include "twin/studio/server.hpp"
+#include "twin/studio/blueprints.hpp"
 #include "twin/studio/services.hpp"
 
 namespace fs = std::filesystem;
@@ -56,7 +59,7 @@ struct Args {
 int usage(const std::string& error = {}) {
     if (!error.empty()) std::cerr << "error: " << error << "\n\n";
     std::cerr << "usage:\n"
-                 "  twin-studio serve  [--data-dir DIR] [--host H] [--port N] [--web-root DIR]\n"
+                 "  twin-studio serve  [--data-dir DIR] [--host H] [--port N] [--web-root DIR] [--bin-dir DIR] [--templates DIR]\n"
                  "                     [--runtime TWIN=URL]... [--world TWIN=URL]... [--simulate-telemetry EXAMPLE_DIR]...\n"
                  "  twin-studio seed   --example DIR [--data-dir DIR] [--no-telemetry]\n"
                  "  twin-studio demo   [--data-dir DIR] [--port N] [--web-root DIR] [--runtime TWIN=URL]...\n"
@@ -96,6 +99,8 @@ std::map<std::string, std::string> pairs(const Args& a, const std::string& key) 
 std::unique_ptr<Services> open_services(const Args& a) {
     StudioConfig config;
     config.data_dir = a.get("--data-dir").value_or("var/studio");
+    if (auto t = a.get("--templates")) config.templates_dir = *t;
+    if (auto b = a.get("--bin-dir")) config.bin_dir = *b;
     auto s = Services::open(config);
     if (!s) {
         std::cerr << "error: " << s.error().to_string() << "\n";
@@ -113,10 +118,9 @@ int seed(Services& services, const fs::path& example, bool telemetry) {
         std::cerr << "error: " << r.error().to_string() << "\n";
         return 1;
     }
-    std::cout << "  twin:       " << r.value()["twin"].get<std::string>() << "\n"
-              << "  artefacts:  " << r.value()["artifacts"].dump() << "\n"
-              << "  package:    " << r.value()["bootstrap"]["package"]["id"].get<std::string>() << " ("
-              << r.value()["bootstrap"]["package"]["packageHash"].get<std::string>().substr(0, 16) << "…)\n"
+    std::cout << "  blueprint:  " << r.value()["blueprint"].get<std::string>() << " v1 (published)\n"
+              << "  checks:     " << r.value()["checks"].dump() << "\n"
+              << "  instances:  " << r.value()["instances"].dump() << "\n"
               << "  telemetry:  " << r.value()["telemetrySamples"] << " samples\n";
     return 0;
 }
@@ -172,8 +176,23 @@ int serve(Services& services, const Args& a, std::vector<fs::path> feeds) {
     for (const auto& [t, u] : options.world_urls) std::cout << "  world:     " << t << " -> " << u << " (ground truth, visualisation only)\n";
     for (const auto& f : feeds) std::cout << "  simulated telemetry feed: " << f << "\n";
 
+    // Reconcile: start every instance whose desired state is "running" (in the background, so the
+    // UI is available at once and shows the instances as starting).
+    std::thread reconcile([&services] {
+        auto twins = services.twins();
+        if (!twins) return;
+        for (const auto& t : twins.value()) {
+            const std::string id = t.value("id", std::string());
+            auto rec = services.twin_record(id);
+            if (!rec || !rec.value().blueprint_id || rec.value().desired_state != "running") continue;
+            auto r = services.blueprints().deploy_instance(id, twin::json::Json::object(), Actor{"supervisor"});
+            std::cout << "  instance:  " << id << " -> " << (r ? r.value()["runtime"].value("runtimeUrl", twin::json::Json("?")).dump() : r.error().message)
+                      << std::endl;
+        }
+    });
     auto st = server.listen();
     stop.store(true);
+    if (reconcile.joinable()) reconcile.join();
     for (auto& t : feed_threads) t.join();
     g_server.store(nullptr);
     if (!st) {

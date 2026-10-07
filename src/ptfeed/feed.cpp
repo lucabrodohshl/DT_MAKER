@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <fstream>
 #include <sstream>
 
@@ -21,6 +22,24 @@ double noise_unit(std::uint64_t seed, std::size_t channel, std::uint64_t index) 
     z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
     z ^= z >> 31U;
     return (static_cast<double>(z >> 11U) / static_cast<double>(1ULL << 53U)) * 2.0 - 1.0;
+}
+
+/// A number given as a JSON number or as a decimal string ("11.2"): documents stored canonically
+/// (for example inside a Twin Blueprint) carry decimals as strings.
+std::optional<double> number_of(const Json& v) {
+    if (v.is_number()) return v.get<double>();
+    if (v.is_string()) {
+        const std::string s = v.get<std::string>();
+        char* end = nullptr;
+        const double d = std::strtod(s.c_str(), &end);
+        if (end != s.c_str() && *end == '\0' && std::isfinite(d)) return d;
+    }
+    return std::nullopt;
+}
+
+double number_or(const Json& o, const char* key, double fallback) {
+    if (!o.is_object() || !o.contains(key)) return fallback;
+    return number_of(o.at(key)).value_or(fallback);
 }
 
 double round_to(double v, int precision) {
@@ -49,7 +68,7 @@ Result<Feed> feed_from_json(const Json& j) {
     Feed f;
     f.name = j.value("name", std::string("feed"));
     f.description = j.value("description", std::string());
-    f.cycle_s = j.value("cycle_s", 60.0);
+    f.cycle_s = number_or(j, "cycle_s", 60.0);
     f.period_ms = j.value("telemetry_period_ms", std::int64_t{1000});
     f.seed = j.value("seed", std::uint64_t{1});
     if (!(f.cycle_s > 0.0) || f.period_ms <= 0) {
@@ -60,14 +79,14 @@ Result<Feed> feed_from_json(const Json& j) {
         Channel c;
         c.name = name;
         c.boolean = spec.value("type", std::string("number")) == "boolean";
-        c.noise = spec.value("noise", 0.0);
-        if (spec.contains("min") && spec.at("min").is_number()) c.min = spec.at("min").get<double>();
+        c.noise = number_or(spec, "noise", 0.0);
+        if (spec.contains("min")) c.min = number_of(spec.at("min"));
         c.precision = spec.value("precision", 2);
         for (const Json& k : spec.value("keys", Json::array())) {
-            if (!k.is_array() || k.size() != 2 || !k[0].is_number() || !k[1].is_number()) {
+            if (!k.is_array() || k.size() != 2 || !number_of(k[0]) || !number_of(k[1])) {
                 return make_error(ErrorCode::ValidationError, "channel keys are [time_s, value] pairs").with("channel", name);
             }
-            c.keys.emplace_back(k[0].get<double>(), k[1].get<double>());
+            c.keys.emplace_back(*number_of(k[0]), *number_of(k[1]));
         }
         if (c.keys.empty()) return make_error(ErrorCode::ValidationError, "channel without keys").with("channel", name);
         if (!std::is_sorted(c.keys.begin(), c.keys.end(), [](const auto& a, const auto& b) { return a.first < b.first; })) {
@@ -77,7 +96,7 @@ Result<Feed> feed_from_json(const Json& j) {
     }
     for (const Json& e : j.value("events", Json::array())) {
         Event ev;
-        ev.at_s = e.value("at", -1.0);
+        ev.at_s = number_or(e, "at", -1.0);
         ev.label = e.value("label", std::string());
         ev.detail = e.value("detail", Json::object());
         if (ev.label.empty() || ev.at_s < 0.0 || ev.at_s >= f.cycle_s) {

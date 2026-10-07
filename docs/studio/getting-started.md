@@ -30,40 +30,47 @@ and alignment evidence, packages and deployments. Replay, the ledger and the eng
 are therefore usable before you run anything.
 
 Everything is persisted in the data directory and survives restarts. The browser keeps only
-viewer conveniences: theme, Operations/Engineering mode and the actor name.
+viewer conveniences: theme, the Operator/Engineer detail level and the actor name.
 
 ## Layout
 
-- **Left navigation**:
-  - Overview
-  - Assets (explorer, knowledge graph)
-  - Operations (live monitoring, telemetry, events)
-  - Behaviour & prediction
-  - Audit (timeline, provenance, ledger, engineering audit)
-  - Engineering (assurance, ontologies, interpretations, models, verification, packages,
-    deployments)
-  - Maintenance (change workspace, impact, history, rollback)
-  - Administration (system logs)
-  - **Digital twins**: one entry per registered twin. It opens the twin's domain view when a
-    plugin applies to it, otherwise the generic asset page.
-- **Top bar**:
-  - global search (⌘K / Ctrl-K, or `/`)
-  - live connection state, with a button to pause and resume live updates
-  - the **Operations / Engineering** switch
-  - the actor menu
-- **Breadcrumbs** on every page show the asset, twin, execution or version in context. Every
-  entity has a URL, so links can be shared:
-  - `/assets/pump-p101/telemetry`
-  - `/engineering/ontologies/process-pump/versions/1`
-  - `/maintenance/refinement/EV-0016`
-  - `/audit/executions/pump-p101-dt/<session>/replay`
+The product has two modes, switched in the top bar:
 
-## Operations and Engineering modes
+- **Operate** — the twins that run: **Your twins** (`/twins`) lists every twin with its state
+  and trust badges and offers **+ Create / Import Twin**. Each twin opens in its own workspace
+  (`/twins/<id>`) with its navigation on the left: Overview, Assets, Knowledge graph,
+  Operations (live monitoring, telemetry, events & alerts), Behaviour (current state,
+  behavioural model, semantic facts, conformance, monitors), Predict (what-if & simulation,
+  predictions, planning), Audit (timeline, decision provenance, replay, ledger), Engineering
+  (the models, ontology, interpretations, verification, package and deployment of this twin),
+  Maintenance (changes, impact, versions, release readiness, rollback) and Administration (data
+  sources, runtime health, storage, system logs). **Open in Studio** in the twin's header opens
+  the Blueprint version it runs.
+- **Studio** — where twins are designed: **Blueprints** (`/studio`), **New Blueprint**, the
+  workspace of each Blueprint version (`/studio/blueprints/<id>/v/<version>`, see
+  [the Blueprint workspace](blueprint-workspace.md)), and the engineering library — changes,
+  impact analysis, version history, models, ontologies, interpretations, verification,
+  packages, deployments and the engineering audit.
 
-The two modes show the same product at different depths (progressive disclosure):
-- **Operations** shows status, modes, telemetry, alerts, predictions and plain-language
+The **top bar** holds the mode switch, global search (⌘K / Ctrl-K, or `/`), the live
+connection state with a button to pause and resume live updates, **Help** (this manual), the
+**Operator / Engineer** detail level and the actor menu (the name recorded in the engineering
+audit, and the theme).
+
+**Breadcrumbs** on every page show the twin, asset, execution, Blueprint or version in context.
+Every entity has a URL, so links can be shared:
+
+- `/twins/pump-p101-dt/operations/telemetry`
+- `/twins/pump-p101-dt/audit/executions/<session>/replay`
+- `/studio/blueprints/indoor-inspection-drone/v/1/test/scenarios`
+- `/studio/ontologies/process-pump/versions/1`
+
+## Operator and Engineer detail
+
+The two detail levels show the same product at different depths (progressive disclosure):
+- **Operator** shows status, modes, telemetry, alerts, predictions and plain-language
   explanations.
-- **Engineering** adds guards, clocks, formulas, hashes, evidence identifiers and checker
+- **Engineer** adds guards, clocks, formulas, hashes, evidence identifiers and checker
   identities.
 
 Nothing is hidden for security reasons. Access control belongs to the server; the switch only
@@ -73,12 +80,13 @@ reduces visual noise.
 
 | You are | Start at |
 |---|---|
-| Operator | Overview → the asset → *Overview* and *Behaviour* tabs; Events & alerts |
-| Reliability engineer | Telemetry (history, export), Behaviour → Conformance, Audit → Timeline, Replay |
-| Digital-twin / formal engineer | Behaviour → graph, Engineering → Models / Verification / Packages |
-| Ontology engineer | Engineering → Ontologies / Interpretations, Maintenance |
-| Auditor | Audit → Execution ledger (verify), Decision provenance, Engineering audit |
-| Administrator | Engineering → Deployments, Maintenance → Rollback, Administration → System logs |
+| Operator | Your twins → the twin → *Overview*, *Behaviour* and *Events & alerts* |
+| Reliability engineer | Telemetry (history, export), Behaviour → Conformance and Monitors, Audit → Timeline, Replay |
+| Twin designer | Studio → Blueprints → [the Blueprint workspace](blueprint-workspace.md); new twins with [Build Your First Twin](tutorial-first-twin.md) |
+| Digital-twin / formal engineer | Studio → Models, Verification, Packages; in a Blueprint: Behavior, Semantics, Assurance |
+| Ontology engineer | Studio → Ontologies, Interpretations; the twin's Maintenance |
+| Auditor | Audit → Execution ledger (verify), Decision provenance; Studio → Engineering audit |
+| Administrator | Studio → Deployments; the twin's Maintenance → Rollback and Administration → System logs |
 
 ## Search
 

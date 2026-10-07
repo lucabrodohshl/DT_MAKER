@@ -1,0 +1,1236 @@
+{
+ "bounds": {
+  "h": 15000,
+  "w": 28000,
+  "x": 0,
+  "y": 0
+ },
+ "format": "twin-world/1",
+ "grid": {
+  "size": 500,
+  "snap": true
+ },
+ "layers": [
+  {
+   "id": "background",
+   "locked": true,
+   "name": "Background",
+   "role": "background",
+   "visible": true
+  },
+  {
+   "id": "structure",
+   "locked": false,
+   "name": "Building structure",
+   "role": "shared",
+   "visible": true
+  },
+  {
+   "id": "as-built",
+   "locked": false,
+   "name": "As-built (ground truth)",
+   "role": "ground-truth",
+   "visible": true
+  },
+  {
+   "id": "facility-plan",
+   "locked": false,
+   "name": "Facility plan (twin knowledge)",
+   "role": "knowledge",
+   "visible": true
+  },
+  {
+   "id": "facility-events",
+   "locked": false,
+   "name": "Facility events",
+   "role": "event",
+   "visible": true
+  },
+  {
+   "id": "annotations",
+   "locked": false,
+   "name": "Rooms and markers",
+   "role": "annotation",
+   "visible": true
+  }
+ ],
+ "mode": "spatial",
+ "objects": [
+  {
+   "asset": "floor-1",
+   "geometry": {
+    "h": 15000,
+    "w": 28000,
+    "x": 0,
+    "y": 0
+   },
+   "id": "floor-1-slab",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Floor 1 slab",
+   "properties": {},
+   "semanticType": "floor",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 28000,
+    "x": 0,
+    "y": 0
+   },
+   "id": "wall-1",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-1",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 14500,
+    "w": 500,
+    "x": 0,
+    "y": 500
+   },
+   "id": "wall-2",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-2",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 6000,
+    "w": 500,
+    "x": 6500,
+    "y": 500
+   },
+   "id": "wall-3",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-3",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 2000,
+    "w": 500,
+    "x": 14000,
+    "y": 500
+   },
+   "id": "wall-4",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-4",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 6000,
+    "w": 500,
+    "x": 20000,
+    "y": 500
+   },
+   "id": "wall-5",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-5",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 14500,
+    "w": 500,
+    "x": 27500,
+    "y": 500
+   },
+   "id": "wall-6",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-6",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 3000,
+    "w": 500,
+    "x": 14000,
+    "y": 3500
+   },
+   "id": "wall-7",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-7",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 500,
+    "y": 6000
+   },
+   "id": "wall-8",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-8",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 4000,
+    "y": 6000
+   },
+   "id": "wall-9",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-9",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 3500,
+    "x": 7000,
+    "y": 6000
+   },
+   "id": "wall-10",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-10",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 11500,
+    "y": 6000
+   },
+   "id": "wall-11",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-11",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 14500,
+    "y": 6000
+   },
+   "id": "wall-12",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-12",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2000,
+    "x": 18000,
+    "y": 6000
+   },
+   "id": "wall-13",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-13",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 20500,
+    "y": 6000
+   },
+   "id": "wall-14",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-14",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 3500,
+    "x": 24000,
+    "y": 6000
+   },
+   "id": "wall-15",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-15",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 500,
+    "y": 8000
+   },
+   "id": "wall-16",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-16",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 4500,
+    "x": 4000,
+    "y": 8000
+   },
+   "id": "wall-17",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-17",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 8500,
+    "x": 9500,
+    "y": 8000
+   },
+   "id": "wall-18",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-18",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 4000,
+    "x": 19000,
+    "y": 8000
+   },
+   "id": "wall-19",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-19",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 3500,
+    "x": 24000,
+    "y": 8000
+   },
+   "id": "wall-20",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-20",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 6500,
+    "w": 500,
+    "x": 6500,
+    "y": 8500
+   },
+   "id": "wall-21",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-21",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 6500,
+    "w": 500,
+    "x": 20000,
+    "y": 8500
+   },
+   "id": "wall-22",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-22",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 6000,
+    "x": 500,
+    "y": 14500
+   },
+   "id": "wall-23",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-23",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 13000,
+    "x": 7000,
+    "y": 14500
+   },
+   "id": "wall-24",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-24",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 7000,
+    "x": 20500,
+    "y": 14500
+   },
+   "id": "wall-25",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Wall W-25",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 500,
+    "x": 14000,
+    "y": 2500
+   },
+   "id": "door-1",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 3000,
+    "y": 6000
+   },
+   "id": "door-2",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Workshop W-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 10500,
+    "y": 6000
+   },
+   "id": "door-3",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to North storage S-2",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 17000,
+    "y": 6000
+   },
+   "id": "door-4",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Server room S-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 23000,
+    "y": 6000
+   },
+   "id": "door-5",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Electrical room E-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 3000,
+    "y": 8000
+   },
+   "id": "door-6",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Central corridor C-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 8500,
+    "y": 8000
+   },
+   "id": "door-7",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Central corridor C-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 18000,
+    "y": 8000
+   },
+   "id": "door-8",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Central corridor C-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 1000,
+    "x": 23000,
+    "y": 8000
+   },
+   "id": "door-9",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Door to Central corridor C-1",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 4500,
+    "x": 15000,
+    "y": 500
+   },
+   "id": "obstacle-1",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Server rack",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 3500,
+    "x": 21000,
+    "y": 500
+   },
+   "id": "obstacle-2",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Switchgear cabinet",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 4000,
+    "w": 1000,
+    "x": 7500,
+    "y": 1000
+   },
+   "id": "obstacle-3",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Storage rack",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1500,
+    "w": 1000,
+    "x": 12000,
+    "y": 1000
+   },
+   "id": "obstacle-4",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Storage rack",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 4500,
+    "w": 1500,
+    "x": 25500,
+    "y": 1000
+   },
+   "id": "obstacle-5",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Switchgear cabinet",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 4000,
+    "w": 1000,
+    "x": 18500,
+    "y": 1500
+   },
+   "id": "obstacle-6",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Server rack",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 3500,
+    "x": 1500,
+    "y": 2000
+   },
+   "id": "obstacle-7",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Workbench",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 3500,
+    "x": 1500,
+    "y": 4000
+   },
+   "id": "obstacle-8",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Workbench",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1500,
+    "w": 1500,
+    "x": 12000,
+    "y": 4000
+   },
+   "id": "obstacle-9",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Storage rack",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 4500,
+    "y": 9000
+   },
+   "id": "obstacle-10",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Reception furniture",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 5500,
+    "x": 21000,
+    "y": 9500
+   },
+   "id": "obstacle-11",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Meeting table",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 5500,
+    "x": 21000,
+    "y": 12500
+   },
+   "id": "obstacle-12",
+   "kind": "rect",
+   "layer": "structure",
+   "name": "Meeting table",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "asset": "fire-door-fd2",
+   "geometry": {
+    "h": 1500,
+    "w": 500,
+    "x": 15500,
+    "y": 6500
+   },
+   "id": "fire-door-fd2-as-built",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Fire door FD-2",
+   "properties": {
+    "state": "closed"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 2500,
+    "x": 17500,
+    "y": 11000
+   },
+   "id": "wall-26",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Partition P-1 (refurbishment)",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 500,
+    "x": 17500,
+    "y": 11500
+   },
+   "id": "wall-27",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Partition P-2 (refurbishment)",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1500,
+    "w": 500,
+    "x": 17500,
+    "y": 13000
+   },
+   "id": "wall-28",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Partition P-3 (refurbishment)",
+   "properties": {},
+   "semanticType": "wall",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 500,
+    "w": 500,
+    "x": 17500,
+    "y": 12500
+   },
+   "id": "door-11",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Office door (refurbishment)",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 7500,
+    "y": 10500
+   },
+   "id": "obstacle-13",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 10000,
+    "y": 10500
+   },
+   "id": "obstacle-14",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 12500,
+    "y": 10500
+   },
+   "id": "obstacle-15",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 15000,
+    "y": 10500
+   },
+   "id": "obstacle-16",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 18000,
+    "y": 12000
+   },
+   "id": "obstacle-17",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 7500,
+    "y": 12500
+   },
+   "id": "obstacle-18",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 10000,
+    "y": 12500
+   },
+   "id": "obstacle-19",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 12500,
+    "y": 12500
+   },
+   "id": "obstacle-20",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 1000,
+    "w": 1500,
+    "x": 15000,
+    "y": 12500
+   },
+   "id": "obstacle-21",
+   "kind": "rect",
+   "layer": "as-built",
+   "name": "Desk cluster (refurbishment)",
+   "properties": {},
+   "semanticType": "obstacle",
+   "tags": []
+  },
+  {
+   "asset": "fire-door-fd2",
+   "geometry": {
+    "h": 1500,
+    "w": 500,
+    "x": 15500,
+    "y": 6500
+   },
+   "id": "fire-door-fd2-plan",
+   "kind": "rect",
+   "layer": "facility-plan",
+   "name": "Fire door FD-2 (plan)",
+   "properties": {
+    "state": "open"
+   },
+   "semanticType": "door",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 6000,
+    "w": 13000,
+    "x": 7000,
+    "y": 8500
+   },
+   "id": "unmapped-office",
+   "kind": "rect",
+   "layer": "facility-plan",
+   "name": "Unmapped area (refurbished 2025)",
+   "properties": {},
+   "semanticType": "unknown",
+   "tags": []
+  },
+  {
+   "geometry": {
+    "h": 3500,
+    "w": 2500,
+    "x": 14500,
+    "y": 1500
+   },
+   "id": "nofly-server-s1",
+   "kind": "rect",
+   "layer": "facility-events",
+   "name": "Facility notice",
+   "properties": {},
+   "semanticType": "hazard",
+   "tags": []
+  },
+  {
+   "asset": null,
+   "geometry": {
+    "h": 5500,
+    "w": 6000,
+    "x": 500,
+    "y": 500
+   },
+   "id": "zone-workshop-w1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Workshop W-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "storage-s2",
+   "geometry": {
+    "h": 5500,
+    "w": 7000,
+    "x": 7000,
+    "y": 500
+   },
+   "id": "zone-storage-s2",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "North storage S-2",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "server-s1",
+   "geometry": {
+    "h": 5500,
+    "w": 5500,
+    "x": 14500,
+    "y": 500
+   },
+   "id": "zone-server-s1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Server room S-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "electrical-e1",
+   "geometry": {
+    "h": 5500,
+    "w": 7000,
+    "x": 20500,
+    "y": 500
+   },
+   "id": "zone-electrical-e1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Electrical room E-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "corridor-c1",
+   "geometry": {
+    "h": 1500,
+    "w": 27000,
+    "x": 500,
+    "y": 6500
+   },
+   "id": "zone-corridor-c1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Central corridor C-1",
+   "properties": {},
+   "semanticType": "corridor",
+   "tags": []
+  },
+  {
+   "asset": "lobby-l1",
+   "geometry": {
+    "h": 6000,
+    "w": 6000,
+    "x": 500,
+    "y": 8500
+   },
+   "id": "zone-lobby-l1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Lobby L-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "office-o1",
+   "geometry": {
+    "h": 6000,
+    "w": 13000,
+    "x": 7000,
+    "y": 8500
+   },
+   "id": "zone-office-o1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Open-plan office O-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": null,
+   "geometry": {
+    "h": 6000,
+    "w": 7000,
+    "x": 20500,
+    "y": 8500
+   },
+   "id": "zone-meeting-m1",
+   "kind": "zone",
+   "layer": "annotations",
+   "name": "Meeting room M-1",
+   "properties": {},
+   "semanticType": "room",
+   "tags": []
+  },
+  {
+   "asset": "pad-p1",
+   "geometry": {
+    "x": 3250,
+    "y": 11750
+   },
+   "id": "start-pad-p1",
+   "kind": "point",
+   "layer": "annotations",
+   "name": "Landing pad P-1",
+   "properties": {},
+   "semanticType": "start",
+   "tags": []
+  },
+  {
+   "asset": "drone",
+   "geometry": {
+    "x": 3250,
+    "y": 11750
+   },
+   "id": "robot-drone",
+   "kind": "point",
+   "layer": "annotations",
+   "name": "Drone (initial position)",
+   "properties": {},
+   "semanticType": "robot",
+   "tags": []
+  },
+  {
+   "asset": "switchboard-msb1",
+   "geometry": {
+    "x": 24250,
+    "y": 2750
+   },
+   "id": "target-t1",
+   "kind": "point",
+   "layer": "annotations",
+   "name": "Main switchboard MSB-1 (thermal inspection)",
+   "properties": {
+    "targetId": "T1"
+   },
+   "semanticType": "target",
+   "tags": []
+  },
+  {
+   "asset": "riser-sr2",
+   "geometry": {
+    "x": 10250,
+    "y": 2250
+   },
+   "id": "target-t2",
+   "kind": "point",
+   "layer": "annotations",
+   "name": "Sprinkler riser valve SR-2 (visual inspection)",
+   "properties": {
+    "targetId": "T2"
+   },
+   "semanticType": "target",
+   "tags": []
+  }
+ ],
+ "unit": "mm"
+}

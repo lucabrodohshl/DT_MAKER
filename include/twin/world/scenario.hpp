@@ -57,6 +57,21 @@ struct DroneSpec {
     double drag_coeff{8.0};            ///< Extra power per (m/s)^2 of speed (W).
 };
 
+/**
+ * @brief The observation model: how the physical world becomes visible to the Digital Twin.
+ *
+ * Simulator configuration only (outside the trusted kernel). The onboard sensor reports the
+ * cells within sensor range and line of sight whose occupancy class is observed; the
+ * environment service publishes what was reported. The twin never reads the ground truth.
+ */
+struct ObservationSpec {
+    Ticks update_interval{0};          ///< Minimum logical time between two sensor sweeps (0 = every step).
+    bool walls{true};                  ///< Walls are reported.
+    bool obstacles{true};              ///< Obstacles are reported.
+    bool doors{true};                  ///< Doors (open or closed) are reported.
+    bool free_space{true};             ///< Free cells are reported (maps unknown space).
+};
+
 /// @brief A timed change of the world.
 struct ScenarioEvent {
     Ticks at{0};                       ///< When it happens.
@@ -77,6 +92,7 @@ struct Scenario {
     geo::Cell home;                      ///< Take-off and landing pad.
     std::vector<TargetSpec> targets;     ///< Inspection targets, in mission order.
     DroneSpec drone;                     ///< Physical parameters of the drone.
+    ObservationSpec observation;         ///< How the world becomes visible to the twin.
     std::vector<ScenarioEvent> events;  ///< Sorted by time.
 };
 

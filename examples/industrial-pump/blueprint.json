@@ -1,0 +1,1635 @@
+{
+ "format": "twin-blueprint/1",
+ "identity": {
+  "name": "Centrifugal Pump",
+  "description": "Centrifugal process pump with a reliability-engineering Digital Twin: operating modes, admissible operator decisions and their timing, monitored against the control system's events.",
+  "domain": "process",
+  "icon": "pump",
+  "tags": [
+   "rotating-equipment",
+   "process"
+  ],
+  "modelId": "process-pump-p101",
+  "timeUnit": "s",
+  "ticksPerUnit": 1000,
+  "runtimeMode": "monitor",
+  "plugin": null
+ },
+ "structure": {
+  "root": "pump",
+  "assetTypes": [
+   {
+    "id": "CentrifugalPump",
+    "name": "CentrifugalPump",
+    "category": "Rotating equipment",
+    "description": "",
+    "properties": [
+     {
+      "key": "manufacturer",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     },
+     {
+      "key": "serial",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     },
+     {
+      "key": "duty",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "InductionMotor",
+    "name": "InductionMotor",
+    "category": "Drive",
+    "description": "",
+    "properties": [
+     {
+      "key": "ratedPower",
+      "type": "string",
+      "unit": "",
+      "default": "75 kW"
+     },
+     {
+      "key": "ratedSpeed",
+      "type": "string",
+      "unit": "",
+      "default": "2980 rpm"
+     }
+    ]
+   },
+   {
+    "id": "Bearing",
+    "name": "Bearing",
+    "category": "Wear part",
+    "description": "",
+    "properties": [
+     {
+      "key": "type",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "CoolingUnit",
+    "name": "CoolingUnit",
+    "category": "Auxiliary",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "TemperatureSensor",
+    "name": "TemperatureSensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": [
+     {
+      "key": "principle",
+      "type": "string",
+      "unit": "",
+      "default": "Pt100"
+     }
+    ]
+   },
+   {
+    "id": "VibrationSensor",
+    "name": "VibrationSensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "PressureTransmitter",
+    "name": "PressureTransmitter",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "SpeedSensor",
+    "name": "SpeedSensor",
+    "category": "Sensor",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "ProductionLine",
+    "name": "ProductionLine",
+    "category": "Site",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Tank",
+    "name": "Tank",
+    "category": "Equipment",
+    "description": "",
+    "properties": [
+     {
+      "key": "volume",
+      "type": "string",
+      "unit": "",
+      "default": ""
+     }
+    ]
+   },
+   {
+    "id": "HeatExchanger",
+    "name": "HeatExchanger",
+    "category": "Equipment",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "Controller",
+    "name": "Controller",
+    "category": "Control system",
+    "description": "",
+    "properties": []
+   }
+  ],
+  "assets": [
+   {
+    "id": "line",
+    "name": "Production line",
+    "type": "ProductionLine",
+    "scope": "context",
+    "description": "Line the pump is installed in",
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "suction-tank",
+    "name": "Suction tank",
+    "type": "Tank",
+    "scope": "context",
+    "description": "Suction vessel",
+    "properties": {},
+    "tags": [],
+    "parent": "line"
+   },
+   {
+    "id": "downstream-hx",
+    "name": "Downstream heat exchanger",
+    "type": "HeatExchanger",
+    "scope": "context",
+    "description": "Downstream cooler",
+    "properties": {},
+    "tags": [],
+    "parent": "line"
+   },
+   {
+    "id": "controller",
+    "name": "Line controller",
+    "type": "Controller",
+    "scope": "context",
+    "description": "Control system that commands the pump",
+    "properties": {},
+    "tags": [],
+    "parent": "line"
+   },
+   {
+    "id": "pump",
+    "name": "Pump",
+    "type": "CentrifugalPump",
+    "scope": "instance",
+    "description": "Process transfer pump, end-suction",
+    "properties": {
+     "duty": "95 m3/h @ 11 bar"
+    },
+    "tags": [
+     "critical",
+     "rotating-equipment"
+    ],
+    "parent": "line"
+   },
+   {
+    "id": "motor",
+    "name": "Motor",
+    "type": "InductionMotor",
+    "scope": "instance",
+    "description": "75 kW, 2-pole, IE3",
+    "properties": {},
+    "tags": [],
+    "parent": "pump"
+   },
+   {
+    "id": "bearing",
+    "name": "Bearing (drive end)",
+    "type": "Bearing",
+    "scope": "instance",
+    "description": "Drive-end rolling-element bearing",
+    "properties": {
+     "type": "6312 C3"
+    },
+    "tags": [
+     "wear-part"
+    ],
+    "parent": "pump"
+   },
+   {
+    "id": "cooling",
+    "name": "Bearing cooling unit",
+    "type": "CoolingUnit",
+    "scope": "instance",
+    "description": "Auxiliary bearing cooling",
+    "properties": {},
+    "tags": [],
+    "parent": "pump"
+   },
+   {
+    "id": "tt",
+    "name": "Bearing temperature sensor",
+    "type": "TemperatureSensor",
+    "scope": "instance",
+    "description": "Bearing temperature RTD (Pt100)",
+    "properties": {},
+    "tags": [],
+    "parent": "pump"
+   },
+   {
+    "id": "vt",
+    "name": "Vibration sensor",
+    "type": "VibrationSensor",
+    "scope": "instance",
+    "description": "Bearing-housing velocity sensor",
+    "properties": {},
+    "tags": [],
+    "parent": "pump"
+   },
+   {
+    "id": "pt-sensor",
+    "name": "Discharge pressure transmitter",
+    "type": "PressureTransmitter",
+    "scope": "instance",
+    "description": "Discharge pressure",
+    "properties": {},
+    "tags": [],
+    "parent": "pump"
+   },
+   {
+    "id": "st",
+    "name": "Shaft speed pickup",
+    "type": "SpeedSensor",
+    "scope": "instance",
+    "description": "Shaft speed",
+    "properties": {},
+    "tags": [],
+    "parent": "motor"
+   }
+  ],
+  "relationships": [
+   {
+    "id": "r1",
+    "source": "suction-tank",
+    "type": "feeds",
+    "target": "pump"
+   },
+   {
+    "id": "r2",
+    "source": "pump",
+    "type": "feeds",
+    "target": "downstream-hx"
+   },
+   {
+    "id": "r3",
+    "source": "motor",
+    "type": "powers",
+    "target": "pump"
+   },
+   {
+    "id": "r4",
+    "source": "cooling",
+    "type": "cools",
+    "target": "bearing"
+   },
+   {
+    "id": "r5",
+    "source": "tt",
+    "type": "monitors",
+    "target": "bearing"
+   },
+   {
+    "id": "r6",
+    "source": "vt",
+    "type": "monitors",
+    "target": "bearing"
+   },
+   {
+    "id": "r7",
+    "source": "pt-sensor",
+    "type": "monitors",
+    "target": "pump"
+   },
+   {
+    "id": "r8",
+    "source": "st",
+    "type": "monitors",
+    "target": "motor"
+   },
+   {
+    "id": "r9",
+    "source": "controller",
+    "type": "controls",
+    "target": "pump"
+   },
+   {
+    "id": "r10",
+    "source": "controller",
+    "type": "controls",
+    "target": "cooling"
+   }
+  ]
+ },
+ "world": {
+  "format": "twin-world/1",
+  "mode": "topology",
+  "unit": "px",
+  "bounds": {
+   "x": 0,
+   "y": 0,
+   "w": 960,
+   "h": 420
+  },
+  "grid": {
+   "size": 20,
+   "snap": true
+  },
+  "layers": [
+   {
+    "id": "process",
+    "name": "Process flow",
+    "role": "shared",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "signals",
+    "name": "Control and utilities",
+    "role": "annotation",
+    "visible": true,
+    "locked": false
+   }
+  ],
+  "objects": [
+   {
+    "id": "n-tank",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "tank",
+    "name": "Suction tank",
+    "geometry": {
+     "x": 120,
+     "y": 210,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "suction-tank"
+   },
+   {
+    "id": "n-pump",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "pump",
+    "name": "Pump",
+    "geometry": {
+     "x": 340,
+     "y": 210,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "pump"
+   },
+   {
+    "id": "n-valve",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "valve",
+    "name": "Discharge valve",
+    "geometry": {
+     "x": 560,
+     "y": 210,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "n-hx",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "heat-exchanger",
+    "name": "Heat exchanger",
+    "geometry": {
+     "x": 790,
+     "y": 210,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "downstream-hx"
+   },
+   {
+    "id": "n-plc",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "controller",
+    "name": "Line controller",
+    "geometry": {
+     "x": 340,
+     "y": 70,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "controller"
+   },
+   {
+    "id": "n-cool",
+    "layer": "process",
+    "kind": "node",
+    "semanticType": "cooler",
+    "name": "Bearing cooling",
+    "geometry": {
+     "x": 340,
+     "y": 350,
+     "w": 150,
+     "h": 64
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "cooling"
+   },
+   {
+    "id": "e-1",
+    "layer": "process",
+    "kind": "edge",
+    "semanticType": "pipe",
+    "name": "Suction line",
+    "geometry": {
+     "from": "n-tank",
+     "to": "n-pump",
+     "directed": true
+    },
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "e-2",
+    "layer": "process",
+    "kind": "edge",
+    "semanticType": "pipe",
+    "name": "Discharge",
+    "geometry": {
+     "from": "n-pump",
+     "to": "n-valve",
+     "directed": true
+    },
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "e-3",
+    "layer": "process",
+    "kind": "edge",
+    "semanticType": "pipe",
+    "name": "To cooler",
+    "geometry": {
+     "from": "n-valve",
+     "to": "n-hx",
+     "directed": true
+    },
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "e-4",
+    "layer": "signals",
+    "kind": "edge",
+    "semanticType": "signal",
+    "name": "Start / stop",
+    "geometry": {
+     "from": "n-plc",
+     "to": "n-pump",
+     "directed": true
+    },
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "e-5",
+    "layer": "signals",
+    "kind": "edge",
+    "semanticType": "utility",
+    "name": "Cooling water",
+    "geometry": {
+     "from": "n-cool",
+     "to": "n-pump",
+     "directed": true
+    },
+    "properties": {},
+    "tags": []
+   }
+  ]
+ },
+ "data": {
+  "properties": [
+   {
+    "id": "serial",
+    "label": "Serial number",
+    "type": "string",
+    "asset": "pump",
+    "perInstance": true,
+    "value": ""
+   }
+  ],
+  "telemetry": [
+   {
+    "id": "bearing_temp",
+    "label": "Bearing temperature",
+    "type": "real",
+    "unit": "degC",
+    "asset": "tt",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Condition monitoring",
+     "precision": 1,
+     "chart": "line"
+    },
+    "ontologySymbol": "bearing_temp",
+    "range": {
+     "min": "0",
+     "max": "150"
+    }
+   },
+   {
+    "id": "vibration_rms",
+    "label": "Bearing vibration (RMS)",
+    "type": "real",
+    "unit": "mm/s",
+    "asset": "vt",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Condition monitoring",
+     "precision": 2,
+     "chart": "line"
+    },
+    "ontologySymbol": "vibration_rms",
+    "range": {
+     "min": "0",
+     "max": "20"
+    }
+   },
+   {
+    "id": "discharge_pressure",
+    "label": "Discharge pressure",
+    "type": "real",
+    "unit": "bar",
+    "asset": "pt-sensor",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Process",
+     "precision": 2,
+     "chart": "line"
+    },
+    "ontologySymbol": "discharge_pressure",
+    "range": {
+     "min": "0",
+     "max": "25"
+    }
+   },
+   {
+    "id": "shaft_speed",
+    "label": "Shaft speed",
+    "type": "real",
+    "unit": "rpm",
+    "asset": "st",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Drive",
+     "precision": 0,
+     "chart": "line"
+    },
+    "ontologySymbol": "shaft_speed",
+    "range": {
+     "min": "0",
+     "max": "3600"
+    }
+   },
+   {
+    "id": "motor_current",
+    "label": "Motor current",
+    "type": "real",
+    "unit": "A",
+    "asset": "motor",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Drive",
+     "precision": 1,
+     "chart": "line"
+    },
+    "range": {
+     "min": "0",
+     "max": "250"
+    }
+   },
+   {
+    "id": "cooling_active",
+    "label": "Bearing cooling running",
+    "type": "boolean",
+    "unit": "",
+    "asset": "cooling",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Auxiliaries",
+     "precision": 0,
+     "chart": "state"
+    },
+    "ontologySymbol": "cooling_active"
+   },
+   {
+    "id": "motor_running",
+    "label": "Motor running",
+    "type": "boolean",
+    "unit": "",
+    "asset": "motor",
+    "description": "",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Drive",
+     "precision": 0,
+     "chart": "state"
+    },
+    "ontologySymbol": "motor_running"
+   }
+  ],
+  "events": [
+   {
+    "id": "start_command",
+    "label": "Start command",
+    "asset": "controller",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "start_cmd!",
+     "dt": "restart!"
+    }
+   },
+   {
+    "id": "duty_increase",
+    "label": "Duty increase",
+    "asset": "controller",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "duty_up!",
+     "dt": "increase_load!"
+    }
+   },
+   {
+    "id": "bearing_alarm",
+    "label": "Bearing alarm",
+    "asset": "tt",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "alarm_raise!",
+     "dt": "condition_degraded!"
+    }
+   },
+   {
+    "id": "alarm_cleared",
+    "label": "Alarm cleared",
+    "asset": "tt",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "alarm_clear!",
+     "dt": "condition_recovered!"
+    }
+   },
+   {
+    "id": "cooling_started",
+    "label": "Cooling started",
+    "asset": "cooling",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "aux_cooling_on!",
+     "dt": "start_cooling!"
+    }
+   },
+   {
+    "id": "cooling_done",
+    "label": "Cooling done",
+    "asset": "cooling",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "aux_cooling_done!",
+     "dt": "cooling_complete!"
+    }
+   },
+   {
+    "id": "ramp_down",
+    "label": "Ramp-down command",
+    "asset": "controller",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "ramp_down_cmd!",
+     "dt": "controlled_stop!"
+    }
+   },
+   {
+    "id": "halted",
+    "label": "Pump halted",
+    "asset": "pump",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "halted!",
+     "dt": "pump_stopped!"
+    }
+   },
+   {
+    "id": "overheating_trip",
+    "label": "Overheating trip",
+    "asset": "tt",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "emergency_trip!",
+     "dt": "trip!"
+    }
+   },
+   {
+    "id": "trip_reset",
+    "label": "Trip reset",
+    "asset": "controller",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "trip_reset!",
+     "dt": "fault_reset!"
+    }
+   }
+  ],
+  "commands": [
+   {
+    "id": "start",
+    "label": "Start pump",
+    "asset": "pump",
+    "parameters": [],
+    "description": "Start request to the line controller",
+    "acknowledgement": {
+     "event": "start_command",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": {
+     "event": "start_command",
+     "timeoutMs": 5000
+    }
+   },
+   {
+    "id": "stop",
+    "label": "Controlled stop",
+    "asset": "pump",
+    "parameters": [],
+    "description": "Ramp down and stop",
+    "acknowledgement": {
+     "event": "ramp_down",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": {
+     "event": "halted",
+     "timeoutMs": 90000
+    }
+   }
+  ]
+ },
+ "connectivity": {
+  "sources": [
+   {
+    "id": "plc-sim",
+    "kind": "simulator",
+    "name": "PLC-4 simulator (event script)",
+    "config": {
+     "model": "event-script"
+    }
+   },
+   {
+    "id": "plc-mqtt",
+    "kind": "mqtt",
+    "name": "PLC-4 MQTT gateway (site)",
+    "config": {
+     "host": "plc-gateway.plant-a.local",
+     "port": 1883,
+     "topic": "plant/line4/pump/#"
+    }
+   }
+  ],
+  "bindings": [
+   {
+    "id": "b-bearing_temp",
+    "target": {
+     "kind": "telemetry",
+     "id": "bearing_temp"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "bearing_temp"
+    }
+   },
+   {
+    "id": "b-vibration_rms",
+    "target": {
+     "kind": "telemetry",
+     "id": "vibration_rms"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "vibration_rms"
+    }
+   },
+   {
+    "id": "b-discharge_pressure",
+    "target": {
+     "kind": "telemetry",
+     "id": "discharge_pressure"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "discharge_pressure"
+    }
+   },
+   {
+    "id": "b-shaft_speed",
+    "target": {
+     "kind": "telemetry",
+     "id": "shaft_speed"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "shaft_speed"
+    }
+   },
+   {
+    "id": "b-motor_current",
+    "target": {
+     "kind": "telemetry",
+     "id": "motor_current"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "motor_current"
+    }
+   },
+   {
+    "id": "b-cooling_active",
+    "target": {
+     "kind": "telemetry",
+     "id": "cooling_active"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "cooling_active"
+    }
+   },
+   {
+    "id": "b-motor_running",
+    "target": {
+     "kind": "telemetry",
+     "id": "motor_running"
+    },
+    "source": "plc-sim",
+    "select": {
+     "field": "motor_running"
+    }
+   }
+  ]
+ },
+ "presentation": {
+  "displayName": "Centrifugal Pump",
+  "icon": "pump",
+  "primaryView": "topology",
+  "plugin": null,
+  "keyTelemetry": [
+   "bearing_temp",
+   "vibration_rms",
+   "discharge_pressure",
+   "shaft_speed"
+  ],
+  "importantAssets": [
+   "pump",
+   "bearing",
+   "motor"
+  ],
+  "importantPropositions": [
+   "at_DEGRADED",
+   "at_FAULT"
+  ],
+  "importantMonitors": [
+   "conformance",
+   "never-tripped",
+   "bearing-fresh"
+  ],
+  "importantPredictions": [],
+  "states": {
+   "STOPPED": {
+    "label": "Stopped",
+    "tone": "neutral",
+    "summary": "Pump at rest, ready to start."
+   },
+   "NORMAL": {
+    "label": "Normal operation",
+    "tone": "ok",
+    "summary": "Running within bearing temperature and vibration limits."
+   },
+   "DEGRADED": {
+    "label": "Degraded",
+    "tone": "warning",
+    "summary": "A condition limit is exceeded; an operator decision is due."
+   },
+   "COOLING": {
+    "label": "Cooling",
+    "tone": "warning",
+    "summary": "Auxiliary bearing cooling is running."
+   },
+   "STOPPING": {
+    "label": "Stopping",
+    "tone": "info",
+    "summary": "Controlled spin-down in progress."
+   },
+   "FAULT": {
+    "label": "Tripped",
+    "tone": "critical",
+    "summary": "Protective trip on bearing temperature."
+   }
+  },
+  "events": {
+   "restart!": {
+    "label": "Start pump"
+   },
+   "increase_load!": {
+    "label": "Increase load"
+   },
+   "condition_degraded!": {
+    "label": "Condition degraded"
+   },
+   "condition_recovered!": {
+    "label": "Condition recovered"
+   },
+   "start_cooling!": {
+    "label": "Start cooling"
+   },
+   "cooling_complete!": {
+    "label": "Cooling complete"
+   },
+   "controlled_stop!": {
+    "label": "Controlled stop"
+   },
+   "pump_stopped!": {
+    "label": "Pump stopped"
+   },
+   "trip!": {
+    "label": "Protective trip"
+   },
+   "fault_reset!": {
+    "label": "Reset trip"
+   }
+  },
+  "charts": [
+   {
+    "title": "Condition",
+    "telemetry": [
+     "bearing_temp",
+     "vibration_rms"
+    ]
+   },
+   {
+    "title": "Process",
+    "telemetry": [
+     "discharge_pressure",
+     "shaft_speed"
+    ]
+   }
+  ],
+  "units": {},
+  "precision": {}
+ },
+ "behavior": {
+  "pt": {
+   "layout": null
+  },
+  "dt": {
+   "layout": null
+  }
+ },
+ "assurance": {
+  "format": "twin-monitors/1",
+  "requirements": [
+   {
+    "id": "REQ-S1",
+    "title": "No uncontrolled trip",
+    "category": "safety",
+    "severity": "critical",
+    "description": "The pump is never tripped without operator awareness.",
+    "monitors": [
+     "never-tripped"
+    ],
+    "formal": "A[] !FAULT"
+   },
+   {
+    "id": "REQ-T1",
+    "title": "Cooling at least 30 s",
+    "category": "timing",
+    "severity": "warning",
+    "description": "Auxiliary cooling runs at least 30 s before normal operation resumes.",
+    "monitors": []
+   },
+   {
+    "id": "REQ-C1",
+    "title": "Control-system events conform",
+    "category": "operational",
+    "severity": "critical",
+    "description": "Every PLC event is admitted by the verified twin.",
+    "monitors": [
+     "conformance"
+    ]
+   },
+   {
+    "id": "REQ-O1",
+    "title": "Fresh bearing temperature",
+    "category": "operational",
+    "severity": "warning",
+    "description": "Bearing temperature telemetry is never older than 30 s.",
+    "monitors": [
+     "bearing-fresh"
+    ]
+   }
+  ],
+  "monitors": [
+   {
+    "id": "conformance",
+    "kind": "conformance",
+    "name": "Behavioural conformance",
+    "severity": "critical",
+    "events": "all",
+    "unmatchedEvents": "record",
+    "requirement": "REQ-C1"
+   },
+   {
+    "id": "never-tripped",
+    "kind": "property",
+    "name": "Never tripped",
+    "severity": "critical",
+    "property": "A[] !FAULT",
+    "requirement": "REQ-S1"
+   },
+   {
+    "id": "degraded-deadline",
+    "kind": "property",
+    "name": "Degraded at most 10 min",
+    "severity": "warning",
+    "property": "A[] (DEGRADED -> t <= 600)"
+   },
+   {
+    "id": "bearing-fresh",
+    "kind": "data_quality",
+    "name": "Bearing temperature freshness",
+    "severity": "warning",
+    "field": "bearing_temp",
+    "check": "stale",
+    "maxAgeSeconds": 30,
+    "requirement": "REQ-O1"
+   },
+   {
+    "id": "bearing-range",
+    "kind": "data_quality",
+    "name": "Bearing temperature plausible",
+    "severity": "warning",
+    "field": "bearing_temp",
+    "check": "out_of_range",
+    "min": 0,
+    "max": 150
+   }
+  ],
+  "alerts": [
+   {
+    "id": "AL-1",
+    "monitor": "conformance",
+    "on": "violated",
+    "severity": "critical",
+    "message": "PLC events deviate from the verified pump model"
+   },
+   {
+    "id": "AL-2",
+    "monitor": "never-tripped",
+    "on": "violated",
+    "severity": "critical",
+    "message": "Pump tripped"
+   },
+   {
+    "id": "AL-3",
+    "monitor": "bearing-fresh",
+    "on": "finding",
+    "severity": "warning",
+    "message": "Bearing temperature is stale"
+   }
+  ]
+ },
+ "simulation": {
+  "kind": "event-script",
+  "script": {
+   "name": "P-101 operating cycle",
+   "description": "Seven-minute operating cycle of process pump P-101 as reported by its control system (PLC-4): start, load increase, bearing temperature rises above the 90 degC alarm limit, auxiliary cooling brings it back, controlled stop. Telemetry and PT events are mutually consistent with the pump ontology (alarm limit 90 degC, trip 105 degC, vibration limit 7.1 mm/s).",
+   "cycle_s": 420,
+   "telemetry_period_ms": 1000,
+   "seed": 4101,
+   "channels": {
+    "shaft_speed": {
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       5,
+       0
+      ],
+      [
+       15,
+       2965
+      ],
+      [
+       90,
+       2965
+      ],
+      [
+       100,
+       3120
+      ],
+      [
+       330,
+       3120
+      ],
+      [
+       338,
+       0
+      ],
+      [
+       420,
+       0
+      ]
+     ],
+     "noise": 2,
+     "min": 0,
+     "precision": 0
+    },
+    "motor_running": {
+     "type": "boolean",
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       5,
+       1
+      ],
+      [
+       338,
+       0
+      ]
+     ]
+    },
+    "motor_current": {
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       5,
+       0
+      ],
+      [
+       8,
+       180
+      ],
+      [
+       15,
+       118
+      ],
+      [
+       90,
+       118
+      ],
+      [
+       100,
+       132
+      ],
+      [
+       330,
+       132
+      ],
+      [
+       338,
+       0
+      ],
+      [
+       420,
+       0
+      ]
+     ],
+     "noise": "1.2",
+     "min": 0,
+     "precision": 1
+    },
+    "discharge_pressure": {
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       5,
+       0
+      ],
+      [
+       15,
+       "11.2"
+      ],
+      [
+       90,
+       "11.2"
+      ],
+      [
+       100,
+       "12.1"
+      ],
+      [
+       330,
+       "12.1"
+      ],
+      [
+       338,
+       0
+      ],
+      [
+       420,
+       0
+      ]
+     ],
+     "noise": "0.08",
+     "min": 0,
+     "precision": 2
+    },
+    "bearing_temp": {
+     "keys": [
+      [
+       0,
+       38
+      ],
+      [
+       5,
+       38
+      ],
+      [
+       100,
+       74
+      ],
+      [
+       150,
+       84
+      ],
+      [
+       171,
+       "90.6"
+      ],
+      [
+       184,
+       "94.5"
+      ],
+      [
+       200,
+       91
+      ],
+      [
+       229,
+       86
+      ],
+      [
+       240,
+       82
+      ],
+      [
+       330,
+       79
+      ],
+      [
+       338,
+       79
+      ],
+      [
+       420,
+       52
+      ]
+     ],
+     "noise": "0.3",
+     "precision": 1
+    },
+    "vibration_rms": {
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       5,
+       0
+      ],
+      [
+       15,
+       "3.1"
+      ],
+      [
+       150,
+       "3.4"
+      ],
+      [
+       184,
+       "4.9"
+      ],
+      [
+       230,
+       "3.6"
+      ],
+      [
+       330,
+       "3.5"
+      ],
+      [
+       338,
+       0
+      ],
+      [
+       420,
+       0
+      ]
+     ],
+     "noise": "0.12",
+     "min": 0,
+     "precision": 2
+    },
+    "cooling_active": {
+     "type": "boolean",
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       184,
+       1
+      ],
+      [
+       231,
+       0
+      ]
+     ]
+    }
+   },
+   "events": [
+    {
+     "at": 5,
+     "label": "start_cmd!",
+     "detail": {
+      "source": "PLC-4 start sequence"
+     }
+    },
+    {
+     "at": 90,
+     "label": "duty_up!",
+     "detail": {
+      "setpoint": "105 m3/h"
+     }
+    },
+    {
+     "at": 172,
+     "label": "alarm_raise!",
+     "detail": {
+      "tag": "TT-101",
+      "reason": "bearing temperature above 90 degC"
+     }
+    },
+    {
+     "at": 185,
+     "label": "aux_cooling_on!",
+     "detail": {
+      "unit": "CU-7"
+     }
+    },
+    {
+     "at": 230,
+     "label": "aux_cooling_done!",
+     "detail": {
+      "unit": "CU-7"
+     }
+    },
+    {
+     "at": 330,
+     "label": "ramp_down_cmd!",
+     "detail": {
+      "source": "shift schedule"
+     }
+    },
+    {
+     "at": 339,
+     "label": "halted!",
+     "detail": {}
+    }
+   ]
+  }
+ },
+ "scenarios": [
+  {
+   "id": "overheating",
+   "name": "Bearing overheating and cooling",
+   "description": "Bearing temperature rises above the alarm limit; auxiliary cooling brings it back (PT events translated through the alignment's E).",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "event",
+     "level": "pt",
+     "label": "start_cmd!",
+     "at": "5"
+    },
+    {
+     "id": "s2",
+     "kind": "observe",
+     "at": "100",
+     "telemetry": {
+      "bearing_temp": "74"
+     }
+    },
+    {
+     "id": "s3",
+     "kind": "observe",
+     "at": "171",
+     "telemetry": {
+      "bearing_temp": "90.6"
+     }
+    },
+    {
+     "id": "s4",
+     "kind": "event",
+     "level": "pt",
+     "label": "alarm_raise!",
+     "at": "172"
+    },
+    {
+     "id": "s5",
+     "kind": "expect",
+     "at": "172",
+     "expect": {
+      "location": "DEGRADED"
+     }
+    },
+    {
+     "id": "s6",
+     "kind": "event",
+     "level": "pt",
+     "label": "aux_cooling_on!",
+     "at": "185"
+    },
+    {
+     "id": "s7",
+     "kind": "expect",
+     "at": "185",
+     "expect": {
+      "window": {
+       "label": "cooling_complete!",
+       "status": "later",
+       "earliest": "30",
+       "latest": "300"
+      }
+     }
+    },
+    {
+     "id": "s8",
+     "kind": "event",
+     "level": "pt",
+     "label": "aux_cooling_done!",
+     "at": "230"
+    },
+    {
+     "id": "s9",
+     "kind": "expect",
+     "at": "230",
+     "expect": {
+      "location": "NORMAL"
+     }
+    },
+    {
+     "id": "s10",
+     "kind": "expect",
+     "at": "230",
+     "expect": {
+      "monitor": {
+       "id": "never-tripped",
+       "status": "satisfied"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "cooling-too-short",
+   "name": "Cooling cut short (refused)",
+   "description": "Ending the cooling after 10 s is not admitted by the verified model (guard t >= 30): the kernel refuses the step and explains the earliest legal time.",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "event",
+     "label": "restart!",
+     "at": "1"
+    },
+    {
+     "id": "s2",
+     "kind": "event",
+     "label": "condition_degraded!",
+     "at": "10"
+    },
+    {
+     "id": "s3",
+     "kind": "event",
+     "label": "start_cooling!",
+     "at": "20"
+    },
+    {
+     "id": "s4",
+     "kind": "expect",
+     "at": "30",
+     "expect": {
+      "window": {
+       "label": "cooling_complete!",
+       "status": "later",
+       "earliest": "20",
+       "latest": "290"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

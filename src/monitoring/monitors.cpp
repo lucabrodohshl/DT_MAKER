@@ -192,13 +192,13 @@ private:
     }
 
     void requirements(const std::set<std::string>& monitors) {
-        static const std::set<std::string> categories = {"safety", "performance", "operational"};
+        static const std::set<std::string> categories = {"safety", "mission", "performance", "timing", "operational"};
         std::set<std::string> ids;
         for (std::size_t i = 0; i < d_.requirements.size(); ++i) {
             const Requirement& r = d_.requirements[i];
             const std::string p = "requirements[" + std::to_string(i) + "]";
             if (!ids.insert(r.id).second) error("TWN001", p + ".id", "requirement id '" + r.id + "' is used twice");
-            if (!categories.contains(r.category)) error("TWN040", p + ".category", "category must be safety, performance or operational");
+            if (!categories.contains(r.category)) error("TWN040", p + ".category", "category must be safety, mission, performance, timing or operational");
             if (!severities().contains(r.severity)) error("TWN040", p + ".severity", "severity must be info, warning or critical");
             for (const std::string& m : r.monitors) {
                 if (!monitors.contains(m)) error("TWN040", p + ".monitors", "unknown monitor '" + m + "'");

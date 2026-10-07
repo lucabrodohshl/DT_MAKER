@@ -9,11 +9,13 @@
  * A tool that fails to run is recorded with outcome "error" ("check failed"),
  * never as a negative verdict.
  */
+#include <chrono>
 #include <random>
 
 #include "ontology_json.hpp"
 #include "large_stack.hpp"
 #include "services_impl.hpp"
+#include "twin/authoring/toolchain.hpp"
 #include "twin/alignment/aligner_identity.hpp"
 #include "twin/alignment/alignment.hpp"
 #include "twin/compiler/compiler.hpp"
@@ -117,10 +119,14 @@ Result<json::Json> Services::run_refinement(const PhiRefs& base, const PhiRefs& 
     events_.publish("evidence", {{"kind", "refinement"}, {"state", "check_running"}, {"subject", candidate.ontology.str()}},
                     iso8601_utc(clock_->now_ms()));
 
+    const auto started = std::chrono::steady_clock::now();
     const auto report = run_with_large_stack([&] { return onto::check_refinement(b, c, onto::SolverConfig{config_.solver_timeout_ms}); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     json::Json doc = to_json(report);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     doc["base"] = {{"ontology", base.ontology.str()},
                    {"ptInterpretation", base.pt_interpretation ? json::Json(base.pt_interpretation->str()) : json::Json(nullptr)},
                    {"dtInterpretation", base.dt_interpretation ? json::Json(base.dt_interpretation->str()) : json::Json(nullptr)}};
@@ -171,7 +177,10 @@ Result<json::Json> Services::run_alignment(const std::vector<Binding>& bindings,
     events_.publish("evidence", {{"kind", "alignment"}, {"state", "check_running"}, {"subject", dt->ref.str()}},
                     iso8601_utc(clock_->now_ms()));
 
+    const auto started = std::chrono::steady_clock::now();
     const auto result = run_with_large_stack([&] { return alignment::check_alignment(in); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     Outcome outcome = Outcome::Error;
@@ -191,6 +200,7 @@ Result<json::Json> Services::run_alignment(const std::vector<Binding>& bindings,
         summary = "The aligner could not be run: " + result.error().message;
     }
     doc["bindings"] = bindings_doc(bindings);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     auto ev = impl_->evidence->record(EvidenceKind::Alignment, outcome, verdict, summary,
                                       std::string(alignment::kAlignerName) + " " +
                                           std::string(alignment::kAlignerSourceDigest).substr(0, 16),
@@ -209,15 +219,25 @@ Result<json::Json> Services::run_alignment(const std::vector<Binding>& bindings,
 
 Result<json::Json> Services::run_compile(std::string_view twin_id, const std::vector<Binding>& bindings,
                                          const std::optional<std::string>& change_id, const Actor& actor) {
-    if (auto st = require_roles(bindings, {"dt_model", "dt_interpretation"}); !st) return st.error();
-    std::filesystem::path model;
-    std::filesystem::path interp;
-    Twin twin;
+    BuildTarget target;
     {
         auto l = impl_->lock();
         auto t = impl_->twins->twin(twin_id);
         if (!t) return std::move(t).error();
-        twin = t.value();
+        target.owner = t.value().id;
+        target.model_id = t.value().model_id;
+        target.ticks_per_unit = t.value().ticks_per_unit;
+    }
+    return run_compile_for(target, bindings, change_id, actor);
+}
+
+Result<json::Json> Services::run_compile_for(const BuildTarget& target, const std::vector<Binding>& bindings,
+                                             const std::optional<std::string>& change_id, const Actor& actor) {
+    if (auto st = require_roles(bindings, {"dt_model", "dt_interpretation"}); !st) return st.error();
+    std::filesystem::path model;
+    std::filesystem::path interp;
+    {
+        auto l = impl_->lock();
         auto m = impl_->materialize(*find_binding(bindings, "dt_model"));
         auto i = impl_->materialize(*find_binding(bindings, "dt_interpretation"));
         if (!m) return std::move(m).error();
@@ -226,11 +246,14 @@ Result<json::Json> Services::run_compile(std::string_view twin_id, const std::ve
         interp = i.value();
     }
     compiler::CompileOptions options;
-    options.model_id = twin.model_id;
-    options.ticks_per_unit = twin.ticks_per_unit;
+    options.model_id = target.model_id;
+    options.ticks_per_unit = target.ticks_per_unit;
     options.interpretation = interp;
     options.legacy_system_declaration = config_.legacy_system_declaration;
+    const auto started = std::chrono::steady_clock::now();
     const auto result = run_with_large_stack([&] { return compiler::compile_file(model, options); });
+    const auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
     auto l = impl_->lock();
     json::Json doc;
@@ -255,6 +278,7 @@ Result<json::Json> Services::run_compile(std::string_view twin_id, const std::ve
         summary = "Compilation failed with " + std::to_string(diags.size()) + " diagnostic(s).";
     }
     doc["bindings"] = bindings_doc(bindings);
+    doc["duration_ms"] = static_cast<std::int64_t>(duration_ms);
     auto ev = impl_->evidence->record(EvidenceKind::Compilation, outcome, outcome == Outcome::Pass ? "compiled" : "failed",
                                       summary, "twin-compiler " + std::string(twin::version::kCompiler), doc,
                                       inputs_of(bindings, {"dt_model", "dt_interpretation"}), actor.name, change_id);
@@ -270,42 +294,107 @@ Result<json::Json> Services::run_compile(std::string_view twin_id, const std::ve
 
 Result<json::Json> Services::build_package(std::string_view twin_id, const std::vector<Binding>& bindings,
                                            const std::optional<std::string>& change_id, const Actor& actor) {
-    if (auto st = require_roles(bindings, {"pt_model", "dt_model", "ontology", "pt_interpretation", "dt_interpretation"});
-        !st) {
-        return st.error();
-    }
-    RunningCheck running(*impl_, "package:" + (change_id ? *change_id : std::string(twin_id)));
-    if (!running.acquired()) return make_error(ErrorCode::StateError, "a package build is already running");
-    package::BuildInputs in;
-    Twin twin;
-    std::size_t existing = 0;
+    BuildTarget target;
     {
         auto l = impl_->lock();
         auto t = impl_->twins->twin(twin_id);
         if (!t) return std::move(t).error();
-        twin = t.value();
+        target.owner = t.value().id;
+        target.model_id = t.value().model_id;
+        target.ticks_per_unit = t.value().ticks_per_unit;
+    }
+    return build_package_for(target, bindings, change_id, actor);
+}
+
+namespace {
+
+/// @brief Package build inputs of @p bindings for @p target (materialised artefact files; canonical
+/// source models when requested). @p existing counts the owner's packages (default model version).
+Result<package::BuildInputs> package_inputs(Services::Impl& impl, const StudioConfig& config, const Services::BuildTarget& target,
+                                            const std::vector<Binding>& bindings, std::size_t existing) {
+    package::BuildInputs in;
+    auto l = impl.lock();
+    auto path = [&](std::string_view role) { return impl.materialize(*find_binding(bindings, role)); };
+    auto pt = path("pt_model");
+    auto dt = path("dt_model");
+    auto k = path("ontology");
+    auto ip = path("pt_interpretation");
+    auto id = path("dt_interpretation");
+    for (const auto* r : {&pt, &dt, &k, &ip, &id}) {
+        if (!*r) return r->error();
+    }
+    in.pt_model = pt.value();
+    in.dt_model = dt.value();
+    in.ontology = k.value();
+    in.pt_interpretation = ip.value();
+    in.dt_interpretation = id.value();
+    if (target.source_models) {
+        // Canonical models travel with the package; the builder checks each renders to the shipped view.
+        for (const char* role : {"pt_model", "dt_model"}) {
+            const Binding* b = find_binding(bindings, role);
+            auto content = impl.artifacts->content(b->ref);
+            if (!content || authoring::content_format(content.value()) != "twin-ta/1") continue;
+            const std::filesystem::path p = config.data_dir / "work" / (b->sha256 + ".tta.json");
+            if (!authoring::write_file_atomically(p, content.value())) {
+                return make_error(ErrorCode::IoError, "cannot write work file").with("file", p.string());
+            }
+            (std::string_view(role) == "pt_model" ? in.pt_source_model : in.dt_source_model) = p;
+        }
+    }
+    in.model_id = target.model_id;
+    in.model_version = target.model_version.value_or("1." + std::to_string(existing) + ".0");
+    in.ticks_per_unit = target.ticks_per_unit;
+    in.monitors = target.monitors;
+    in.type_metadata = target.type_metadata;
+    in.legacy_system_declaration = config.legacy_system_declaration;
+    return in;
+}
+
+}  // namespace
+
+Result<json::Json> Services::build_package_into(const BuildTarget& target, const std::vector<Binding>& bindings,
+                                                const std::filesystem::path& directory) {
+    if (auto st = require_roles(bindings, {"pt_model", "dt_model", "ontology", "pt_interpretation", "dt_interpretation"});
+        !st) {
+        return st.error();
+    }
+    auto prepared = package_inputs(*impl_, config_, target, bindings, 0);
+    if (!prepared) return std::move(prepared).error();
+    const package::BuildInputs in = std::move(prepared).value();
+    std::error_code ec;
+    fs::remove_all(directory, ec);
+    const auto built = run_with_large_stack([&] { return package::build_package(in, directory); });
+    if (!built) {
+        fs::remove_all(directory, ec);
+        return built.error();
+    }
+    json::Json checks = json::Json::array();
+    for (const auto& c : built.value().package.checks) checks.push_back({{"name", c.name}, {"passed", c.passed}, {"detail", c.detail}});
+    return json::Json{{"packageHash", built.value().package.package_hash},
+                      {"irSha256", built.value().package.ir_sha256},
+                      {"modelVersion", in.model_version},
+                      {"checks", checks}};
+}
+
+Result<json::Json> Services::build_package_for(const BuildTarget& target, const std::vector<Binding>& bindings,
+                                               const std::optional<std::string>& change_id, const Actor& actor) {
+    if (auto st = require_roles(bindings, {"pt_model", "dt_model", "ontology", "pt_interpretation", "dt_interpretation"});
+        !st) {
+        return st.error();
+    }
+    const std::string twin_id = target.owner;
+    RunningCheck running(*impl_, "package:" + (change_id ? *change_id : twin_id));
+    if (!running.acquired()) return make_error(ErrorCode::StateError, "a package build is already running");
+    std::size_t existing = 0;
+    {
+        auto l = impl_->lock();
         auto pk = impl_->twins->packages(twin_id);
         if (!pk) return std::move(pk).error();
         existing = pk.value().size();
-        auto path = [&](std::string_view role) { return impl_->materialize(*find_binding(bindings, role)); };
-        auto pt = path("pt_model");
-        auto dt = path("dt_model");
-        auto k = path("ontology");
-        auto ip = path("pt_interpretation");
-        auto id = path("dt_interpretation");
-        for (const auto* r : {&pt, &dt, &k, &ip, &id}) {
-            if (!*r) return r->error();
-        }
-        in.pt_model = pt.value();
-        in.dt_model = dt.value();
-        in.ontology = k.value();
-        in.pt_interpretation = ip.value();
-        in.dt_interpretation = id.value();
     }
-    in.model_id = twin.model_id;
-    in.model_version = "1." + std::to_string(existing) + ".0";
-    in.ticks_per_unit = twin.ticks_per_unit;
-    in.legacy_system_declaration = config_.legacy_system_declaration;
+    auto prepared = package_inputs(*impl_, config_, target, bindings, existing);
+    if (!prepared) return std::move(prepared).error();
+    const package::BuildInputs in = std::move(prepared).value();
     const fs::path staging = config_.data_dir / "packages" / ("staging-" + short_id());
 
     const auto built = run_with_large_stack([&] { return package::build_package(in, staging); });
@@ -345,7 +434,7 @@ Result<json::Json> Services::build_package(std::string_view twin_id, const std::
         all = all && c.passed;
     }
     PackageRecord rec;
-    rec.twin_id = std::string(twin_id);
+    rec.twin_id = twin_id;
     rec.package_hash = loaded.package_hash;
     rec.ir_sha256 = loaded.ir_sha256;
     rec.model_version = in.model_version;

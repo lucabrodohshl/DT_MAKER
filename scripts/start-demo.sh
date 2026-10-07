@@ -4,26 +4,31 @@
 #
 #   ./scripts/start-demo.sh            (or: make demo)
 #
-# Builds what is missing, seeds the examples on first start, launches every
-# process of the integrated product and prints the URL:
+# Builds what is missing, seeds the example Blueprints on first start (each one
+# is validated, aligned, compiled, scenario-tested, packaged and published for
+# real, and its instance is deployed), starts Verified Twin Studio and prints
+# the URL:
 #
 #   twin-studio   :8080  Verified Twin Studio (web UI + platform API + proxy)
-#   twin-runtime  :8090  indoor-drone twin (co-simulation mode; paused until "Start mission")
-#   twin-world    :8091  drone Physical Twin simulator + building-information service
-#   twin-runtime  :8092  industrial-pump twin (monitor mode)
-#   twin-pt-feed         scripted PLC feed of pump P-101 (events + telemetry)
 #
-# Each runtime executes exactly the package that Studio deployed for its twin
-# (looked up through the Studio API), so the hashes shown in Studio and the
-# ones recorded in the runtime ledgers are the same.
+# Studio's deployment supervisor then starts the processes of every deployed
+# twin instance on free local ports (18100-18999), exactly as a Release ->
+# Deployment does in the UI:
+#
+#   indoor-drone-dt  twin-world (simulator generated from the Blueprint's world)
+#                    + twin-runtime (co-simulation; paused until "Start mission")
+#   pump-p101-dt     twin-runtime (monitor mode) + twin-pt-feed (the Blueprint's
+#                    event-script simulator)
+#
+# Each runtime executes exactly the package its instance is deployed on, so the
+# hashes shown in Studio and the ones recorded in the runtime ledgers are the same.
 #
 # Options:
 #   --fresh        delete the demo data (Studio database, packages, ledgers) first
 #   --no-build     do not build (use existing binaries and web/studio/dist)
-#   --speed X      drone co-simulation speed (logical s per wall s, default 1.5)
 #   --data DIR     data directory (default var/demo)
 #
-# Ports can be overridden with STUDIO_PORT, DRONE_PORT, WORLD_PORT and PUMP_PORT.
+# The Studio port can be overridden with STUDIO_PORT.
 #
 # Persistence: everything lives in the data directory and survives restarts
 # (assets, telemetry history, artefact versions, evidence, packages,
@@ -39,19 +44,14 @@ BIN="build/$PRESET/bin"
 DATA="var/demo"
 FRESH=0
 BUILD=1
-SPEED="1.5"
 STUDIO_PORT="${STUDIO_PORT:-8080}"
-DRONE_PORT="${DRONE_PORT:-8090}"
-WORLD_PORT="${WORLD_PORT:-8091}"
-PUMP_PORT="${PUMP_PORT:-8092}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --fresh) FRESH=1; shift ;;
         --no-build) BUILD=0; shift ;;
-        --speed) SPEED="$2"; shift 2 ;;
         --data) DATA="$2"; shift 2 ;;
-        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
 done
@@ -83,17 +83,11 @@ wait_http() {  # url, name, timeout seconds
     die "$name did not become ready at $url (see $LOGS)"
 }
 
-json_get() {  # json-text, python expression on `d`
-    python3 -c "import json,sys; d=json.load(sys.stdin); print($2)" <<<"$1"
-}
-
 # ----------------------------------------------------------------- prerequisites
 command -v cmake >/dev/null || die "cmake is required"
 command -v python3 >/dev/null || die "python3 is required"
 command -v curl >/dev/null || die "curl is required"
-for p in $STUDIO_PORT $DRONE_PORT $WORLD_PORT $PUMP_PORT; do
-    port_free "$p" || die "port $p is in use (another demo running?)"
-done
+port_free "$STUDIO_PORT" || die "port $STUDIO_PORT is in use (another demo running?)"
 
 # ------------------------------------------------------------------------- build
 if [[ $BUILD -eq 1 ]]; then
@@ -126,9 +120,9 @@ if [[ $FRESH -eq 1 && -d "$DATA" ]]; then
     log "removing $DATA (--fresh)"
     rm -rf "$DATA"
 fi
-mkdir -p "$LOGS" "$DATA/ledgers/drone" "$DATA/ledgers/pump"
+mkdir -p "$LOGS"
 if [[ ! -f "$STUDIO_DATA/studio.db" ]]; then
-    log "seeding examples (validation, refinement, alignment, compilation and packaging run for real)"
+    log "seeding the example Blueprints (validation, alignment, compilation, scenario tests and packaging run for real)"
     "$BIN/twin-studio" seed --example examples/industrial-pump --data-dir "$STUDIO_DATA" | tee -a "$LOGS/seed.log"
     "$BIN/twin-studio" seed --example examples/indoor-drone --data-dir "$STUDIO_DATA" | tee -a "$LOGS/seed.log"
 fi
@@ -137,54 +131,35 @@ fi
 WEB_ROOT=()
 [[ -f web/studio/dist/index.html ]] && WEB_ROOT=(--web-root web/studio/dist)
 
-log "starting twin-world (drone Physical Twin) on :$WORLD_PORT"
-"$BIN/twin-world" --scenario scenarios/inspection_default.json --port $WORLD_PORT >"$LOGS/twin-world.log" 2>&1 &
-PIDS+=($!)
-
-log "starting Verified Twin Studio on :$STUDIO_PORT"
+log "starting Verified Twin Studio on :$STUDIO_PORT (it deploys the twin instances itself)"
 "$BIN/twin-studio" serve --data-dir "$STUDIO_DATA" --port $STUDIO_PORT ${WEB_ROOT[@]+"${WEB_ROOT[@]}"} \
-    --runtime "indoor-drone-dt=http://127.0.0.1:$DRONE_PORT" \
-    --world "indoor-drone-dt=http://127.0.0.1:$WORLD_PORT" \
-    --runtime "pump-p101-dt=http://127.0.0.1:$PUMP_PORT" >"$LOGS/twin-studio.log" 2>&1 &
+    --bin-dir "$BIN" --templates examples/templates >"$LOGS/twin-studio.log" 2>&1 &
 PIDS+=($!)
 wait_http "http://127.0.0.1:$STUDIO_PORT/api/v1/twins" "twin-studio" 60
-wait_http "http://127.0.0.1:$WORLD_PORT/health" "twin-world" 30
 
-deployed_package_dir() {  # twin id -> package directory of its current deployment
-    local twin="$1" body id
-    body="$(curl -sf "http://127.0.0.1:$STUDIO_PORT/api/v1/twins/$twin")" || die "Studio does not know twin $twin"
-    id="$(json_get "$body" "(d.get('deployment') or {}).get('packageId') or (d.get('package') or {}).get('id') or ''")"
-    [[ -n "$id" && -d "$STUDIO_DATA/packages/$id" ]] || die "twin $twin has no deployed package"
-    echo "$STUDIO_DATA/packages/$id"
+wait_instance() {  # instance id: wait until the supervisor reports it running
+    local id="$1" i state
+    for ((i = 0; i < 240; i++)); do
+        state="$(curl -sf "http://127.0.0.1:$STUDIO_PORT/api/v1/instances/$id" \
+            | python3 -c "import json,sys; print((json.load(sys.stdin).get('runtime') or {}).get('state',''))" 2>/dev/null || true)"
+        case "$state" in
+            running) log "instance $id is running"; return 0 ;;
+            failed) die "instance $id failed to start (see $STUDIO_DATA/instances/$id/logs)" ;;
+        esac
+        sleep 0.25
+    done
+    die "instance $id did not start within 60 s (see $LOGS/twin-studio.log)"
 }
-DRONE_PKG="$(deployed_package_dir indoor-drone-dt)"
-PUMP_PKG="$(deployed_package_dir pump-p101-dt)"
-
-log "starting the drone twin runtime on :$DRONE_PORT (package $(basename "$DRONE_PKG"), paused)"
-"$BIN/twin-runtime" --package "$DRONE_PKG" --world "http://127.0.0.1:$WORLD_PORT" --port $DRONE_PORT \
-    --ledger-dir "$DATA/ledgers/drone" --package-store "$STUDIO_DATA/packages" --speed "$SPEED" --paused \
-    >"$LOGS/twin-runtime-drone.log" 2>&1 &
-PIDS+=($!)
-
-log "starting the pump twin runtime on :$PUMP_PORT (package $(basename "$PUMP_PKG"), monitor mode)"
-"$BIN/twin-runtime" --package "$PUMP_PKG" --monitor --port $PUMP_PORT \
-    --ledger-dir "$DATA/ledgers/pump" --package-store "$STUDIO_DATA/packages" \
-    >"$LOGS/twin-runtime-pump.log" 2>&1 &
-PIDS+=($!)
-wait_http "http://127.0.0.1:$DRONE_PORT/health" "drone runtime" 30
-wait_http "http://127.0.0.1:$PUMP_PORT/health" "pump runtime" 30
-
-log "starting the pump PLC feed"
-"$BIN/twin-pt-feed" --feed scenarios/pump_operating_cycle.json --runtime "http://127.0.0.1:$PUMP_PORT" --speed 1 \
-    >"$LOGS/twin-pt-feed.log" 2>&1 &
-PIDS+=($!)
+wait_instance pump-p101-dt
+wait_instance indoor-drone-dt
 
 cat <<EOF
 
   ┌────────────────────────────────────────────────────────────────────┐
   │  Verified Twin Studio is running:  http://127.0.0.1:$STUDIO_PORT            │
   └────────────────────────────────────────────────────────────────────┘
-  Showcase: Examples → Indoor Inspection Drone → Start mission
+  Showcase: Your Twins → Indoor Inspection Drone → Start mission
+  Author:   Studio → Blueprints (each example is an editable, versioned Blueprint)
   Logs:     $LOGS/      Data: $DATA/      Stop: Ctrl-C
 
 EOF

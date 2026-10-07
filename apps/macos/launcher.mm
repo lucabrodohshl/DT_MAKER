@@ -11,20 +11,20 @@
  *  2. moves data written by an incompatible earlier version aside (kept as a
  *     backup folder) and seeds the examples on first start — with real
  *     validation, alignment, compilation and packaging;
- *  3. picks free ports (the defaults 8080/8090/8091/8092 when they are free,
- *     otherwise nearby free ones), so it coexists with a developer `make demo`
- *     or any other server;
- *  4. starts twin-world, twin-studio, the two twin runtimes (each on exactly the
- *     package Studio deployed for its twin) and the pump's PLC feed, waits until
- *     each answers, and opens the product in the default browser;
- *  5. supervises every component: one that stops unexpectedly is restarted with
- *     back-off; if it keeps failing, everything is stopped and a dialog offers
- *     the logs, a data reset or quitting — never a half-running backend.
+ *  3. picks a free port for Studio (8080 when it is free, otherwise a nearby
+ *     free one), so it coexists with a developer `make demo` or any other server;
+ *  4. starts twin-studio, which deploys every twin instance itself (its
+ *     supervisor starts the runtimes, simulators and feeds of each instance on
+ *     exactly the package that instance is deployed on), waits until it answers,
+ *     and opens the product in the default browser;
+ *  5. supervises twin-studio: if it stops unexpectedly it is restarted with
+ *     back-off; if it keeps failing, it is stopped and a dialog offers the logs,
+ *     a data reset or quitting — never a half-running backend.
  * A menu-bar item offers Open, the data/log folders, Reset demo data and Quit;
  * quitting stops every component. Logs go to ~/Library/Logs/Verified Twin Studio/.
  *
  * Environment (tests): VTS_DATA_DIR (isolated data directory), VTS_NO_BROWSER,
- * VTS_STUDIO_PORT/VTS_DRONE_PORT/VTS_WORLD_PORT/VTS_PUMP_PORT (preferred ports).
+ * VTS_STUDIO_PORT (preferred port).
  *
  * The launcher contains no product logic: it is the macOS equivalent of
  * scripts/start-demo.sh (which remains the reference for developers).
@@ -40,7 +40,7 @@
 #include <unistd.h>
 
 /// Data layout version; data written by an older, incompatible version is moved aside.
-static NSString* const kDataFormat = @"vts-data/2";
+static NSString* const kDataFormat = @"vts-data/3";
 
 /// Preferred port from the environment (VTS_<NAME>_PORT) or the default.
 static int PortSetting(const char* env, int fallback) {
@@ -338,18 +338,6 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
     [fm createDirectoryAtPath:self.dataDir withIntermediateDirectories:YES attributes:nil error:nil];
 }
 
-- (NSString*)deployedPackageDir:(NSString*)twin {
-    NSDictionary* t = GetJson([NSString stringWithFormat:@"%@/api/v1/twins/%@", self.studioURL, twin], 5.0);
-    NSString* pkg = nil;
-    if ([t isKindOfClass:[NSDictionary class]]) {
-        id dep = t[@"deployment"];
-        if ([dep isKindOfClass:[NSDictionary class]]) pkg = dep[@"packageId"];
-        if (!pkg && [t[@"package"] isKindOfClass:[NSDictionary class]]) pkg = t[@"package"][@"id"];
-    }
-    if (![pkg isKindOfClass:[NSString class]]) return nil;
-    return [[self.dataDir stringByAppendingPathComponent:@"studio/packages"] stringByAppendingPathComponent:pkg];
-}
-
 - (void)fail:(NSString*)message {
     if (self.failed) return;
     self.failed = YES;
@@ -425,10 +413,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
 
     NSMutableSet<NSNumber*>* taken = [NSMutableSet set];
     const int studioPort = ChoosePort(PortSetting("VTS_STUDIO_PORT", 8080), taken);
-    const int dronePort = ChoosePort(PortSetting("VTS_DRONE_PORT", 8090), taken);
-    const int worldPort = ChoosePort(PortSetting("VTS_WORLD_PORT", 8091), taken);
-    const int pumpPort = ChoosePort(PortSetting("VTS_PUMP_PORT", 8092), taken);
-    if (studioPort == 0 || dronePort == 0 || worldPort == 0 || pumpPort == 0) {
+    if (studioPort == 0) {
         [self fail:@"No free network port was found on this Mac."];
         return;
     }
@@ -436,8 +421,6 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
     self.studioURL = url(studioPort);
 
     NSString* studioData = [self.dataDir stringByAppendingPathComponent:@"studio"];
-    [fm createDirectoryAtPath:[self.dataDir stringByAppendingPathComponent:@"ledgers/drone"] withIntermediateDirectories:YES attributes:nil error:nil];
-    [fm createDirectoryAtPath:[self.dataDir stringByAppendingPathComponent:@"ledgers/pump"] withIntermediateDirectories:YES attributes:nil error:nil];
     if (![fm fileExistsAtPath:[studioData stringByAppendingPathComponent:@"studio.db"]]) {
         [self setStatus:@"First start: verifying, compiling and packaging the example twins (about a minute)…"];
         for (NSString* example in @[ @"examples/industrial-pump", @"examples/indoor-drone" ]) {
@@ -453,51 +436,17 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
         [kDataFormat writeToFile:[self.dataDir stringByAppendingPathComponent:@"FORMAT"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
 
-    [self setStatus:@"Starting the backend…"];
-    StackComponent* world = [self component:@"twin-world" exe:@"twin-world"
-                                  args:@[ @"--scenario", [self res:@"scenarios/inspection_default.json"], @"--port", @(worldPort).stringValue ]
-                                health:[url(worldPort) stringByAppendingString:@"/health"]];
+    [self setStatus:@"Starting Studio and the deployed twins…"];
+    // Studio's supervisor starts every deployed instance (runtime, simulator, feed) from its
+    // deployment record; the launcher only supervises Studio itself.
     StackComponent* studio = [self component:@"twin-studio" exe:@"twin-studio"
                                    args:@[ @"serve", @"--data-dir", studioData, @"--port", @(studioPort).stringValue,
                                            @"--web-root", [self res:@"web"],
-                                           @"--runtime", [@"indoor-drone-dt=" stringByAppendingString:url(dronePort)],
-                                           @"--world", [@"indoor-drone-dt=" stringByAppendingString:url(worldPort)],
-                                           @"--runtime", [@"pump-p101-dt=" stringByAppendingString:url(pumpPort)] ]
+                                           @"--bin-dir", [self.resources stringByAppendingPathComponent:@"bin"],
+                                           @"--templates", [self res:@"examples/templates"] ]
                                  health:[self.studioURL stringByAppendingString:@"/api/v1/twins"]];
-    if (![self launchAndWait:world seconds:30]) {
-        [self fail:@"The building simulator (twin-world) did not start."];
-        return;
-    }
     if (![self launchAndWait:studio seconds:90]) {
         [self fail:@"The Studio server did not start."];
-        return;
-    }
-    NSString* dronePkg = [self deployedPackageDir:@"indoor-drone-dt"];
-    NSString* pumpPkg = [self deployedPackageDir:@"pump-p101-dt"];
-    if (!dronePkg || !pumpPkg) {
-        [self fail:@"A twin has no deployed package."];
-        return;
-    }
-    NSString* store = [studioData stringByAppendingPathComponent:@"packages"];
-    StackComponent* drone = [self component:@"twin-runtime-drone" exe:@"twin-runtime"
-                                  args:@[ @"--package", dronePkg, @"--world", url(worldPort), @"--port", @(dronePort).stringValue,
-                                          @"--ledger-dir", [self.dataDir stringByAppendingPathComponent:@"ledgers/drone"],
-                                          @"--package-store", store, @"--speed", @"1.5", @"--paused" ]
-                                health:[url(dronePort) stringByAppendingString:@"/health"]];
-    StackComponent* pump = [self component:@"twin-runtime-pump" exe:@"twin-runtime"
-                                 args:@[ @"--package", pumpPkg, @"--monitor", @"--port", @(pumpPort).stringValue,
-                                         @"--ledger-dir", [self.dataDir stringByAppendingPathComponent:@"ledgers/pump"],
-                                         @"--package-store", store ]
-                               health:[url(pumpPort) stringByAppendingString:@"/health"]];
-    if (![self launchAndWait:drone seconds:30] || ![self launchAndWait:pump seconds:30]) {
-        [self fail:@"A twin runtime did not start."];
-        return;
-    }
-    StackComponent* feed = [self component:@"twin-pt-feed" exe:@"twin-pt-feed"
-                                 args:@[ @"--feed", [self res:@"scenarios/pump_operating_cycle.json"], @"--runtime", url(pumpPort), @"--speed", @"1" ]
-                               health:nil];
-    if (![self launch:feed]) {
-        [self fail:@"The pump's control-system feed did not start."];
         return;
     }
     [self setStatus:[NSString stringWithFormat:@"Running at %@", self.studioURL]];

@@ -1,0 +1,13 @@
+; I_D: interpretation of the thermal-chamber DT view (ThermalChamberDT) over
+; thermal-chamber.ont. The twin calls the over-temperature event high_temperature.
+
+; --- locations ---
+IDLE        : (and (not heater_on) (<= temperature temperature_limit))
+HEATING     : (and heater_on (not door_open) (<= temperature temperature_limit))
+OVERHEATED  : (and (not heater_on) (> temperature temperature_limit))
+
+; --- events ---
+start_heating!    : (and heater_on (not door_open))
+stop_heating!     : (not heater_on)
+high_temperature! : (> temperature temperature_limit)
+cooled_down!      : (and reset_requested (<= temperature temperature_limit))

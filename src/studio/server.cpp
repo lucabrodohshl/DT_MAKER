@@ -15,6 +15,10 @@
 #include <sstream>
 
 #include "twin/platform/clock.hpp"
+#include "twin/studio/blueprints.hpp"
+#include "twin/studio/supervisor.hpp"
+#include "services_impl.hpp"
+#include <set>
 
 namespace twin::studio {
 
@@ -226,23 +230,35 @@ struct StudioServer::Impl {
     }
 
     void routes();
+    void blueprint_routes();
     void stream_route();
     void proxy_routes();
     void static_routes();
     std::optional<std::string> upstream_for(const std::string& twin_id, const std::string& family);
+    std::optional<std::string> supervised_url(const std::string& id, const char* key);
 };
 
 std::optional<std::string> StudioServer::Impl::upstream_for(const std::string& twin_id, const std::string& family) {
     if (family == "observer" || family == "scenario") {
         auto it = options.world_urls.find(twin_id);
         if (it != options.world_urls.end()) return it->second;
-        return std::nullopt;  // ground truth is never substituted by the twin's belief
+        auto t = services.twin_record(twin_id);
+        if (t && t.value().world_url) return *t.value().world_url;  // started by the deployment supervisor
+        return supervised_url(twin_id, "worldUrl");  // ground truth is never substituted by the twin's belief
     }
     auto it = options.runtime_urls.find(twin_id);
     if (it != options.runtime_urls.end()) return it->second;
     auto t = services.twin_record(twin_id);
     if (t && t.value().runtime_url) return *t.value().runtime_url;
-    return std::nullopt;
+    return supervised_url(twin_id, "runtimeUrl");
+}
+
+std::optional<std::string> StudioServer::Impl::supervised_url(const std::string& id, const char* key) {
+    // Studio previews ("preview~...") have no twin record: their URLs come from the supervisor.
+    if (id.rfind("preview~", 0) != 0) return std::nullopt;
+    const Json st = services.supervisor().status(id);
+    if (st.value("state", std::string()) != "running" || !st.contains(key) || !st.at(key).is_string()) return std::nullopt;
+    return st.at(key).get<std::string>();
 }
 
 void StudioServer::Impl::routes() {
@@ -539,6 +555,264 @@ void StudioServer::Impl::routes() {
     });
 }
 
+// --- Blueprint Studio: Twin Blueprints, instances, deployment (blueprints.hpp) ------------------
+
+namespace {
+
+Result<std::int64_t> path_version(const httplib::Request& req) {
+    try {
+        const std::int64_t v = std::stoll(req.path_params.at("v"));
+        if (v < 1) throw std::invalid_argument("v");
+        return v;
+    } catch (const std::exception&) {
+        return make_error(ErrorCode::InvalidArgument, "version must be a positive integer");
+    }
+}
+
+Result<std::int64_t> revision_of(const Json& body) {
+    if (!body.contains("revision") || !body.at("revision").is_number_integer()) {
+        return make_error(ErrorCode::InvalidArgument, "'revision' (integer) is required: the draft revision your edit is based on");
+    }
+    return body.at("revision").get<std::int64_t>();
+}
+
+const std::string kBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+Result<std::string> base64_decode(std::string_view in) {
+    std::string out;
+    int val = 0;
+    int bits = -8;
+    for (const char c : in) {
+        if (c == '=' || c == '\n' || c == '\r') continue;
+        const auto pos = kBase64.find(c);
+        if (pos == std::string::npos) return make_error(ErrorCode::InvalidArgument, "data is not base64");
+        val = (val << 6) + static_cast<int>(pos);
+        bits += 6;
+        if (bits >= 0) {
+            out.push_back(static_cast<char>((val >> bits) & 0xFF));
+            bits -= 8;
+        }
+    }
+    return out;
+}
+
+}  // namespace
+
+void StudioServer::Impl::blueprint_routes() {
+    Services& s = services;
+    BlueprintService& b = s.blueprints();
+    const std::string p = "/api/v1";
+    const std::string v = p + "/blueprints/:id/versions/:v";
+    auto id_of = [](const httplib::Request& r) { return r.path_params.at("id"); };
+
+    route("GET", p + "/blueprints", [&b](const auto&, const auto&) { return b.list(); });
+    route("GET", p + "/blueprints/templates", [&b](const auto&, const auto&) { return b.templates(); });
+    route("GET", p + "/blueprints/palettes", [&b](const auto&, const auto&) { return b.palettes(); });
+    route("POST", p + "/blueprints", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.create(body.value(), a);
+    }, 201);
+    route("GET", p + "/blueprints/:id", [&b, id_of](const httplib::Request& r, const auto&) { return b.get(id_of(r)); });
+    route("PUT", p + "/blueprints/:id", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.update_meta(id_of(r), body.value(), a);
+    });
+    route("GET", v, [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.version(id_of(r), ver.value());
+    });
+    route("POST", v + "/drafts", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.create_draft(id_of(r), ver.value(), body.value().value("note", std::string()), a);
+    }, 201);
+    route("PUT", v + "/sections/:section", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        auto rev = revision_of(body.value());
+        if (!rev) return std::move(rev).error();
+        return b.save_section(id_of(r), ver.value(), r.path_params.at("section"), rev.value(), body.value().value("content", Json()), a);
+    });
+    route("GET", v + "/models/:role", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.model(id_of(r), ver.value(), r.path_params.at("role"));
+    });
+    route("PUT", v + "/models/:role", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        auto rev = revision_of(body.value());
+        if (!rev) return std::move(rev).error();
+        return b.save_model(id_of(r), ver.value(), r.path_params.at("role"), rev.value(), body.value().value("model", Json()),
+                            body.value().value("layout", Json()), a);
+    });
+    route("POST", v + "/models/:role/import", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        auto rev = revision_of(body.value());
+        if (!rev) return std::move(rev).error();
+        return b.import_model(id_of(r), ver.value(), r.path_params.at("role"), rev.value(), body.value().value("filename", std::string()),
+                              body.value().value("content", std::string()), a);
+    });
+    route("GET", v + "/semantics/:role", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.semantics(id_of(r), ver.value(), r.path_params.at("role"));
+    });
+    route("PUT", v + "/semantics/:role", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        auto rev = revision_of(body.value());
+        if (!rev) return std::move(rev).error();
+        return b.save_semantics(id_of(r), ver.value(), r.path_params.at("role"), rev.value(), body.value(), a);
+    });
+    route("GET", v + "/validation", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.validate(id_of(r), ver.value());
+    });
+    route("GET", v + "/status", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.status(id_of(r), ver.value());
+    });
+    route("POST", v + "/checks/:check", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.run_check(id_of(r), ver.value(), r.path_params.at("check"), body.value(), a);
+    });
+    route("GET", v + "/world/raster", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.world_raster(id_of(r), ver.value());
+    });
+    route("POST", v + "/timing", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.timing(id_of(r), ver.value(), body.value());
+    });
+    route("POST", v + "/scenarios/:scenario/run", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.run_scenarios(id_of(r), ver.value(), r.path_params.at("scenario"), a);
+    });
+    route("GET", v + "/impact", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        std::optional<std::int64_t> against;
+        if (auto x = param(r, "against")) against = std::stoll(*x);
+        return b.impact(id_of(r), ver.value(), against);
+    });
+    route("GET", v + "/package", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.package(id_of(r), ver.value());
+    });
+    route("POST", v + "/publish", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.publish(id_of(r), ver.value(), a);
+    });
+    route("GET", v + "/export", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.export_bundle(id_of(r), ver.value());
+    });
+    // Isolated Studio preview of a version (real runtime/simulator, nothing recorded).
+    route("GET", v + "/preview", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.preview(id_of(r), ver.value());
+    });
+    route("POST", v + "/preview", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.start_preview(id_of(r), ver.value(), body.value(), a);
+    });
+    route("DELETE", v + "/preview", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.stop_preview(id_of(r), ver.value(), a);
+    });
+    route("POST", v + "/bindings/test", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.test_binding(id_of(r), ver.value(), body.value());
+    });
+
+    // Instances and deployment.
+    route("GET", p + "/instances", [&b](const httplib::Request& r, const auto&) { return b.instances(param(r, "blueprint")); });
+    route("POST", p + "/instances", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.create_instance(body.value(), a);
+    }, 201);
+    route("GET", p + "/instances/:id", [&b](const httplib::Request& r, const auto&) { return b.instance(r.path_params.at("id")); });
+    route("GET", p + "/instances/:id/monitors", [&b](const httplib::Request& r, const auto&) { return b.instance_monitors(r.path_params.at("id")); });
+    route("POST", p + "/instances/:id/deploy", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.deploy_instance(r.path_params.at("id"), body.value(), a);
+    });
+    route("POST", p + "/instances/:id/:action", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        return b.control_instance(r.path_params.at("id"), r.path_params.at("action"), a);
+    });
+    route("GET", p + "/supervisor", [&s](const auto&, const auto&) -> Result<Json> {
+        return Json{{"available", s.supervisor().available()}, {"binDir", s.supervisor().bin_dir().string()},
+                    {"instances", s.supervisor().status_all()}};
+    });
+
+    // Content-addressed blobs (imported floor-plan images, SVG): never semantic geometry.
+    route("POST", p + "/blobs", [&s](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        const std::string mime = body.value().value("mime", std::string());
+        static const std::set<std::string> kMimes = {"image/png", "image/jpeg", "image/svg+xml", "application/geo+json", "application/json"};
+        if (!kMimes.count(mime)) return make_error(ErrorCode::InvalidArgument, "supported uploads: PNG, JPEG, SVG, GeoJSON");
+        auto bytes = base64_decode(body.value().value("data", std::string()));
+        if (!bytes) return std::move(bytes).error();
+        if (bytes.value().size() > 16U * 1024U * 1024U) return make_error(ErrorCode::InvalidArgument, "uploads are limited to 16 MB");
+        auto sha = s.internals().store->put(bytes.value());
+        if (!sha) return std::move(sha).error();
+        return Json{{"sha256", sha.value()}, {"mime", mime}, {"size", static_cast<std::int64_t>(bytes.value().size())},
+                    {"url", "/api/v1/blobs/" + sha.value() + "?mime=" + mime}};
+    }, 201);
+    server.Get(R"(/api/v1/blobs/([0-9a-f]{64}))", [&s](const httplib::Request& req, httplib::Response& res) {
+        auto bytes = s.internals().store->get(req.matches[1].str());
+        if (!bytes) {
+            send(res, 404, error_body("not_found", "no such blob"));
+            return;
+        }
+        std::string mime = req.has_param("mime") ? req.get_param_value("mime") : "application/octet-stream";
+        if (mime != "image/png" && mime != "image/jpeg" && mime != "image/svg+xml" && mime != "application/geo+json" && mime != "application/json") {
+            mime = "application/octet-stream";
+        }
+        res.set_header("Cache-Control", "public, max-age=31536000, immutable");
+        res.set_content(bytes.value(), mime);
+    });
+}
+
 void StudioServer::Impl::stream_route() {
     server.Get("/api/v1/stream", [this](const httplib::Request& req, httplib::Response& res) {
         std::uint64_t cursor = 0;
@@ -708,6 +982,7 @@ StudioServer::StudioServer(Services& services, ServerOptions options)
                                    res.get_header_value("X-Request-Id"));
     });
     i.routes();
+    i.blueprint_routes();
     i.stream_route();
     i.proxy_routes();
     i.server.Get(R"(/api/.*)", [](const httplib::Request&, httplib::Response& res) {

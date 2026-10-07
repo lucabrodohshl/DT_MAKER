@@ -14,3 +14,9 @@ twin_add_test(studio_platform_tests LABEL studio
 twin_add_test(studio_service_tests LABEL studio
     SOURCES studio/studio_test.cpp
     DEPS twin::studio httplib::httplib)
+
+twin_add_test(studio_blueprint_tests LABEL studio
+    SOURCES studio/blueprint_test.cpp
+    DEPS twin::studio)
+# The deployment test launches the real runtime binaries (supervisor): build them first.
+add_dependencies(studio_blueprint_tests twin-runtime twin-pt-feed twin-world)

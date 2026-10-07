@@ -1,0 +1,23 @@
+; Thermal-chamber domain ontology (v1)
+; A small laboratory heating chamber: an electric heater, a door sensor and an
+; air-temperature sensor. The over-temperature limit is a constant of the domain.
+; Fragment: QF_LRA.
+
+; === SORTS ===
+sort Temperature   ; degC
+
+; === FUNCTIONS ===
+fun temperature        : Temperature  ; measured chamber air temperature
+fun temperature_limit  : Temperature  ; over-temperature limit (protection)
+fun setpoint           : Temperature  ; heating setpoint
+
+; === RELATIONS ===
+rel heater_on        :  ; heater contactor closed
+rel door_open        :  ; door sensor reports the door open
+rel reset_requested  :  ; operator reset of the over-temperature latch
+
+; === AXIOMS ===
+axiom limit_val         : (= temperature_limit 80)
+axiom setpoint_val      : (= setpoint 60)
+axiom setpoint_below    : (< setpoint temperature_limit)
+axiom ambient_bound     : (>= temperature (- 40))

@@ -129,6 +129,17 @@ void run_runtime_bridge(Services& services, const std::string& twin_id, const st
                     s.logical_ticks = logical;
                     if (channel.value_type == "number" && it->is_number()) {
                         s.number = it->get<double>();
+                        // Unit conversion of the binding (canonical unit of the data contract), if any.
+                        const json::Json& tf = channel.presentation.value("transform", json::Json());
+                        if (tf.is_object()) {
+                            const auto dec = [&](const char* k, double fallback) {
+                                const json::Json& v = tf.value(k, json::Json());
+                                if (v.is_number()) return v.get<double>();
+                                if (v.is_string()) return std::strtod(v.get<std::string>().c_str(), nullptr);
+                                return fallback;
+                            };
+                            s.number = *s.number * dec("scale", 1.0) + dec("offset", 0.0);
+                        }
                     } else if (channel.value_type == "boolean" && it->is_boolean()) {
                         s.text = it->get<bool>() ? "true" : "false";
                     } else if ((channel.value_type == "category" || channel.value_type == "string") && it->is_string()) {

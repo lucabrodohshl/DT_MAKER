@@ -57,7 +57,28 @@ struct StudioConfig {
     std::filesystem::path data_dir{"var/studio"};  ///< Database, objects, packages, work files, logs.
     unsigned solver_timeout_ms{10000};             ///< Per-query Z3 timeout for ontology checks.
     bool legacy_system_declaration{false};         ///< Passed to compiler/aligner (legacy corpora).
+    std::filesystem::path templates_dir{"examples/templates"};  ///< Blueprint templates and tool palettes.
+    std::filesystem::path bin_dir;                 ///< twin-runtime, twin-world, twin-pt-feed (empty: next to twin-studio).
+    int port_range_begin{18100};                   ///< First local port the supervisor allocates to instances.
+    int port_range_end{18999};                     ///< Last local port the supervisor allocates.
 };
+
+class BlueprintService;
+
+/// @brief One global-search result (Services::search).
+struct SearchHit {
+    std::string kind;      ///< "twin", "blueprint", "asset", "state", "telemetry", ...
+    std::string id;        ///< Object id.
+    std::string title;     ///< Display title.
+    std::string subtitle;  ///< Where it lives ("Indoor Inspection Drone v2 (draft) · DT view").
+    std::string route;     ///< Web route that opens (and selects) the object.
+    int score{3};          ///< Match quality: 0 exact, 1 prefix, 2 word start, 3 substring.
+};
+
+/// @brief Match quality of @p text for the lower-case @p query_lower: 0 exact, 1 prefix,
+/// 2 word start, 3 substring, -1 no match (case-insensitive).
+[[nodiscard]] int search_score(std::string_view text, std::string_view query_lower);
+class Supervisor;
 
 /// @brief Identity of the caller (for audit). Not an authentication mechanism.
 struct Actor {
@@ -139,6 +160,32 @@ public:
     [[nodiscard]] Result<json::Json> build_package(std::string_view twin_id,
                                                    const std::vector<platform::Binding>& bindings,
                                                    const std::optional<std::string>& change_id, const Actor& actor);
+
+    /// @brief What a package or a compilation is built for (a twin, or a Blueprint version).
+    struct BuildTarget {
+        std::string owner;                 ///< Package owner: a twin id or platform::blueprint_owner().
+        std::string model_id;              ///< Model id stamped into IR and manifest.
+        std::int64_t ticks_per_unit{1000}; ///< Logical-time resolution R.
+        std::optional<std::string> model_version;        ///< Model version (default: "1.<n>.0" by package count).
+        std::optional<std::filesystem::path> monitors;   ///< Monitor document shipped in the package.
+        std::optional<json::Json> type_metadata;         ///< Type metadata shipped in the package (meta/type.json).
+        bool source_models{false};         ///< Ship canonical PT/DT models (when the artefacts hold twin-ta/1 content).
+    };
+    /// @brief run_compile() for an explicit target (no twin record needed).
+    [[nodiscard]] Result<json::Json> run_compile_for(const BuildTarget& target, const std::vector<platform::Binding>& bindings,
+                                                     const std::optional<std::string>& change_id, const Actor& actor);
+    /// @brief build_package() for an explicit target (no twin record needed).
+    [[nodiscard]] Result<json::Json> build_package_for(const BuildTarget& target,
+                                                       const std::vector<platform::Binding>& bindings,
+                                                       const std::optional<std::string>& change_id, const Actor& actor);
+    /**
+     * @brief Build a package of @p bindings into @p directory WITHOUT recording it (no package
+     * record, no evidence): the Studio preview sandbox. The builder performs the same checks as
+     * for a release; the result is {packageHash, irSha256, checks[]}.
+     */
+    [[nodiscard]] Result<json::Json> build_package_into(const BuildTarget& target,
+                                                        const std::vector<platform::Binding>& bindings,
+                                                        const std::filesystem::path& directory);
     /// @brief Re-verify a stored package now (live integrity checks).
     [[nodiscard]] Result<json::Json> verify_package(std::string_view package_id);
     /// @brief One evidence record with its document.
@@ -240,7 +287,14 @@ public:
     // ------------------------------------------------------------------ cross-cutting
     /// @brief Estate overview: assets, telemetry freshness, twins and trust, engineering activity.
     [[nodiscard]] Result<json::Json> overview();
-    /// @brief Global search over assets, twins, symbols, versions, evidence, packages, deployments and changes.
+    /**
+     * @brief Global search over every object kind: twins, Blueprints and their elements (asset
+     * types, assets, world objects, telemetry, events, commands, data sources, states,
+     * requirements, monitors, scenarios), assets, artefacts and versions ("process-pump@2"),
+     * ontology symbols and axioms, interpretation entries, telemetry channels, evidence, packages,
+     * deployments and changes. Results are ranked by match quality (exact, prefix, word start,
+     * substring), then by kind, and cut at @p limit.
+     */
     [[nodiscard]] Result<json::Json> search(std::string_view query, std::size_t limit);
     /// @brief A page of engineering-audit records, newest first.
     [[nodiscard]] Result<json::Json> audit(const platform::AuditFilter& filter);
@@ -282,6 +336,13 @@ public:
 
     /// @brief Opaque implementation state (defined in src/studio/services_impl.hpp).
     struct Impl;
+    /// @brief The implementation state, for the other Studio services (BlueprintService, Supervisor).
+    [[nodiscard]] Impl& internals() noexcept { return *impl_; }
+
+    /// @brief Blueprint Studio (Twin Blueprints, instances, deployment).
+    [[nodiscard]] BlueprintService& blueprints() noexcept { return *blueprints_; }
+    /// @brief The deployment supervisor (instance processes).
+    [[nodiscard]] Supervisor& supervisor() noexcept { return *supervisor_; }
 
 private:
     Services(StudioConfig config, std::unique_ptr<platform::Clock> clock);
@@ -291,6 +352,8 @@ private:
     std::unique_ptr<platform::AppLog> log_;
     EventHub events_;
     std::unique_ptr<Impl> impl_;
+    std::unique_ptr<BlueprintService> blueprints_;
+    std::unique_ptr<Supervisor> supervisor_;
 };
 
 }  // namespace twin::studio

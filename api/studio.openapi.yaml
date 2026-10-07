@@ -43,6 +43,8 @@ tags:
   - name: audit
   - name: stream
   - name: proxy
+  - name: blueprints
+  - name: instances
 
 paths:
   /about:
@@ -611,6 +613,361 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /blueprints:
+    get:
+      tags: [blueprints]
+      summary: Twin Blueprints with their versions, draft readiness hint and instance count.
+      operationId: listBlueprints
+      responses:
+        '200': { description: Blueprints, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/BlueprintListItem' } } } } }
+    post:
+      tags: [blueprints]
+      summary: Create a Blueprint (mode blank, template, clone, import, formal or document); its first version is a DRAFT.
+      description: |
+        Formal files are imported into the canonical forms on the server; a model with constructs
+        outside the supported fragment is reported in `imports` and leaves its role empty.
+      operationId: createBlueprint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { type: string, enum: [blank, template, clone, import, formal, document] }
+                id: { type: string, pattern: '^[a-z0-9][a-z0-9-]*$' }
+                name: { type: string }
+                domain: { type: string }
+                description: { type: string }
+                icon: { type: string }
+                identity: { type: object, description: 'runtimeMode, timeUnit, ticksPerUnit, tags, plugin, icon' }
+                templateId: { type: string }
+                from: { type: string, description: Blueprint to clone }
+                version: { type: integer, description: Version to clone }
+                bundle: { type: object, description: 'twin-blueprint-bundle/1 (mode import)' }
+                ptModel: { $ref: '#/components/schemas/FormalFile' }
+                dtModel: { $ref: '#/components/schemas/FormalFile' }
+                ontology: { $ref: '#/components/schemas/FormalFile' }
+                ptInterpretation: { $ref: '#/components/schemas/FormalFile' }
+                dtInterpretation: { $ref: '#/components/schemas/FormalFile' }
+      responses:
+        '200': { description: First version, the Blueprint and the import report, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/templates:
+    get:
+      tags: [blueprints]
+      summary: Installed Blueprint templates.
+      operationId: listBlueprintTemplates
+      responses:
+        '200': { description: Templates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/BlueprintTemplate' } } } } }
+  /blueprints/palettes:
+    get:
+      tags: [blueprints]
+      summary: World-editor tool palettes per domain.
+      operationId: getBlueprintPalettes
+      responses:
+        '200': { description: Palettes, content: { application/json: { schema: { $ref: '#/components/schemas/Palettes' } } } }
+  /blueprints/{blueprintId}:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }]
+    get:
+      tags: [blueprints]
+      summary: Blueprint with all versions and its instances.
+      operationId: getBlueprint
+      responses:
+        '200': { description: Blueprint, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [blueprints]
+      summary: Update the Blueprint's name, description, domain or icon.
+      operationId: updateBlueprint
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Blueprint, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintListItem' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blueprints/{blueprintId}/versions/{bpVersion}:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: Version document, pins, revision (drafts) and whether it is editable.
+      operationId: getBlueprintVersion
+      responses:
+        '200': { description: Version, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintVersionDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/drafts:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    post:
+      tags: [blueprints]
+      summary: Create the next draft from this version (one draft per Blueprint).
+      operationId: createBlueprintDraft
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { note: { type: string } } } } } }
+      responses:
+        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintVersionSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/sections/{section}:
+    parameters:
+      - { $ref: '#/components/parameters/blueprintId' }
+      - { $ref: '#/components/parameters/bpVersion' }
+      - { name: section, in: path, required: true, schema: { type: string, enum: [identity, structure, world, data, connectivity, presentation, behavior, assurance, simulation, scenarios] } }
+    put:
+      tags: [blueprints]
+      summary: Save one section of a draft (optimistic concurrency on `revision`; 409 when stale). Returns the section's findings.
+      operationId: saveBlueprintSection
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [revision, content], properties: { revision: { type: integer }, content: {} } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/SectionSaveResult' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/models/{viewRole}:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }, { $ref: '#/components/parameters/viewRole' }]
+    get:
+      tags: [blueprints]
+      summary: The PT or DT view as a canonical timed automaton (twin-ta/1), its layout and structural diagnostics.
+      operationId: getBlueprintModel
+      responses:
+        '200': { description: Model, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintModelView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [blueprints]
+      summary: Save the view (twin-ta/1) and its layout into the draft's editable artefact version.
+      operationId: saveBlueprintModel
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [revision, model], properties: { revision: { type: integer }, model: { $ref: '#/components/schemas/TaModel' }, layout: {} } } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/ModelSaveResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/models/{viewRole}/import:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }, { $ref: '#/components/parameters/viewRole' }]
+    post:
+      tags: [blueprints]
+      summary: Import a view (UPPAAL XML, twin-ta/1 JSON or TwinTA text); unsupported constructs are reported, never approximated.
+      operationId: importBlueprintModel
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [revision, filename, content], properties: { revision: { type: integer }, filename: { type: string }, content: { type: string } } } } } }
+      responses:
+        '200': { description: Import report, content: { application/json: { schema: { $ref: '#/components/schemas/ModelImportResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/semantics/{semanticRole}:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }, { $ref: '#/components/parameters/semanticRole' }]
+    get:
+      tags: [blueprints]
+      summary: Ontology or interpretation pinned by the version, with parsed structure, diagnostics and coverage.
+      operationId: getBlueprintSemantics
+      responses:
+        '200': { description: Semantics, content: { application/json: { schema: { $ref: '#/components/schemas/SemanticsView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [blueprints]
+      summary: Save the text into the draft's editable version, or pin an existing version (`ref`). An interpretation needs the ontology first.
+      operationId: saveBlueprintSemantics
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [revision], properties: { revision: { type: integer }, content: { type: string }, ref: { type: string } } } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/SemanticsView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/validation:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: Findings of every section (structure, world, data, connectivity, assurance, scenarios...).
+      operationId: getBlueprintValidation
+      responses:
+        '200': { description: Findings, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintValidation' } } } }
+  /blueprints/{blueprintId}/versions/{bpVersion}/status:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: Section states, completeness and the release gate, from evidence for exactly the pinned inputs.
+      operationId: getBlueprintStatus
+      responses:
+        '200': { description: Status, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintStatus' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/checks/{check}:
+    parameters:
+      - { $ref: '#/components/parameters/blueprintId' }
+      - { $ref: '#/components/parameters/bpVersion' }
+      - { name: check, in: path, required: true, schema: { type: string, enum: [formal, alignment, compile, refinement, scenarios, package] } }
+    post:
+      tags: [checks]
+      summary: Run a check on the version's pinned inputs and record its evidence (package also builds the Deployment Bundle; it requires every other gate item to pass).
+      operationId: runBlueprintCheck
+      responses:
+        '200': { description: Check result (evidence), content: { application/json: { schema: { $ref: '#/components/schemas/CheckResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/world/raster:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: Simulator grids rasterised from the world (ground truth and the twin's initial knowledge).
+      operationId: getBlueprintWorldRaster
+      responses:
+        '200': { description: Grids, content: { application/json: { schema: { $ref: '#/components/schemas/WorldRaster' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/timing:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    post:
+      tags: [checks]
+      summary: Kernel what-if on the compiled Digital Twin View — availability (now / later / blocked) with every legal interval, explanations and refusals.
+      description: |
+        Body: a what-if request (`start`, `steps`) or `scenarioSteps` (the steps of a Blueprint
+        scenario; world observations generate their mapped events, expectations let time pass;
+        `origins` names each formal step's source). Plant (PT) events are translated through the
+        label equivalence of the alignment evidence for exactly these inputs.
+      operationId: blueprintTiming
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Timing, content: { application/json: { schema: { $ref: '#/components/schemas/TimingResult' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/scenarios/{scenarioId}/run:
+    parameters:
+      - { $ref: '#/components/parameters/blueprintId' }
+      - { $ref: '#/components/parameters/bpVersion' }
+      - { name: scenarioId, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [checks]
+      summary: Run one scenario as a test on the kernel (tests of example runs, not proofs).
+      operationId: runBlueprintScenario
+      responses:
+        '200': { description: Results, content: { application/json: { schema: { $ref: '#/components/schemas/ScenarioRun' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/impact:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: What changed against another version (default the parent) and what must be re-run or rebuilt.
+      operationId: getBlueprintImpact
+      parameters: [{ name: against, in: query, schema: { type: integer } }]
+      responses:
+        '200': { description: Impact, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintImpact' } } } }
+  /blueprints/{blueprintId}/versions/{bpVersion}/package:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [packages]
+      summary: Verified Core Package and Deployment Bundle of the version (with what would be packaged before a build).
+      operationId: getBlueprintPackage
+      responses:
+        '200': { description: Package view, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintPackageView' } } } }
+  /blueprints/{blueprintId}/versions/{bpVersion}/publish:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    post:
+      tags: [blueprints]
+      summary: Publish the draft (refused with the blockers while the release gate does not pass).
+      operationId: publishBlueprint
+      responses:
+        '200': { description: Published version, content: { application/json: { schema: { $ref: '#/components/schemas/BlueprintVersionSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /blueprints/{blueprintId}/versions/{bpVersion}/export:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: Export the version as a twin-blueprint-bundle/1 document (sections and formal artefacts).
+      operationId: exportBlueprint
+      responses:
+        '200': { description: Bundle, content: { application/json: { schema: { type: object } } } }
+  /blueprints/{blueprintId}/versions/{bpVersion}/bindings/test:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    post:
+      tags: [blueprints]
+      summary: Test a data binding against its source (one read; nothing is stored).
+      operationId: testBlueprintBinding
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Result, content: { application/json: { schema: { $ref: '#/components/schemas/BindingTestResult' } } } }
+  /blueprints/{blueprintId}/versions/{bpVersion}/preview:
+    parameters: [{ $ref: '#/components/parameters/blueprintId' }, { $ref: '#/components/parameters/bpVersion' }]
+    get:
+      tags: [blueprints]
+      summary: State of the version's isolated Studio preview.
+      operationId: getBlueprintPreview
+      responses:
+        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/PreviewView' } } } }
+    post:
+      tags: [blueprints]
+      summary: Start the isolated STUDIO PREVIEW (no twin record, deployment or stored telemetry); its runtime is reachable through the twin proxy under previewId.
+      operationId: startBlueprintPreview
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { speed: { type: string }, paused: { type: boolean }, simulator: { type: boolean } } } } } }
+      responses:
+        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/PreviewView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [blueprints]
+      summary: Stop the preview (idempotent).
+      operationId: stopBlueprintPreview
+      responses:
+        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/PreviewView' } } } }
+
+  /instances:
+    get:
+      tags: [instances]
+      summary: Twin instances (optionally of one Blueprint) with their supervised runtime state.
+      operationId: listInstances
+      parameters: [{ name: blueprint, in: query, schema: { type: string } }]
+      responses:
+        '200': { description: Instances, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/InstanceView' } } } } }
+    post:
+      tags: [instances]
+      summary: Create an instance from a published Blueprint version (assets, identity, placement, target).
+      operationId: createInstance
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [blueprintId, version, id] } } } }
+      responses:
+        '200': { description: Instance, content: { application/json: { schema: { $ref: '#/components/schemas/InstanceView' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /instances/{instanceId}:
+    parameters: [{ $ref: '#/components/parameters/instanceId' }]
+    get:
+      tags: [instances]
+      summary: One instance with its runtime state and whether a newer published version exists.
+      operationId: getInstance
+      responses:
+        '200': { description: Instance, content: { application/json: { schema: { $ref: '#/components/schemas/InstanceView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /instances/{instanceId}/monitors:
+    parameters: [{ $ref: '#/components/parameters/instanceId' }]
+    get:
+      tags: [instances]
+      summary: Live monitor results, active alerts and requirement status (each monitor evaluated by its authority; unknown when it cannot be).
+      operationId: getInstanceMonitors
+      responses:
+        '200': { description: Monitors, content: { application/json: { schema: { $ref: '#/components/schemas/InstanceMonitorsView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /instances/{instanceId}/deploy:
+    parameters: [{ $ref: '#/components/parameters/instanceId' }]
+    post:
+      tags: [deployments]
+      summary: Deploy (or upgrade / roll back to `version`) under the deployment supervisor.
+      operationId: deployInstance
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { version: { type: integer }, reason: { type: string } } } } } }
+      responses:
+        '200': { description: Deployment, content: { application/json: { schema: { type: object } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /instances/{instanceId}/{action}:
+    parameters:
+      - { $ref: '#/components/parameters/instanceId' }
+      - { name: action, in: path, required: true, schema: { type: string, enum: [start, stop] } }
+    post:
+      tags: [deployments]
+      summary: Start or stop a deployed instance (its desired state).
+      operationId: controlInstance
+      responses:
+        '200': { description: Instance, content: { application/json: { schema: { $ref: '#/components/schemas/InstanceView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /supervisor:
+    get:
+      tags: [deployments]
+      summary: Deployment supervisor availability and every supervised instance and preview.
+      operationId: getSupervisor
+      responses:
+        '200': { description: Supervisor, content: { application/json: { schema: { type: object, required: [available, instances], properties: { available: { type: boolean }, binDir: { type: string }, instances: { type: array, items: { $ref: '#/components/schemas/SupervisorStatus' } } } } } } }
+  /blobs:
+    post:
+      tags: [blueprints]
+      summary: Store a content-addressed blob (world background images) and return its URL.
+      operationId: uploadBlob
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [mime, data], properties: { mime: { type: string }, data: { type: string, description: base64 } } } } } }
+      responses:
+        '200': { description: Blob, content: { application/json: { schema: { type: object, required: [sha256, url], properties: { sha256: { type: string }, url: { type: string }, mime: { type: string }, size: { type: integer } } } } } }
+
   /audit:
     get:
       tags: [audit]
@@ -664,12 +1021,21 @@ components:
     evidenceId: { name: evidenceId, in: path, required: true, schema: { type: string, pattern: '^EV-[0-9]+$' } }
     changeId: { name: changeId, in: path, required: true, schema: { type: string, pattern: '^CHG-[0-9]+$' } }
     packageId: { name: packageId, in: path, required: true, schema: { type: string, pattern: '^PKG-[0-9]+$' } }
+    blueprintId: { name: blueprintId, in: path, required: true, schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]*$' } }
+    bpVersion: { name: bpVersion, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    viewRole: { name: viewRole, in: path, required: true, schema: { type: string, enum: [pt, dt] } }
+    semanticRole: { name: semanticRole, in: path, required: true, schema: { type: string, enum: [ontology, pt_interpretation, dt_interpretation] } }
+    instanceId: { name: instanceId, in: path, required: true, schema: { type: string } }
   responses:
     BadRequest: { description: Invalid argument or parse error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     NotFound: { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Conflict: { description: Not allowed in the current lifecycle state, or integrity conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     Unavailable: { description: The twin's runtime is not connected or not reachable, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    FormalFile:
+      type: object
+      required: [filename, content]
+      properties: { filename: { type: string }, content: { type: string } }
     Error:
       type: object
       required: [error]
@@ -784,6 +1150,31 @@ components:
       - ontologyServices
       - ontologyChecker
       - epoch
+      type: object
+    AlertDef:
+      properties:
+        id:
+          type: string
+        message:
+          type: string
+        monitor:
+          type: string
+        'on':
+          enum:
+          - violated
+          - finding
+          - inconclusive
+        severity:
+          enum:
+          - warning
+          - critical
+          - info
+      required:
+      - id
+      - monitor
+      - 'on'
+      - severity
+      - message
       type: object
     ApiErrorBody:
       properties:
@@ -1162,6 +1553,61 @@ components:
       - properties
       - twinId
       type: object
+    AssetTypeDef:
+      properties:
+        category:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        properties:
+          items:
+            $ref: '#/components/schemas/AssetTypeProperty'
+          type: array
+      required:
+      - id
+      - name
+      - properties
+      type: object
+    AssetTypeProperty:
+      properties:
+        default:
+          type: string
+        key:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+        unit:
+          type: string
+      required:
+      - key
+      type: object
+    AssuranceSection:
+      properties:
+        alerts:
+          items:
+            $ref: '#/components/schemas/AlertDef'
+          type: array
+        format:
+          type: string
+        monitors:
+          items:
+            $ref: '#/components/schemas/MonitorDef'
+          type: array
+        requirements:
+          items:
+            $ref: '#/components/schemas/RequirementDef'
+          type: array
+      required:
+      - requirements
+      - monitors
+      - alerts
+      type: object
     AuditRecord:
       properties:
         actor:
@@ -1219,6 +1665,112 @@ components:
       - headHash
       - verifiedAt
       type: object
+    Availability:
+      properties:
+        alternatives:
+          items:
+            $ref: '#/components/schemas/TimingAlternative'
+          type: array
+        intervals:
+          items:
+            $ref: '#/components/schemas/TimingInterval'
+          type: array
+        label:
+          type: string
+        status:
+          description: '"now": enabled at the current time; "later": after a delay; "blocked": never from here.'
+          enum:
+          - blocked
+          - now
+          - later
+      required:
+      - label
+      - status
+      - intervals
+      - alternatives
+      type: object
+    AvailabilityView:
+      properties:
+        availability:
+          items:
+            $ref: '#/components/schemas/Availability'
+          type: array
+        invariants:
+          items:
+            properties:
+              invariant:
+                type: string
+              location:
+                type: string
+            required:
+            - location
+            - invariant
+            type: object
+          type: array
+        max_delay:
+          anyOf:
+          - $ref: '#/components/schemas/TimeValue'
+          - type: 'null'
+        max_delay_at:
+          anyOf:
+          - $ref: '#/components/schemas/TimeValue'
+          - type: 'null'
+        propositions:
+          items:
+            additionalProperties: {}
+            properties:
+              id:
+                type: string
+            required:
+            - id
+            type: object
+          type: array
+        state:
+          properties:
+            configurations:
+              items:
+                properties:
+                  clocks:
+                    additionalProperties:
+                      $ref: '#/components/schemas/TimeValue'
+                    properties: {}
+                    type: object
+                  location:
+                    type: string
+                required:
+                - location
+                - clocks
+                type: object
+              type: array
+            time:
+              $ref: '#/components/schemas/TimeValue'
+          required:
+          - time
+          - configurations
+          type: object
+        unavailable:
+          items:
+            properties:
+              from_locations:
+                items:
+                  type: string
+                type: array
+              label:
+                type: string
+            required:
+            - label
+            - from_locations
+            type: object
+          type: array
+      required:
+      - state
+      - propositions
+      - max_delay
+      - max_delay_at
+      - invariants
+      - availability
+      - unavailable
+      type: object
     Binding:
       properties:
         artifactId:
@@ -1237,6 +1789,979 @@ components:
       - artifactId
       - version
       - sha256
+      type: object
+    BindingDef:
+      properties:
+        id:
+          type: string
+        select:
+          properties:
+            field:
+              type: string
+            node:
+              type: string
+            path:
+              type: string
+            topic:
+              type: string
+          type: object
+        source:
+          type: string
+        target:
+          properties:
+            id:
+              type: string
+            kind:
+              enum:
+              - event
+              - telemetry
+              - command
+          required:
+          - kind
+          - id
+          type: object
+        unit:
+          properties:
+            from:
+              type: string
+            offset:
+              type: string
+            scale:
+              type: string
+          type: object
+      required:
+      - id
+      - target
+      - source
+      - select
+      type: object
+    BindingTestResult:
+      properties:
+        availableFields:
+          items:
+            type: string
+          type: array
+        canonical: {}
+        detail:
+          type: string
+        httpStatus:
+          type: number
+        kind:
+          $ref: '#/components/schemas/SourceKind'
+        latencyMs:
+          type: number
+        quality:
+          type: string
+        raw: {}
+        samples:
+          items: {}
+          type: array
+        source:
+          type: string
+        status:
+          description: ok | adapter_unavailable | unreachable | bad_payload | not_found | not_configured | type_mismatch
+          type: string
+        timestamp:
+          type: string
+        typeCheck:
+          type: string
+        unit:
+          properties:
+            canonical:
+              type: string
+            offset:
+              type: string
+            scale:
+              type: string
+            source:
+              type: string
+          type: object
+        value: {}
+      required:
+      - source
+      - kind
+      - status
+      type: object
+    BlueprintAssetDef:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        parent:
+          type: string
+        properties:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        scope:
+          description: '"instance": every instance gets its own; "context": shared site/estate asset.'
+          enum:
+          - instance
+          - context
+        tags:
+          items:
+            type: string
+          type: array
+        type:
+          type: string
+      required:
+      - id
+      - name
+      - type
+      - scope
+      type: object
+    BlueprintDetail:
+      properties:
+        clonedFrom:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        domain:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        instances:
+          items:
+            $ref: '#/components/schemas/InstanceView'
+          type: array
+        name:
+          type: string
+        templateId:
+          type:
+          - string
+          - 'null'
+        versions:
+          items:
+            $ref: '#/components/schemas/BlueprintVersionSummary'
+          type: array
+      required:
+      - versions
+      - instances
+      - id
+      - name
+      - description
+      - domain
+      - icon
+      - templateId
+      - clonedFrom
+      - createdAt
+      - createdBy
+      type: object
+    BlueprintDocument:
+      properties:
+        assurance:
+          $ref: '#/components/schemas/AssuranceSection'
+        behavior:
+          properties:
+            dt:
+              properties:
+                layout:
+                  anyOf:
+                  - $ref: '#/components/schemas/TaLayout'
+                  - type: 'null'
+              type: object
+            pt:
+              properties:
+                layout:
+                  anyOf:
+                  - $ref: '#/components/schemas/TaLayout'
+                  - type: 'null'
+              type: object
+          type: object
+        connectivity:
+          $ref: '#/components/schemas/ConnectivitySection'
+        data:
+          $ref: '#/components/schemas/DataSection'
+        format:
+          const: twin-blueprint/1
+        identity:
+          $ref: '#/components/schemas/BlueprintIdentity'
+        presentation:
+          $ref: '#/components/schemas/PresentationSection'
+        scenarios:
+          items:
+            $ref: '#/components/schemas/ScenarioDef'
+          type: array
+        simulation:
+          $ref: '#/components/schemas/SimulationSection'
+        structure:
+          $ref: '#/components/schemas/StructureSection'
+        world:
+          $ref: '#/components/schemas/WorldDocument'
+      required:
+      - format
+      - identity
+      - structure
+      - world
+      - data
+      - connectivity
+      - presentation
+      - behavior
+      - assurance
+      - simulation
+      - scenarios
+      type: object
+    BlueprintIdentity:
+      properties:
+        description:
+          type: string
+        domain:
+          type: string
+        icon:
+          type: string
+        modelId:
+          type: string
+        name:
+          type: string
+        plugin:
+          type:
+          - string
+          - 'null'
+        runtimeMode:
+          $ref: '#/components/schemas/RuntimeMode'
+        tags:
+          items:
+            type: string
+          type: array
+        ticksPerUnit:
+          type: number
+        timeUnit:
+          type: string
+      required:
+      - name
+      - domain
+      - modelId
+      - timeUnit
+      - ticksPerUnit
+      - runtimeMode
+      type: object
+    BlueprintImpact:
+      properties:
+        against:
+          type:
+          - number
+          - 'null'
+        formal:
+          properties:
+            alignmentStale:
+              type: boolean
+            bundleStale:
+              type: boolean
+            irStale:
+              type: boolean
+            packageStale:
+              type: boolean
+          required:
+          - alignmentStale
+          - irStale
+          - packageStale
+          - bundleStale
+          type: object
+        instances:
+          items:
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              version:
+                type:
+                - number
+                - 'null'
+            required:
+            - id
+            - name
+            - version
+            type: object
+          type: array
+        sections:
+          items:
+            properties:
+              classification:
+                enum:
+                - formal
+                - presentation
+                - tests
+                - deployment
+                - verified-core
+              consequences:
+                items:
+                  type: string
+                type: array
+              from:
+                type: string
+              section:
+                type: string
+              to:
+                type: string
+            required:
+            - section
+            - classification
+            - consequences
+            type: object
+          type: array
+        summary:
+          type: string
+        version:
+          type: number
+      required:
+      - against
+      - sections
+      - summary
+      type: object
+    BlueprintListItem:
+      properties:
+        clonedFrom:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        domain:
+          type: string
+        draft:
+          anyOf:
+          - $ref: '#/components/schemas/BlueprintVersionSummary'
+          - type: 'null'
+        draftBlockers:
+          type: number
+        draftErrors:
+          type: number
+        draftReadiness:
+          description: Release gate of the draft for exactly its inputs (absent without a draft).
+          enum:
+          - blocked
+          - ready
+        draftWarnings:
+          type: number
+        icon:
+          type: string
+        id:
+          type: string
+        instanceCount:
+          type: number
+        latest:
+          anyOf:
+          - $ref: '#/components/schemas/BlueprintVersionSummary'
+          - type: 'null'
+        name:
+          type: string
+        published:
+          anyOf:
+          - $ref: '#/components/schemas/BlueprintVersionSummary'
+          - type: 'null'
+        templateId:
+          type:
+          - string
+          - 'null'
+        updatedAt:
+          type: string
+        versions:
+          items:
+            $ref: '#/components/schemas/BlueprintVersionSummary'
+          type: array
+      required:
+      - versions
+      - draft
+      - published
+      - latest
+      - updatedAt
+      - instanceCount
+      - id
+      - name
+      - description
+      - domain
+      - icon
+      - templateId
+      - clonedFrom
+      - createdAt
+      - createdBy
+      type: object
+    BlueprintMeta:
+      properties:
+        clonedFrom:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        description:
+          type: string
+        domain:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        templateId:
+          type:
+          - string
+          - 'null'
+      required:
+      - id
+      - name
+      - description
+      - domain
+      - icon
+      - templateId
+      - clonedFrom
+      - createdAt
+      - createdBy
+      type: object
+    BlueprintModelView:
+      properties:
+        artifact:
+          anyOf:
+          - $ref: '#/components/schemas/ArtifactVersion'
+          - type: 'null'
+        contentFormat:
+          type: string
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/TaDiagnostic'
+          type: array
+        editable:
+          type: boolean
+        layout:
+          anyOf:
+          - $ref: '#/components/schemas/TaLayout'
+          - type: 'null'
+        model:
+          anyOf:
+          - $ref: '#/components/schemas/TaModel'
+          - type: 'null'
+        revision:
+          type: number
+        role:
+          enum:
+          - pt_model
+          - dt_model
+        semanticDigest:
+          type:
+          - string
+          - 'null'
+        validation:
+          anyOf:
+          - $ref: '#/components/schemas/EvidenceRecord'
+          - type: 'null'
+      required:
+      - role
+      - editable
+      - revision
+      - artifact
+      - model
+      - layout
+      - diagnostics
+      - semanticDigest
+      type: object
+    BlueprintPackageView:
+      properties:
+        bundle:
+          anyOf:
+          - $ref: '#/components/schemas/BundleView'
+          - type: 'null'
+        deploymentContent:
+          items:
+            properties:
+              section:
+                type: string
+              sha256:
+                type:
+                - string
+                - 'null'
+            required:
+            - section
+            - sha256
+            type: object
+          type: array
+        integrity:
+          $ref: '#/components/schemas/PackageIntegrity'
+        package:
+          anyOf:
+          - $ref: '#/components/schemas/PackageDetail'
+          - type: 'null'
+        verificationScope:
+          properties:
+            formallyVerified:
+              items:
+                type: string
+              type: array
+            integrityOnly:
+              items:
+                type: string
+              type: array
+          required:
+          - formallyVerified
+          - integrityOnly
+          type: object
+        verifiedCoreInputs:
+          items:
+            properties:
+              ref:
+                type:
+                - string
+                - 'null'
+              role:
+                type: string
+            required:
+            - role
+            - ref
+            type: object
+          type: array
+        version:
+          $ref: '#/components/schemas/BlueprintVersionSummary'
+      required:
+      - version
+      - package
+      - bundle
+      - verifiedCoreInputs
+      - deploymentContent
+      - verificationScope
+      type: object
+    BlueprintSectionId:
+      enum:
+      - identity
+      - structure
+      - world
+      - data
+      - connectivity
+      - presentation
+      - behavior
+      - assurance
+      - simulation
+      - scenarios
+    BlueprintSectionStatus:
+      properties:
+        detail:
+          type: string
+        errors:
+          type: number
+        id:
+          type: string
+        route:
+          type: string
+        state:
+          $ref: '#/components/schemas/SectionState'
+        summary:
+          type: string
+        title:
+          type: string
+        warnings:
+          type: number
+      required:
+      - id
+      - title
+      - state
+      - summary
+      - route
+      - errors
+      - warnings
+      - detail
+      type: object
+    BlueprintStatus:
+      properties:
+        alignment:
+          properties:
+            at:
+              type: string
+            evidenceId:
+              type:
+              - string
+              - 'null'
+            state:
+              type: string
+          required:
+          - state
+          - evidenceId
+          type: object
+        completeness:
+          properties:
+            complete:
+              type: number
+            next:
+              items:
+                properties:
+                  detail:
+                    type: string
+                  route:
+                    type: string
+                  section:
+                    type: string
+                  state:
+                    $ref: '#/components/schemas/SectionState'
+                  title:
+                    type: string
+                required:
+                - section
+                - title
+                - state
+                - route
+                - detail
+                type: object
+              type: array
+            total:
+              type: number
+          required:
+          - complete
+          - total
+          - next
+          type: object
+        findings:
+          items:
+            $ref: '#/components/schemas/SectionFinding'
+          type: array
+        readiness:
+          properties:
+            blockers:
+              items:
+                type: string
+              type: array
+            items:
+              items:
+                $ref: '#/components/schemas/GateItem'
+              type: array
+            readyToPackage:
+              type: boolean
+            verdict:
+              enum:
+              - blocked
+              - ready
+          required:
+          - verdict
+          - readyToPackage
+          - items
+          - blockers
+          type: object
+        sections:
+          items:
+            $ref: '#/components/schemas/BlueprintSectionStatus'
+          type: array
+        version:
+          $ref: '#/components/schemas/BlueprintVersionSummary'
+      required:
+      - version
+      - sections
+      - completeness
+      - readiness
+      - alignment
+      - findings
+      type: object
+    BlueprintTemplate:
+      properties:
+        description:
+          type: string
+        domain:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        includes:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        order:
+          type: number
+      required:
+      - id
+      - name
+      - description
+      - domain
+      - icon
+      - order
+      - includes
+      type: object
+    BlueprintValidation:
+      properties:
+        errors:
+          type: number
+        findings:
+          items:
+            $ref: '#/components/schemas/SectionFinding'
+          type: array
+        sections:
+          additionalProperties:
+            properties:
+              errors:
+                type: number
+              warnings:
+                type: number
+            required:
+            - errors
+            - warnings
+            type: object
+          properties: {}
+          type: object
+        valid:
+          type: boolean
+        warnings:
+          type: number
+      required:
+      - valid
+      - errors
+      - warnings
+      - sections
+      - findings
+      type: object
+    BlueprintVersionDetail:
+      properties:
+        artifacts:
+          description: Pinned formal artefact versions by role.
+          properties:
+            dt_interpretation:
+              $ref: '#/components/schemas/ArtifactVersion'
+            dt_model:
+              $ref: '#/components/schemas/ArtifactVersion'
+            ontology:
+              $ref: '#/components/schemas/ArtifactVersion'
+            pt_interpretation:
+              $ref: '#/components/schemas/ArtifactVersion'
+            pt_model:
+              $ref: '#/components/schemas/ArtifactVersion'
+          type: object
+        blueprint:
+          $ref: '#/components/schemas/BlueprintMeta'
+        blueprintId:
+          type: string
+        bundleId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        document:
+          $ref: '#/components/schemas/BlueprintDocument'
+        documentSha256:
+          type: string
+        editable:
+          type: boolean
+        label:
+          description: '"v2" or "v3-draft".'
+          type: string
+        note:
+          type: string
+        packageId:
+          type:
+          - string
+          - 'null'
+        parent:
+          type:
+          - number
+          - 'null'
+        pins:
+          additionalProperties:
+            type: string
+          description: role -> "artifact@version".
+          properties: {}
+          type: object
+        publishedAt:
+          type:
+          - string
+          - 'null'
+        revision:
+          description: Optimistic-concurrency revision of a draft (incremented by every save).
+          type: number
+        state:
+          $ref: '#/components/schemas/BlueprintVersionState'
+        updatedAt:
+          type: string
+        updatedBy:
+          type: string
+        version:
+          type: number
+      required:
+      - document
+      - editable
+      - artifacts
+      - blueprint
+      - blueprintId
+      - version
+      - label
+      - state
+      - revision
+      - parent
+      - documentSha256
+      - pins
+      - packageId
+      - bundleId
+      - note
+      - createdAt
+      - createdBy
+      - updatedAt
+      - updatedBy
+      - publishedAt
+      type: object
+    BlueprintVersionState:
+      enum:
+      - draft
+      - published
+      - deprecated
+    BlueprintVersionSummary:
+      properties:
+        blueprintId:
+          type: string
+        bundleId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        documentSha256:
+          type: string
+        label:
+          description: '"v2" or "v3-draft".'
+          type: string
+        note:
+          type: string
+        packageId:
+          type:
+          - string
+          - 'null'
+        parent:
+          type:
+          - number
+          - 'null'
+        pins:
+          additionalProperties:
+            type: string
+          description: role -> "artifact@version".
+          properties: {}
+          type: object
+        publishedAt:
+          type:
+          - string
+          - 'null'
+        revision:
+          description: Optimistic-concurrency revision of a draft (incremented by every save).
+          type: number
+        state:
+          $ref: '#/components/schemas/BlueprintVersionState'
+        updatedAt:
+          type: string
+        updatedBy:
+          type: string
+        version:
+          type: number
+      required:
+      - blueprintId
+      - version
+      - label
+      - state
+      - revision
+      - parent
+      - documentSha256
+      - pins
+      - packageId
+      - bundleId
+      - note
+      - createdAt
+      - createdBy
+      - updatedAt
+      - updatedBy
+      - publishedAt
+      type: object
+    BundleView:
+      properties:
+        blueprintId:
+          type: string
+        bundleHash:
+          type: string
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+        filesIntact:
+          type: boolean
+        id:
+          type: string
+        intact:
+          type: boolean
+        manifest:
+          additionalProperties: {}
+          properties:
+            files:
+              items:
+                properties:
+                  path:
+                    type: string
+                  role:
+                    type: string
+                  sha256:
+                    type: string
+                  size:
+                    type: number
+                  verification:
+                    type: string
+                required:
+                - path
+                - role
+                - sha256
+                - size
+                - verification
+                type: object
+              type: array
+            format:
+              type: string
+            verificationScope:
+              properties:
+                formallyVerified:
+                  items:
+                    type: string
+                  type: array
+                integrityOnly:
+                  items:
+                    type: string
+                  type: array
+                note:
+                  type: string
+              required:
+              - formallyVerified
+              - integrityOnly
+              - note
+              type: object
+          required:
+          - format
+          - files
+          - verificationScope
+          type: object
+        packageId:
+          type: string
+        version:
+          type: number
+      required:
+      - id
+      - blueprintId
+      - version
+      - packageId
+      - bundleHash
+      - createdAt
+      - createdBy
       type: object
     Change:
       properties:
@@ -1346,12 +2871,146 @@ components:
       - createdBy
       - closedAt
       type: object
+    CheckResult:
+      additionalProperties: {}
+      properties:
+        check:
+          type: string
+        document:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        id:
+          type: string
+        outcome:
+          enum:
+          - pass
+          - fail
+          - unknown
+          - error
+        results:
+          items: {}
+          type: array
+        summary:
+          type: string
+        verdict:
+          type: string
+      type: object
+    CommandDef:
+      properties:
+        acknowledgement:
+          properties:
+            event:
+              type: string
+            timeoutMs:
+              type: number
+          type: object
+        asset:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        label:
+          type: string
+        observedConsequence:
+          properties:
+            event:
+              type: string
+            timeoutMs:
+              type: number
+          type: object
+        parameters:
+          items:
+            properties:
+              key:
+                type: string
+              type:
+                $ref: '#/components/schemas/DataType'
+              unit:
+                type: string
+            required:
+            - key
+            - type
+            type: object
+          type: array
+      required:
+      - id
+      - label
+      type: object
     ConditionStatus:
       enum:
       - unknown
       - holds
       - violated
       - not_evaluated
+    ConnectivitySection:
+      properties:
+        bindings:
+          items:
+            $ref: '#/components/schemas/BindingDef'
+          type: array
+        sources:
+          items:
+            $ref: '#/components/schemas/DataSourceDef'
+          type: array
+      required:
+      - sources
+      - bindings
+      type: object
+    DataSection:
+      properties:
+        commands:
+          items:
+            $ref: '#/components/schemas/CommandDef'
+          type: array
+        events:
+          items:
+            $ref: '#/components/schemas/EventDef'
+          type: array
+        properties:
+          items:
+            $ref: '#/components/schemas/StaticPropertyDef'
+          type: array
+        telemetry:
+          items:
+            $ref: '#/components/schemas/TelemetryDef'
+          type: array
+      required:
+      - properties
+      - telemetry
+      - events
+      - commands
+      type: object
+    DataSourceDef:
+      properties:
+        config:
+          additionalProperties:
+            type:
+            - string
+            - number
+            - boolean
+          properties: {}
+          type: object
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/SourceKind'
+        name:
+          type: string
+      required:
+      - id
+      - kind
+      - name
+      - config
+      type: object
+    DataType:
+      enum:
+      - string
+      - boolean
+      - real
+      - integer
+      - enum
     Deployment:
       properties:
         artifacts:
@@ -1665,6 +3324,40 @@ components:
       - ontologySha256
       - interpretationSha256
       type: object
+    EventDef:
+      properties:
+        asset:
+          type: string
+        description:
+          type: string
+        formal:
+          description: Formal labels of this event in the PT and DT views ("label!").
+          properties:
+            dt:
+              type: string
+            pt:
+              type: string
+          type: object
+        id:
+          type: string
+        label:
+          type: string
+        payload:
+          items:
+            properties:
+              key:
+                type: string
+              type:
+                $ref: '#/components/schemas/DataType'
+            required:
+            - key
+            - type
+            type: object
+          type: array
+      required:
+      - id
+      - label
+      type: object
     EvidenceInput:
       properties:
         artifactId:
@@ -1691,6 +3384,7 @@ components:
       - alignment
       - compilation
       - package
+      - scenario
     EvidenceRecord:
       properties:
         changeId:
@@ -1741,12 +3435,55 @@ components:
       - changeId
       - inputs
       type: object
+    FormalRole:
+      enum:
+      - ontology
+      - pt_model
+      - dt_model
+      - pt_interpretation
+      - dt_interpretation
     Freshness:
       enum:
       - stale
       - fresh
       - missing
       - invalid
+    GateItem:
+      properties:
+        blocking:
+          type: boolean
+        detail:
+          type: string
+        evidenceId:
+          type:
+          - string
+          - 'null'
+        fix:
+          description: Blueprint-relative route that fixes the item.
+          type: string
+        id:
+          type: string
+        state:
+          $ref: '#/components/schemas/GateState'
+        title:
+          type: string
+      required:
+      - id
+      - title
+      - state
+      - detail
+      - blocking
+      - fix
+      - evidenceId
+      type: object
+    GateState:
+      enum:
+      - pass
+      - fail
+      - error
+      - blocked
+      - not_applicable
+      - not_run
     GraphFacets:
       properties:
         assetTypes:
@@ -1932,6 +3669,201 @@ components:
       - analyzedAt
       - legend
       type: object
+    InstanceMonitorResult:
+      description: One monitor's live result (GET /instances/{id}/monitors).
+      properties:
+        detail:
+          type: string
+        evaluator:
+          description: runtime | property evaluator | telemetry store | studio
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        requirement:
+          type:
+          - string
+          - 'null'
+        severity:
+          type: string
+        status:
+          description: satisfied | violated | finding | inconclusive | unknown | error
+          type: string
+      required:
+      - id
+      - name
+      - kind
+      - severity
+      - requirement
+      - status
+      - detail
+      - evaluator
+      type: object
+    InstanceMonitorsView:
+      properties:
+        alerts:
+          items:
+            properties:
+              active:
+                type: boolean
+              id:
+                type: string
+              message:
+                type: string
+              monitor:
+                type: string
+              monitorStatus:
+                type: string
+              'on':
+                type: string
+              severity:
+                type: string
+            required:
+            - id
+            - monitor
+            - 'on'
+            - severity
+            - message
+            - active
+            - monitorStatus
+            type: object
+          type: array
+        blueprintId:
+          type: string
+        blueprintVersion:
+          type: number
+        evaluatedAt:
+          type: string
+        monitors:
+          items:
+            $ref: '#/components/schemas/InstanceMonitorResult'
+          type: array
+        requirements:
+          items:
+            properties:
+              category:
+                type: string
+              id:
+                type: string
+              severity:
+                type: string
+              status:
+                type: string
+              title:
+                type: string
+            required:
+            - id
+            - title
+            - severity
+            - category
+            - status
+            type: object
+          type: array
+        runtime:
+          properties:
+            available:
+              type: boolean
+            note:
+              type: string
+            session:
+              type: string
+            time:
+              $ref: '#/components/schemas/TimeValue'
+          required:
+          - available
+          type: object
+        twin:
+          type: string
+      required:
+      - twin
+      - blueprintId
+      - blueprintVersion
+      - evaluatedAt
+      - runtime
+      - monitors
+      - alerts
+      - requirements
+      type: object
+    InstanceView:
+      properties:
+        assetId:
+          type:
+          - string
+          - 'null'
+        blueprintId:
+          description: Blueprint the twin is an instance of (null for twins registered without one).
+          type:
+          - string
+          - 'null'
+        blueprintVersion:
+          description: Blueprint version the instance runs.
+          type:
+          - number
+          - 'null'
+        createdAt:
+          type: string
+        deployment:
+          anyOf:
+          - $ref: '#/components/schemas/Deployment'
+          - type: 'null'
+        description:
+          type: string
+        desiredState:
+          description: What the deployment supervisor reconciles to.
+          enum:
+          - running
+          - stopped
+        id:
+          type: string
+        instanceConfig:
+          additionalProperties: {}
+          description: Instance configuration (identity, placement, connectivity, target, asset map, channels).
+          properties: {}
+          type: object
+        latestPublishedVersion:
+          type:
+          - number
+          - 'null'
+        modelId:
+          type: string
+        name:
+          type: string
+        presentation:
+          $ref: '#/components/schemas/TwinPresentation'
+        runtime:
+          $ref: '#/components/schemas/SupervisorStatus'
+        runtimeUrl:
+          type:
+          - string
+          - 'null'
+        ticksPerUnit:
+          type: number
+        upgradeAvailable:
+          description: A newer published version of the Blueprint exists.
+          type: boolean
+        worldUrl:
+          description: Physical-twin simulator URL (ground truth, visualisation only).
+          type:
+          - string
+          - 'null'
+      required:
+      - runtime
+      - latestPublishedVersion
+      - upgradeAvailable
+      - id
+      - name
+      - assetId
+      - description
+      - modelId
+      - ticksPerUnit
+      - runtimeUrl
+      - presentation
+      - createdAt
+      - deployment
+      type: object
     InterpretationStructure:
       properties:
         entries:
@@ -2017,6 +3949,122 @@ components:
       - executionId
       - assetId
       type: object
+    ModelImportResult:
+      properties:
+        artifact:
+          $ref: '#/components/schemas/ArtifactVersion'
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/TaDiagnostic'
+          type: array
+        imported:
+          type: boolean
+        report:
+          properties:
+            diagnostics:
+              items:
+                $ref: '#/components/schemas/TaDiagnostic'
+              type: array
+            format:
+              type: string
+            layout: {}
+            provenance:
+              additionalProperties: {}
+              properties: {}
+              type: object
+          required:
+          - format
+          - diagnostics
+          type: object
+        revision:
+          type: number
+        semanticDigest:
+          type:
+          - string
+          - 'null'
+      required:
+      - imported
+      - report
+      type: object
+    ModelSaveResult:
+      properties:
+        artifact:
+          $ref: '#/components/schemas/ArtifactVersion'
+        diagnostics:
+          items:
+            $ref: '#/components/schemas/TaDiagnostic'
+          type: array
+        revision:
+          type: number
+        semanticDigest:
+          type:
+          - string
+          - 'null'
+      required:
+      - revision
+      - artifact
+      - diagnostics
+      - semanticDigest
+      type: object
+    MonitorDef:
+      properties:
+        check:
+          type: string
+        condition:
+          type: string
+        events:
+          anyOf:
+          - type: string
+          - items:
+              type: string
+            type: array
+          description: '"all" or a list of Physical System View labels ("start!").'
+        field:
+          type: string
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/MonitorKind'
+        max:
+          type:
+          - string
+          - number
+        maxAgeSeconds:
+          type: number
+        maxSilenceSeconds:
+          type: number
+        min:
+          description: Integer or decimal string (canonical documents hold no floats).
+          type:
+          - string
+          - number
+        name:
+          type: string
+        property:
+          type: string
+        requirement:
+          type: string
+        severity:
+          enum:
+          - warning
+          - critical
+          - info
+        unmatchedEvents:
+          enum:
+          - record
+          - reject
+      required:
+      - id
+      - kind
+      - name
+      - severity
+      type: object
+    MonitorKind:
+      enum:
+      - conformance
+      - property
+      - data_quality
+      - semantic
     Neighborhood:
       properties:
         edges:
@@ -2480,6 +4528,82 @@ components:
       - releasedAt
       - changeId
       type: object
+    PaletteTool:
+      properties:
+        defaults:
+          properties:
+            h:
+              type: number
+            properties:
+              additionalProperties:
+                type:
+                - string
+                - number
+                - boolean
+              properties: {}
+              type: object
+            w:
+              type: number
+            width:
+              type: number
+          type: object
+        description:
+          type: string
+        icon:
+          type: string
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/WorldObjectKind'
+        label:
+          type: string
+        layerRole:
+          enum:
+          - shared
+          - ground-truth
+          - knowledge
+          - event
+          - annotation
+          - background
+        semanticType:
+          type: string
+      required:
+      - id
+      - label
+      - kind
+      - semanticType
+      type: object
+    Palettes:
+      properties:
+        domains:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          properties: {}
+          type: object
+        format:
+          type: string
+        palettes:
+          additionalProperties:
+            properties:
+              label:
+                type: string
+              tools:
+                items:
+                  $ref: '#/components/schemas/PaletteTool'
+                type: array
+            required:
+            - label
+            - tools
+            type: object
+          properties: {}
+          type: object
+      required:
+      - format
+      - palettes
+      - domains
+      type: object
     Pipeline:
       properties:
         blocking:
@@ -2565,6 +4689,112 @@ components:
           - line
           - state
           - table
+      type: object
+    PresentationSection:
+      properties:
+        charts:
+          items:
+            properties:
+              telemetry:
+                items:
+                  type: string
+                type: array
+              title:
+                type: string
+            required:
+            - title
+            - telemetry
+            type: object
+          type: array
+        displayName:
+          type: string
+        events:
+          additionalProperties:
+            properties:
+              label:
+                type: string
+            type: object
+          properties: {}
+          type: object
+        icon:
+          type: string
+        importantAssets:
+          items:
+            type: string
+          type: array
+        importantMonitors:
+          items:
+            type: string
+          type: array
+        importantPredictions:
+          items:
+            type: string
+          type: array
+        importantPropositions:
+          items:
+            type: string
+          type: array
+        keyTelemetry:
+          items:
+            type: string
+          type: array
+        plugin:
+          type:
+          - string
+          - 'null'
+        precision:
+          additionalProperties:
+            type: number
+          properties: {}
+          type: object
+        primaryView:
+          type: string
+        states:
+          additionalProperties:
+            $ref: '#/components/schemas/StatePresentation'
+          properties: {}
+          type: object
+        units:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+      required:
+      - displayName
+      - primaryView
+      - keyTelemetry
+      - importantAssets
+      - importantPropositions
+      - importantMonitors
+      - importantPredictions
+      - states
+      - events
+      - charts
+      type: object
+    PreviewView:
+      properties:
+        banner:
+          const: STUDIO PREVIEW
+        core:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        isolation:
+          type: string
+        mode:
+          enum:
+          - monitor
+          - cosimulation
+        previewId:
+          type: string
+        runtime:
+          $ref: '#/components/schemas/SupervisorStatus'
+        simulator:
+          type: string
+      required:
+      - previewId
+      - banner
+      - runtime
       type: object
     Quality:
       enum:
@@ -2747,6 +4977,57 @@ components:
       - targetId
       - properties
       type: object
+    RelationshipDef:
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        target:
+          type: string
+        type:
+          type: string
+      required:
+      - id
+      - source
+      - type
+      - target
+      type: object
+    RequirementCategory:
+      enum:
+      - safety
+      - mission
+      - performance
+      - timing
+      - operational
+    RequirementDef:
+      properties:
+        category:
+          $ref: '#/components/schemas/RequirementCategory'
+        description:
+          type: string
+        formal:
+          type: string
+        id:
+          type: string
+        monitors:
+          items:
+            type: string
+          type: array
+        severity:
+          enum:
+          - warning
+          - critical
+          - info
+        title:
+          type: string
+      required:
+      - id
+      - title
+      - category
+      - severity
+      - monitors
+      type: object
     RollbackPreview:
       properties:
         allowed:
@@ -2793,12 +5074,273 @@ components:
       - targetEvidence
       - allowed
       type: object
+    RuntimeMode:
+      enum:
+      - monitor
+      - cosimulation
+    ScenarioDef:
+      properties:
+        description:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        start:
+          properties:
+            configurations:
+              items: {}
+              type: array
+            kind:
+              enum:
+              - initial
+              - configurations
+          required:
+          - kind
+          type: object
+        steps:
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+          type: array
+      required:
+      - id
+      - name
+      - start
+      - steps
+      type: object
+    ScenarioResult:
+      properties:
+        failed:
+          type: number
+        final:
+          properties:
+            configurations:
+              items:
+                properties:
+                  clocks:
+                    additionalProperties:
+                      $ref: '#/components/schemas/TimeValue'
+                    properties: {}
+                    type: object
+                  location:
+                    type: string
+                required:
+                - location
+                - clocks
+                type: object
+              type: array
+            time:
+              $ref: '#/components/schemas/TimeValue'
+          required:
+          - time
+          - configurations
+          type: object
+        firstFailure:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        outcome:
+          enum:
+          - pass
+          - fail
+          - error
+        passed:
+          type: number
+        refused:
+          type: boolean
+        steps:
+          items:
+            $ref: '#/components/schemas/ScenarioStepResult'
+          type: array
+      required:
+      - id
+      - name
+      - outcome
+      - passed
+      - failed
+      - refused
+      - firstFailure
+      - final
+      - steps
+      type: object
+    ScenarioRun:
+      properties:
+        durationMs:
+          type: number
+        evidenceId:
+          type:
+          - string
+          - 'null'
+        failed:
+          type: number
+        kind:
+          const: tests
+        outcome:
+          enum:
+          - pass
+          - fail
+        passed:
+          type: number
+        results:
+          items:
+            $ref: '#/components/schemas/ScenarioResult'
+          type: array
+      required:
+      - outcome
+      - kind
+      - passed
+      - failed
+      - durationMs
+      - evidenceId
+      - results
+      type: object
+    ScenarioStep:
+      properties:
+        at:
+          description: Logical time of the step (decimal string in model time units).
+          type: string
+        change:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        delay:
+          type: string
+        expect:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        expectRefused:
+          type: boolean
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/ScenarioStepKind'
+        label:
+          type: string
+        level:
+          enum:
+          - pt
+          - dt
+        note:
+          type: string
+        observation:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        telemetry:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        transition:
+          type: string
+      required:
+      - id
+      - kind
+      type: object
+    ScenarioStepKind:
+      enum:
+      - world
+      - event
+      - delay
+      - observe
+      - expect
+    ScenarioStepResult:
+      properties:
+        actual:
+          type: string
+        after:
+          properties:
+            configurations:
+              items:
+                properties:
+                  clocks:
+                    additionalProperties:
+                      $ref: '#/components/schemas/TimeValue'
+                    properties: {}
+                    type: object
+                  location:
+                    type: string
+                required:
+                - location
+                - clocks
+                type: object
+              type: array
+            time:
+              $ref: '#/components/schemas/TimeValue'
+          required:
+          - time
+          - configurations
+          type: object
+        at:
+          type: string
+        detail:
+          type: string
+        error:
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+          required:
+          - code
+          - message
+          type: object
+        expected:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        explanation:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        generated:
+          type: boolean
+        id:
+          type: string
+        index:
+          type: number
+        kind:
+          type: string
+        status:
+          type: string
+        telemetry:
+          additionalProperties:
+            type: string
+          properties: {}
+          type: object
+        translated:
+          properties:
+            dt:
+              type: string
+            pt:
+              type: string
+          required:
+          - pt
+          - dt
+          type: object
+      required:
+      - index
+      - id
+      - kind
+      - generated
+      - status
+      type: object
     SearchHit:
       properties:
         id:
           type: string
         kind:
           type: string
+        match:
+          description: Match quality (ranked first to last).
+          enum:
+          - exact
+          - prefix
+          - word
+          - substring
         route:
           type: string
         subtitle:
@@ -2811,6 +5353,117 @@ components:
       - title
       - subtitle
       - route
+      type: object
+    SectionFinding:
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        section:
+          type: string
+        severity:
+          enum:
+          - error
+          - warning
+        target:
+          type: string
+      required:
+      - section
+      - severity
+      - code
+      - message
+      - target
+      - path
+      type: object
+    SectionSaveResult:
+      properties:
+        documentSha256:
+          type: string
+        findings:
+          items:
+            $ref: '#/components/schemas/SectionFinding'
+          type: array
+        revision:
+          type: number
+        section:
+          type: string
+        updatedAt:
+          type: string
+      required:
+      - revision
+      - documentSha256
+      - updatedAt
+      - section
+      - findings
+      type: object
+    SectionState:
+      enum:
+      - complete
+      - warnings
+      - errors
+      - empty
+    SemanticsView:
+      properties:
+        artifact:
+          anyOf:
+          - $ref: '#/components/schemas/VersionDetail'
+          - type: 'null'
+        coverage:
+          items:
+            properties:
+              key:
+                type: string
+              kind:
+                enum:
+                - event
+                - location
+              mapped:
+                type: boolean
+            required:
+            - key
+            - kind
+            - mapped
+            type: object
+          type: array
+        editable:
+          type: boolean
+        ontologyPinned:
+          type:
+          - string
+          - 'null'
+        pinned:
+          type:
+          - string
+          - 'null'
+        revision:
+          type: number
+        role:
+          enum:
+          - ontology
+          - pt_interpretation
+          - dt_interpretation
+        validatedAgainstPinnedOntology:
+          type: boolean
+      required:
+      - role
+      - editable
+      - revision
+      - artifact
+      - pinned
+      type: object
+    SimulationSection:
+      additionalProperties: {}
+      properties:
+        kind:
+          enum:
+          - none
+          - mobile-robot
+          - event-script
+      required:
+      - kind
       type: object
     SourceDiagnostic:
       properties:
@@ -2831,6 +5484,14 @@ components:
       - message
       - span
       type: object
+    SourceKind:
+      enum:
+      - mqtt
+      - opcua
+      - rest
+      - simulator
+      - replay
+      - file
     Span:
       properties:
         column:
@@ -2843,6 +5504,40 @@ components:
       - line
       - column
       - length
+      type: object
+    StatePresentation:
+      properties:
+        label:
+          type: string
+        summary:
+          type: string
+        tone:
+          enum:
+          - warning
+          - ok
+          - critical
+          - info
+          - neutral
+          - formal
+      type: object
+    StaticPropertyDef:
+      properties:
+        asset:
+          type: string
+        id:
+          type: string
+        label:
+          type: string
+        perInstance:
+          type: boolean
+        type:
+          $ref: '#/components/schemas/DataType'
+        value:
+          type: string
+      required:
+      - id
+      - label
+      - type
       type: object
     StructuralChange:
       properties:
@@ -2869,6 +5564,92 @@ components:
       - previousName
       - before
       - after
+      type: object
+    StructureSection:
+      properties:
+        assetTypes:
+          items:
+            $ref: '#/components/schemas/AssetTypeDef'
+          type: array
+        assets:
+          items:
+            $ref: '#/components/schemas/BlueprintAssetDef'
+          type: array
+        relationships:
+          items:
+            $ref: '#/components/schemas/RelationshipDef'
+          type: array
+        root:
+          type: string
+      required:
+      - root
+      - assetTypes
+      - assets
+      - relationships
+      type: object
+    SupervisedProcess:
+      properties:
+        exitStatus:
+          type: number
+        log:
+          type: string
+        name:
+          type: string
+        pid:
+          type: number
+        port:
+          type: number
+        startedAt:
+          type: string
+        state:
+          type: string
+        url:
+          type: string
+      required:
+      - name
+      - pid
+      - port
+      - url
+      - log
+      - state
+      - exitStatus
+      - startedAt
+      type: object
+    SupervisorStatus:
+      properties:
+        instance:
+          type: string
+        kind:
+          enum:
+          - instance
+          - preview
+        message:
+          type: string
+        processes:
+          items:
+            $ref: '#/components/schemas/SupervisedProcess'
+          type: array
+        runtimeUrl:
+          type:
+          - string
+          - 'null'
+        startedAt:
+          type: string
+        state:
+          enum:
+          - running
+          - stopped
+          - not_started
+          - starting
+          - failed
+        worldUrl:
+          type:
+          - string
+          - 'null'
+      required:
+      - instance
+      - state
+      - processes
       type: object
     SymbolInfo:
       properties:
@@ -2952,6 +5733,249 @@ components:
       - axioms
       - interpretations
       - telemetryChannels
+      type: object
+    TaAtom:
+      properties:
+        bound:
+          type:
+          - string
+          - number
+        clock:
+          type: string
+        minus:
+          type: string
+        op:
+          enum:
+          - <
+          - <=
+          - ==
+          - '>='
+          - '>'
+      required:
+      - clock
+      - op
+      - bound
+      type: object
+    TaDiagnostic:
+      properties:
+        code:
+          type: string
+        element:
+          description: 'What it concerns: kind "location" | "edge" | "clock" | "channel" | "constant" | "model" | "document",
+            by name.'
+          properties:
+            kind:
+              type: string
+            name:
+              type: string
+            part:
+              type: string
+          required:
+          - kind
+          - name
+          - part
+          type: object
+        hint:
+          type: string
+        message:
+          type: string
+        range:
+          properties:
+            column:
+              type: number
+            endColumn:
+              type: number
+            endLine:
+              type: number
+            line:
+              type: number
+          required:
+          - line
+          - column
+          - endLine
+          - endColumn
+          type: object
+        severity:
+          enum:
+          - error
+          - warning
+          - note
+      required:
+      - severity
+      - code
+      - message
+      type: object
+    TaEdge:
+      properties:
+        guard:
+          items:
+            $ref: '#/components/schemas/TaAtom'
+          type: array
+        id:
+          type: string
+        note:
+          type: string
+        resets:
+          items:
+            type: string
+          type: array
+        source:
+          type: string
+        sync:
+          anyOf:
+          - properties:
+              channel:
+                type: string
+              direction:
+                enum:
+                - '!'
+                - '?'
+            required:
+            - channel
+            - direction
+            type: object
+          - type: 'null'
+        target:
+          type: string
+      required:
+      - id
+      - source
+      - target
+      - sync
+      - guard
+      - resets
+      - note
+      type: object
+    TaLayout:
+      description: 'Diagram layout (twin-ta-layout/1): presentation only, integer coordinates, y downwards.'
+      properties:
+        edges:
+          additionalProperties:
+            properties:
+              label:
+                $ref: '#/components/schemas/TaPoint'
+              nails:
+                items:
+                  $ref: '#/components/schemas/TaPoint'
+                type: array
+            required:
+            - nails
+            type: object
+          properties: {}
+          type: object
+        format:
+          enum:
+          - twin-ta-layout/1
+        locations:
+          additionalProperties:
+            properties:
+              label:
+                $ref: '#/components/schemas/TaPoint'
+              x:
+                type: number
+              y:
+                type: number
+            required:
+            - x
+            - y
+            type: object
+          properties: {}
+          type: object
+      required:
+      - locations
+      type: object
+    TaLocation:
+      properties:
+        initial:
+          type: boolean
+        invariant:
+          items:
+            $ref: '#/components/schemas/TaAtom'
+          type: array
+        name:
+          type: string
+        note:
+          type: string
+      required:
+      - name
+      - initial
+      - invariant
+      - note
+      type: object
+    TaModel:
+      properties:
+        channels:
+          items:
+            properties:
+              name:
+                type: string
+              note:
+                type: string
+            required:
+            - name
+            - note
+            type: object
+          type: array
+        clocks:
+          items:
+            properties:
+              name:
+                type: string
+              note:
+                type: string
+            required:
+            - name
+            - note
+            type: object
+          type: array
+        constants:
+          items:
+            properties:
+              name:
+                type: string
+              note:
+                type: string
+              value:
+                type: number
+            required:
+            - name
+            - value
+            - note
+            type: object
+          type: array
+        edges:
+          items:
+            $ref: '#/components/schemas/TaEdge'
+          type: array
+        format:
+          const: twin-ta/1
+        locations:
+          items:
+            $ref: '#/components/schemas/TaLocation'
+          type: array
+        name:
+          type: string
+        note:
+          type: string
+      required:
+      - format
+      - name
+      - note
+      - clocks
+      - constants
+      - channels
+      - locations
+      - edges
+      type: object
+    TaPoint:
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+      required:
+      - x
+      - y
       type: object
     TelemetryBucket:
       properties:
@@ -3047,6 +6071,54 @@ components:
       - channels
       - now
       type: object
+    TelemetryDef:
+      properties:
+        asset:
+          type: string
+        description:
+          type: string
+        expectedPeriodMs:
+          type: number
+        id:
+          type: string
+        label:
+          type: string
+        ontologySymbol:
+          type: string
+        presentation:
+          properties:
+            category:
+              type: string
+            chart:
+              type: string
+            precision:
+              type: number
+          type: object
+        quality:
+          properties:
+            maxAgeMs:
+              type: number
+          type: object
+        range:
+          properties:
+            max:
+              type: string
+            min:
+              type: string
+          type: object
+        type:
+          $ref: '#/components/schemas/DataType'
+        unit:
+          type: string
+        values:
+          items:
+            type: string
+          type: array
+      required:
+      - id
+      - label
+      - type
+      type: object
     TelemetrySample:
       properties:
         ingestedAt:
@@ -3100,6 +6172,245 @@ components:
       - to
       - totalSamples
       - downsampled
+      type: object
+    TimeValue:
+      properties:
+        text:
+          type: string
+        ticks:
+          type: number
+      required:
+      - text
+      - ticks
+      type: object
+    TimingAlternative:
+      additionalProperties: {}
+      properties:
+        enabled_now:
+          type: boolean
+        factors:
+          items:
+            properties:
+              atom:
+                type: string
+              depends_on_delay:
+                type: boolean
+              max_delay:
+                anyOf:
+                - $ref: '#/components/schemas/TimeValue'
+                - type: 'null'
+              min_delay:
+                anyOf:
+                - $ref: '#/components/schemas/TimeValue'
+                - type: 'null'
+              never:
+                type: boolean
+              origin:
+                type: string
+              value_now:
+                $ref: '#/components/schemas/TimeValue'
+            required:
+            - atom
+            - origin
+            - never
+            - depends_on_delay
+            - min_delay
+            - max_delay
+            type: object
+          type: array
+        guard:
+          type: string
+        location:
+          type: string
+        resets:
+          items:
+            type: string
+          type: array
+        source:
+          type: string
+        target:
+          type: string
+        transition:
+          type: string
+        window:
+          anyOf:
+          - $ref: '#/components/schemas/TimingInterval'
+          - type: 'null'
+      required:
+      - enabled_now
+      - guard
+      - location
+      - source
+      - target
+      - transition
+      - resets
+      - window
+      type: object
+    TimingInterval:
+      properties:
+        earliest:
+          $ref: '#/components/schemas/TimeValue'
+        earliest_at:
+          $ref: '#/components/schemas/TimeValue'
+        latest:
+          anyOf:
+          - $ref: '#/components/schemas/TimeValue'
+          - type: 'null'
+        latest_at:
+          anyOf:
+          - $ref: '#/components/schemas/TimeValue'
+          - type: 'null'
+      required:
+      - earliest
+      - latest
+      - earliest_at
+      - latest_at
+      type: object
+    TimingResult:
+      properties:
+        authority:
+          type: string
+        final:
+          $ref: '#/components/schemas/AvailabilityView'
+        first_invalid:
+          type:
+          - number
+          - 'null'
+        irSha256:
+          type: string
+        note:
+          type: string
+        start:
+          properties:
+            kind:
+              type: string
+            state:
+              properties:
+                configurations:
+                  items:
+                    properties:
+                      clocks:
+                        additionalProperties:
+                          $ref: '#/components/schemas/TimeValue'
+                        properties: {}
+                        type: object
+                      location:
+                        type: string
+                    required:
+                    - location
+                    - clocks
+                    type: object
+                  type: array
+                time:
+                  $ref: '#/components/schemas/TimeValue'
+              required:
+              - time
+              - configurations
+              type: object
+          required:
+          - kind
+          - state
+          type: object
+        steps:
+          items:
+            $ref: '#/components/schemas/TimingStepResult'
+          type: array
+        timeUnit:
+          type: string
+      required:
+      - start
+      - steps
+      - first_invalid
+      - final
+      - irSha256
+      - timeUnit
+      - authority
+      type: object
+    TimingStepResult:
+      properties:
+        after:
+          properties:
+            configurations:
+              items:
+                properties:
+                  clocks:
+                    additionalProperties:
+                      $ref: '#/components/schemas/TimeValue'
+                    properties: {}
+                    type: object
+                  location:
+                    type: string
+                required:
+                - location
+                - clocks
+                type: object
+              type: array
+            time:
+              $ref: '#/components/schemas/TimeValue'
+          required:
+          - time
+          - configurations
+          type: object
+        branches:
+          items:
+            properties:
+              label:
+                type: string
+              source:
+                type: string
+              target:
+                type: string
+              transition:
+                type: string
+            required:
+            - transition
+            - label
+            - source
+            - target
+            type: object
+          type: array
+        error:
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+          required:
+          - code
+          - message
+          type: object
+        explanation:
+          additionalProperties: {}
+          properties: {}
+          type: object
+        index:
+          type: number
+        kind:
+          enum:
+          - event
+          - delay
+        requested:
+          properties:
+            at:
+              $ref: '#/components/schemas/TimeValue'
+            delay:
+              $ref: '#/components/schemas/TimeValue'
+            label:
+              type: string
+            transition:
+              type:
+              - string
+              - 'null'
+          type: object
+        status:
+          enum:
+          - invalid
+          - not_evaluated
+          - ok
+      required:
+      - index
+      - kind
+      - status
       type: object
     Tone:
       enum:
@@ -3177,6 +6488,16 @@ components:
             - versionInfo
             type: object
           type: array
+        blueprintId:
+          description: Blueprint the twin is an instance of (null for twins registered without one).
+          type:
+          - string
+          - 'null'
+        blueprintVersion:
+          description: Blueprint version the instance runs.
+          type:
+          - number
+          - 'null'
         createdAt:
           type: string
         deployment:
@@ -3185,8 +6506,18 @@ components:
           - type: 'null'
         description:
           type: string
+        desiredState:
+          description: What the deployment supervisor reconciles to.
+          enum:
+          - running
+          - stopped
         id:
           type: string
+        instanceConfig:
+          additionalProperties: {}
+          description: Instance configuration (identity, placement, connectivity, target, asset map, channels).
+          properties: {}
+          type: object
         modelId:
           type: string
         name:
@@ -3224,6 +6555,11 @@ components:
           - packageIntegrity
           - runtimeCompatibility
           type: object
+        worldUrl:
+          description: Physical-twin simulator URL (ground truth, visualisation only).
+          type:
+          - string
+          - 'null'
       required:
       - package
       - bindings
@@ -3255,7 +6591,9 @@ components:
             type: string
           type: array
         plugin:
-          type: string
+          type:
+          - string
+          - 'null'
         states:
           additionalProperties:
             properties:
@@ -3283,6 +6621,16 @@ components:
           type:
           - string
           - 'null'
+        blueprintId:
+          description: Blueprint the twin is an instance of (null for twins registered without one).
+          type:
+          - string
+          - 'null'
+        blueprintVersion:
+          description: Blueprint version the instance runs.
+          type:
+          - number
+          - 'null'
         createdAt:
           type: string
         deployment:
@@ -3291,8 +6639,18 @@ components:
           - type: 'null'
         description:
           type: string
+        desiredState:
+          description: What the deployment supervisor reconciles to.
+          enum:
+          - running
+          - stopped
         id:
           type: string
+        instanceConfig:
+          additionalProperties: {}
+          description: Instance configuration (identity, placement, connectivity, target, asset map, channels).
+          properties: {}
+          type: object
         modelId:
           type: string
         name:
@@ -3305,6 +6663,11 @@ components:
           - 'null'
         ticksPerUnit:
           type: number
+        worldUrl:
+          description: Physical-twin simulator URL (ground truth, visualisation only).
+          type:
+          - string
+          - 'null'
       required:
       - id
       - name
@@ -3402,4 +6765,220 @@ components:
       - parentVersion
       - publishedAt
       - publishedBy
+      type: object
+    WorldDocument:
+      properties:
+        bounds:
+          properties:
+            h:
+              type: number
+            w:
+              type: number
+            x:
+              type: number
+            y:
+              type: number
+          required:
+          - x
+          - y
+          - w
+          - h
+          type: object
+        format:
+          const: twin-world/1
+        grid:
+          properties:
+            size:
+              type: number
+            snap:
+              type: boolean
+          required:
+          - size
+          - snap
+          type: object
+        layers:
+          items:
+            $ref: '#/components/schemas/WorldLayer'
+          type: array
+        mode:
+          $ref: '#/components/schemas/WorldMode'
+        objects:
+          items:
+            $ref: '#/components/schemas/WorldObject'
+          type: array
+        unit:
+          enum:
+          - mm
+          - px
+      required:
+      - format
+      - mode
+      - unit
+      - bounds
+      - layers
+      - objects
+      type: object
+    WorldGeometry:
+      description: 'Integer world units. Rect-like kinds: {x, y, w, h} (top-left); points/labels: {x, y}; nodes: {x,
+        y, w?, h?} (centre); lines: {points, width}; areas: {points} or {x, y, w, h}; links: {from, to, directed}.'
+      properties:
+        directed:
+          type: boolean
+        from:
+          type: string
+        h:
+          type: number
+        points:
+          items:
+            items:
+              type: number
+            type: array
+          type: array
+        to:
+          type: string
+        w:
+          type: number
+        width:
+          type: number
+        x:
+          type: number
+        y:
+          type: number
+      type: object
+    WorldLayer:
+      properties:
+        id:
+          type: string
+        locked:
+          type: boolean
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/WorldLayerRole'
+        visible:
+          type: boolean
+      required:
+      - id
+      - name
+      - role
+      - visible
+      - locked
+      type: object
+    WorldLayerRole:
+      enum:
+      - shared
+      - ground-truth
+      - knowledge
+      - event
+      - annotation
+      - background
+    WorldMode:
+      enum:
+      - spatial
+      - topology
+      - diagram
+    WorldObject:
+      properties:
+        asset:
+          type:
+          - string
+          - 'null'
+        geometry:
+          $ref: '#/components/schemas/WorldGeometry'
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/WorldObjectKind'
+        layer:
+          type: string
+        name:
+          type: string
+        properties:
+          additionalProperties:
+            type:
+            - string
+            - number
+            - boolean
+          properties: {}
+          type: object
+        semanticType:
+          type: string
+        tags:
+          items:
+            type: string
+          type: array
+      required:
+      - id
+      - layer
+      - kind
+      - semanticType
+      - name
+      - geometry
+      - properties
+      - tags
+      type: object
+    WorldObjectKind:
+      enum:
+      - line
+      - point
+      - label
+      - waypoint
+      - polyline
+      - polygon
+      - region
+      - zone
+      - rect
+      - image
+      - node
+      - edge
+      - connector
+    WorldRaster:
+      properties:
+        cellMm:
+          type: number
+        findings:
+          items:
+            properties:
+              code:
+                type: string
+              message:
+                type: string
+              object:
+                type: string
+              path:
+                type: string
+              severity:
+                type: string
+            required:
+            - severity
+            - code
+            - message
+            type: object
+          type: array
+        groundTruth:
+          items:
+            type: string
+          type: array
+        height:
+          type: number
+        knowledge:
+          items:
+            type: string
+          type: array
+        legend:
+          additionalProperties:
+            type: string
+          description: Cell code -> meaning ("#" wall, "." free, ...).
+          properties: {}
+          type: object
+        width:
+          type: number
+      required:
+      - cellMm
+      - width
+      - height
+      - legend
+      - groundTruth
+      - knowledge
+      - findings
       type: object

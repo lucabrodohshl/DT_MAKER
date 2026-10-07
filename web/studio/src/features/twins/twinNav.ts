@@ -59,6 +59,7 @@ export const TWIN_NAV: TwinNavGroup[] = [
       { to: 'behavior/model', label: 'Behavioural model' },
       { to: 'behavior/facts', label: 'Semantic facts' },
       { to: 'behavior/conformance', label: 'Conformance' },
+      { to: 'behavior/monitors', label: 'Monitors' },
     ],
   },
   {

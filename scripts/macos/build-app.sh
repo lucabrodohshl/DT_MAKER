@@ -64,9 +64,8 @@ R="$APP/Contents/Resources"
 cp -R web/studio/dist "$R/web"
 find "$R/web" -name '*.map' -delete
 mkdir -p "$R/examples" "$R/models" "$R/scenarios"
-cp -R examples/indoor-drone examples/industrial-pump "$R/examples/"
+cp -R examples/indoor-drone examples/industrial-pump examples/templates "$R/examples/"
 cp -R models/indoor_drone "$R/models/"
-cp scenarios/inspection_default.json scenarios/pump_operating_cycle.json "$R/scenarios/"
 
 # Bundle non-system dynamic libraries (Z3) and point the executables at them.
 for t in "${TOOLS[@]}"; do

@@ -868,7 +868,11 @@ Result<json::Json> Services::rollback_preview(std::string_view twin_id, std::str
     auto target = impl_->twins->package(package_id);
     if (!current) return std::move(current).error();
     if (!target) return std::move(target).error();
-    if (target.value().twin_id != twin_id) return make_error(ErrorCode::InvalidArgument, "package belongs to another twin");
+    auto twin = impl_->twins->twin(twin_id);
+    if (!twin) return std::move(twin).error();
+    if (!package_usable_by(twin.value(), target.value())) {
+        return make_error(ErrorCode::InvalidArgument, "package belongs to another twin");
+    }
     json::Json roles = json::Json::array();
     for (const auto role : kBindingRoles) {
         const Binding* a = current.value().binding(role);
@@ -951,7 +955,8 @@ Result<json::Json> Services::bootstrap_twin(std::string_view twin_id, const std:
 
 Result<json::Json> Services::packages(std::string_view twin_id) {
     auto l = impl_->lock();
-    auto list = impl_->twins->packages(twin_id);
+    auto twin = impl_->twins->twin(twin_id);
+    auto list = twin ? impl_->twins->packages_usable_by(twin.value()) : impl_->twins->packages(twin_id);
     if (!list) return std::move(list).error();
     json::Json out = json::Json::array();
     for (const auto& p : list.value()) out.push_back(to_json(p));

@@ -1,0 +1,911 @@
+{
+ "format": "twin-blueprint/1",
+ "identity": {
+  "name": "Simple Thermal Chamber",
+  "description": "A laboratory heating chamber with a heater, a door sensor and an air-temperature sensor. The twin follows the controller's operating modes (idle, heating, overheated), checks every controller event against the verified model and raises an alert when the chamber overheats.",
+  "domain": "thermal",
+  "icon": "thermometer",
+  "tags": [
+   "laboratory",
+   "thermal",
+   "tutorial"
+  ],
+  "modelId": "thermal-chamber",
+  "timeUnit": "s",
+  "ticksPerUnit": 1000,
+  "runtimeMode": "monitor",
+  "plugin": null
+ },
+ "structure": {
+  "root": "chamber",
+  "assetTypes": [
+   {
+    "id": "Laboratory",
+    "name": "Laboratory",
+    "category": "Site",
+    "description": "",
+    "properties": []
+   },
+   {
+    "id": "ThermalChamber",
+    "name": "Thermal chamber",
+    "category": "Equipment",
+    "description": "Insulated chamber heated electrically",
+    "properties": [
+     {
+      "key": "volume_l",
+      "label": "Volume (l)",
+      "type": "integer",
+      "default": "120"
+     },
+     {
+      "key": "max_temperature",
+      "label": "Max. temperature (degC)",
+      "type": "integer",
+      "default": "80"
+     }
+    ]
+   },
+   {
+    "id": "Heater",
+    "name": "Heater",
+    "category": "Actuator",
+    "description": "Electric heating element",
+    "properties": [
+     {
+      "key": "rated_power_w",
+      "label": "Rated power (W)",
+      "type": "integer",
+      "default": "2000"
+     }
+    ]
+   },
+   {
+    "id": "DoorSensor",
+    "name": "Door sensor",
+    "category": "Sensor",
+    "description": "Reed contact on the door",
+    "properties": []
+   },
+   {
+    "id": "TemperatureSensor",
+    "name": "Temperature sensor",
+    "category": "Sensor",
+    "description": "PT100 air probe",
+    "properties": [
+     {
+      "key": "range",
+      "label": "Range",
+      "type": "string",
+      "default": "-40..200 degC"
+     }
+    ]
+   }
+  ],
+  "assets": [
+   {
+    "id": "lab",
+    "name": "Materials lab M-2",
+    "type": "Laboratory",
+    "scope": "context",
+    "description": "Laboratory the chamber stands in",
+    "properties": {},
+    "tags": []
+   },
+   {
+    "id": "chamber",
+    "name": "Thermal chamber",
+    "type": "ThermalChamber",
+    "scope": "instance",
+    "description": "The chamber (root asset of every instance)",
+    "properties": {},
+    "tags": [],
+    "parent": "lab"
+   },
+   {
+    "id": "heater",
+    "name": "Heater",
+    "type": "Heater",
+    "scope": "instance",
+    "description": "",
+    "properties": {},
+    "tags": [],
+    "parent": "chamber"
+   },
+   {
+    "id": "door-sensor",
+    "name": "Door sensor",
+    "type": "DoorSensor",
+    "scope": "instance",
+    "description": "",
+    "properties": {},
+    "tags": [],
+    "parent": "chamber"
+   },
+   {
+    "id": "temp-sensor",
+    "name": "Air temperature sensor",
+    "type": "TemperatureSensor",
+    "scope": "instance",
+    "description": "",
+    "properties": {},
+    "tags": [],
+    "parent": "chamber"
+   }
+  ],
+  "relationships": [
+   {
+    "id": "r1",
+    "source": "heater",
+    "type": "heats",
+    "target": "chamber"
+   },
+   {
+    "id": "r2",
+    "source": "door-sensor",
+    "type": "monitors",
+    "target": "chamber"
+   },
+   {
+    "id": "r3",
+    "source": "temp-sensor",
+    "type": "measures",
+    "target": "chamber"
+   }
+  ]
+ },
+ "world": {
+  "format": "twin-world/1",
+  "mode": "spatial",
+  "unit": "mm",
+  "bounds": {
+   "x": 0,
+   "y": 0,
+   "w": 3000,
+   "h": 2000
+  },
+  "grid": {
+   "size": 50,
+   "snap": true
+  },
+  "layers": [
+   {
+    "id": "room",
+    "name": "Laboratory",
+    "role": "shared",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "equipment",
+    "name": "Chamber equipment",
+    "role": "shared",
+    "visible": true,
+    "locked": false
+   },
+   {
+    "id": "notes",
+    "name": "Annotations",
+    "role": "annotation",
+    "visible": true,
+    "locked": false
+   }
+  ],
+  "objects": [
+   {
+    "id": "lab-floor",
+    "layer": "room",
+    "kind": "rect",
+    "semanticType": "floor",
+    "name": "Materials lab M-2 (bench area)",
+    "geometry": {
+     "x": 0,
+     "y": 0,
+     "w": 3000,
+     "h": 2000
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "lab"
+   },
+   {
+    "id": "chamber-body",
+    "layer": "equipment",
+    "kind": "rect",
+    "semanticType": "chamber",
+    "name": "Chamber TC-1",
+    "geometry": {
+     "x": 900,
+     "y": 500,
+     "w": 1200,
+     "h": 900
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "chamber"
+   },
+   {
+    "id": "heater-element",
+    "layer": "equipment",
+    "kind": "rect",
+    "semanticType": "heater",
+    "name": "Heater H-1",
+    "geometry": {
+     "x": 1000,
+     "y": 1200,
+     "w": 1000,
+     "h": 120
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "heater"
+   },
+   {
+    "id": "door",
+    "layer": "equipment",
+    "kind": "rect",
+    "semanticType": "door",
+    "name": "Door (front)",
+    "geometry": {
+     "x": 2050,
+     "y": 650,
+     "w": 100,
+     "h": 600
+    },
+    "properties": {
+     "state": "closed"
+    },
+    "tags": [],
+    "asset": "door-sensor"
+   },
+   {
+    "id": "temp-probe",
+    "layer": "equipment",
+    "kind": "point",
+    "semanticType": "sensor",
+    "name": "Air temperature probe TT-1",
+    "geometry": {
+     "x": 1500,
+     "y": 800
+    },
+    "properties": {},
+    "tags": [],
+    "asset": "temp-sensor"
+   },
+   {
+    "id": "label-chamber",
+    "layer": "notes",
+    "kind": "label",
+    "semanticType": "label",
+    "name": "Thermal chamber TC-1 (front door on the right)",
+    "geometry": {
+     "x": 900,
+     "y": 420
+    },
+    "properties": {
+     "text": "Thermal chamber TC-1"
+    },
+    "tags": [],
+    "asset": null
+   }
+  ]
+ },
+ "data": {
+  "properties": [
+   {
+    "id": "serial",
+    "label": "Serial number",
+    "type": "string",
+    "asset": "chamber",
+    "perInstance": true,
+    "value": ""
+   }
+  ],
+  "telemetry": [
+   {
+    "id": "temperature",
+    "label": "Air temperature",
+    "type": "real",
+    "unit": "degC",
+    "asset": "temp-sensor",
+    "description": "Chamber air temperature",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Process",
+     "precision": 1,
+     "chart": "line"
+    },
+    "ontologySymbol": "temperature",
+    "range": {
+     "min": "-40",
+     "max": "200"
+    }
+   },
+   {
+    "id": "heater_on",
+    "label": "Heater on",
+    "type": "boolean",
+    "unit": "",
+    "asset": "heater",
+    "description": "Heater contactor closed",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Process",
+     "precision": 0,
+     "chart": "state"
+    },
+    "ontologySymbol": "heater_on",
+    "range": {}
+   },
+   {
+    "id": "door_open",
+    "label": "Door open",
+    "type": "boolean",
+    "unit": "",
+    "asset": "door-sensor",
+    "description": "Door sensor reports open",
+    "expectedPeriodMs": 1000,
+    "quality": {
+     "maxAgeMs": 10000
+    },
+    "presentation": {
+     "category": "Process",
+     "precision": 0,
+     "chart": "state"
+    },
+    "ontologySymbol": "door_open",
+    "range": {}
+   }
+  ],
+  "events": [
+   {
+    "id": "heating_started",
+    "label": "Heating started",
+    "asset": "heater",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "heater_on!",
+     "dt": "start_heating!"
+    }
+   },
+   {
+    "id": "heating_stopped",
+    "label": "Heating stopped",
+    "asset": "heater",
+    "description": "",
+    "payload": [],
+    "formal": {
+     "pt": "heater_off!",
+     "dt": "stop_heating!"
+    }
+   },
+   {
+    "id": "over_temperature",
+    "label": "Over-temperature",
+    "asset": "temp-sensor",
+    "description": "Air temperature above the limit; the protection switches the heater off",
+    "payload": [],
+    "formal": {
+     "pt": "overheat!",
+     "dt": "high_temperature!"
+    }
+   },
+   {
+    "id": "latch_reset",
+    "label": "Latch reset",
+    "asset": "chamber",
+    "description": "Operator reset after cool-down",
+    "payload": [],
+    "formal": {
+     "pt": "latch_reset!",
+     "dt": "cooled_down!"
+    }
+   }
+  ],
+  "commands": [
+   {
+    "id": "reset_latch",
+    "label": "Reset over-temperature latch",
+    "asset": "chamber",
+    "parameters": [],
+    "description": "Allowed 30 s after an over-temperature at the earliest",
+    "acknowledgement": {
+     "event": "latch_reset",
+     "timeoutMs": 2000
+    },
+    "observedConsequence": null
+   }
+  ]
+ },
+ "connectivity": {
+  "sources": [
+   {
+    "id": "tc-sim",
+    "kind": "simulator",
+    "name": "TC-1 controller simulator (event script)",
+    "config": {
+     "model": "event-script"
+    }
+   }
+  ],
+  "bindings": [
+   {
+    "id": "b-temperature",
+    "target": {
+     "kind": "telemetry",
+     "id": "temperature"
+    },
+    "source": "tc-sim",
+    "select": {
+     "field": "temperature"
+    }
+   },
+   {
+    "id": "b-heater_on",
+    "target": {
+     "kind": "telemetry",
+     "id": "heater_on"
+    },
+    "source": "tc-sim",
+    "select": {
+     "field": "heater_on"
+    }
+   },
+   {
+    "id": "b-door_open",
+    "target": {
+     "kind": "telemetry",
+     "id": "door_open"
+    },
+    "source": "tc-sim",
+    "select": {
+     "field": "door_open"
+    }
+   }
+  ]
+ },
+ "presentation": {
+  "displayName": "Thermal chamber",
+  "icon": "thermometer",
+  "primaryView": "status",
+  "plugin": null,
+  "keyTelemetry": [
+   "temperature",
+   "heater_on",
+   "door_open"
+  ],
+  "importantAssets": [
+   "chamber",
+   "heater",
+   "temp-sensor"
+  ],
+  "importantPropositions": [
+   "at_OVERHEATED"
+  ],
+  "importantMonitors": [
+   "conformance",
+   "never-overheated",
+   "temperature-fresh"
+  ],
+  "importantPredictions": [],
+  "states": {
+   "IDLE": {
+    "label": "Idle",
+    "tone": "neutral",
+    "summary": "Heater off, chamber within limits."
+   },
+   "HEATING": {
+    "label": "Heating",
+    "tone": "ok",
+    "summary": "Heater on, door closed, below the limit."
+   },
+   "OVERHEATED": {
+    "label": "Overheated",
+    "tone": "critical",
+    "summary": "Over-temperature latch set; heater off."
+   }
+  },
+  "events": {
+   "start_heating!": {
+    "label": "Start heating"
+   },
+   "stop_heating!": {
+    "label": "Stop heating"
+   },
+   "high_temperature!": {
+    "label": "High temperature"
+   },
+   "cooled_down!": {
+    "label": "Reset after cool-down"
+   }
+  },
+  "charts": [
+   {
+    "title": "Chamber",
+    "telemetry": [
+     "temperature"
+    ]
+   }
+  ],
+  "units": {},
+  "precision": {}
+ },
+ "behavior": {
+  "pt": {
+   "layout": null
+  },
+  "dt": {
+   "layout": null
+  }
+ },
+ "assurance": {
+  "format": "twin-monitors/1",
+  "requirements": [
+   {
+    "id": "REQ-S1",
+    "title": "Chamber never overheats",
+    "category": "safety",
+    "severity": "critical",
+    "description": "The air temperature never exceeds the 80 degC limit.",
+    "monitors": [
+     "never-overheated"
+    ],
+    "formal": "A[] !OVERHEATED"
+   },
+   {
+    "id": "REQ-T1",
+    "title": "Cool down at least 30 s",
+    "category": "timing",
+    "severity": "warning",
+    "description": "The over-temperature latch is reset no earlier than 30 s after it was set.",
+    "monitors": []
+   },
+   {
+    "id": "REQ-C1",
+    "title": "Controller events conform",
+    "category": "operational",
+    "severity": "critical",
+    "description": "Every controller event is admitted by the verified twin.",
+    "monitors": [
+     "conformance"
+    ]
+   },
+   {
+    "id": "REQ-O1",
+    "title": "Fresh temperature",
+    "category": "operational",
+    "severity": "warning",
+    "description": "Air temperature telemetry is never older than 30 s.",
+    "monitors": [
+     "temperature-fresh"
+    ]
+   }
+  ],
+  "monitors": [
+   {
+    "id": "conformance",
+    "kind": "conformance",
+    "name": "Behavioural conformance",
+    "severity": "critical",
+    "events": "all",
+    "unmatchedEvents": "record",
+    "requirement": "REQ-C1"
+   },
+   {
+    "id": "never-overheated",
+    "kind": "property",
+    "name": "Overheating monitor",
+    "severity": "critical",
+    "property": "A[] !OVERHEATED",
+    "requirement": "REQ-S1"
+   },
+   {
+    "id": "heating-watchdog",
+    "kind": "property",
+    "name": "Heating at most 10 min",
+    "severity": "warning",
+    "property": "A[] (HEATING -> t <= 600)"
+   },
+   {
+    "id": "temperature-fresh",
+    "kind": "data_quality",
+    "name": "Temperature freshness",
+    "severity": "warning",
+    "field": "temperature",
+    "check": "stale",
+    "maxAgeSeconds": 30,
+    "requirement": "REQ-O1"
+   },
+   {
+    "id": "temperature-range",
+    "kind": "data_quality",
+    "name": "Temperature plausible",
+    "severity": "warning",
+    "field": "temperature",
+    "check": "out_of_range",
+    "min": -40,
+    "max": 200
+   }
+  ],
+  "alerts": [
+   {
+    "id": "AL-1",
+    "monitor": "conformance",
+    "on": "violated",
+    "severity": "critical",
+    "message": "Controller events deviate from the verified chamber model"
+   },
+   {
+    "id": "AL-2",
+    "monitor": "never-overheated",
+    "on": "violated",
+    "severity": "critical",
+    "message": "Chamber overheated"
+   },
+   {
+    "id": "AL-3",
+    "monitor": "temperature-fresh",
+    "on": "finding",
+    "severity": "warning",
+    "message": "Temperature is stale"
+   }
+  ]
+ },
+ "simulation": {
+  "kind": "event-script",
+  "script": {
+   "name": "TC-1 heating cycle",
+   "description": "Five-minute cycle of thermal chamber TC-1 as reported by its controller: heating starts, the air temperature overshoots the 80 degC limit, the protection switches the heater off, and the operator resets the over-temperature latch after the chamber has cooled down.",
+   "cycle_s": 300,
+   "telemetry_period_ms": 1000,
+   "seed": 1101,
+   "channels": {
+    "temperature": {
+     "keys": [
+      [
+       0,
+       22
+      ],
+      [
+       10,
+       22
+      ],
+      [
+       60,
+       45
+      ],
+      [
+       120,
+       70
+      ],
+      [
+       150,
+       "78.5"
+      ],
+      [
+       160,
+       "80.6"
+      ],
+      [
+       161,
+       "81.2"
+      ],
+      [
+       175,
+       "82.0"
+      ],
+      [
+       200,
+       76
+      ],
+      [
+       235,
+       66
+      ],
+      [
+       260,
+       45
+      ],
+      [
+       300,
+       22
+      ]
+     ],
+     "noise": "0.2",
+     "precision": 1
+    },
+    "heater_on": {
+     "type": "boolean",
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       10,
+       1
+      ],
+      [
+       161,
+       0
+      ]
+     ]
+    },
+    "door_open": {
+     "type": "boolean",
+     "keys": [
+      [
+       0,
+       0
+      ],
+      [
+       270,
+       1
+      ],
+      [
+       285,
+       0
+      ]
+     ]
+    }
+   },
+   "events": [
+    {
+     "at": 10,
+     "label": "heater_on!",
+     "detail": {
+      "source": "controller TC-1",
+      "setpoint": "60 degC"
+     }
+    },
+    {
+     "at": 161,
+     "label": "overheat!",
+     "detail": {
+      "tag": "TT-1",
+      "reason": "air temperature above 80 degC"
+     }
+    },
+    {
+     "at": 235,
+     "label": "latch_reset!",
+     "detail": {
+      "operator": "lab technician"
+     }
+    }
+   ]
+  }
+ },
+ "scenarios": [
+  {
+   "id": "overheat-and-reset",
+   "name": "Overheating and reset",
+   "description": "Heating overshoots the limit; the twin follows the controller into OVERHEATED, the overheating monitor reports the violation, and the reset is admitted after the 30 s cool-down.",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "event",
+     "level": "pt",
+     "label": "heater_on!",
+     "at": "10"
+    },
+    {
+     "id": "s2",
+     "kind": "expect",
+     "at": "10",
+     "expect": {
+      "location": "HEATING"
+     }
+    },
+    {
+     "id": "s3",
+     "kind": "observe",
+     "at": "160",
+     "telemetry": {
+      "temperature": "80.6"
+     }
+    },
+    {
+     "id": "s4",
+     "kind": "event",
+     "level": "pt",
+     "label": "overheat!",
+     "at": "161"
+    },
+    {
+     "id": "s5",
+     "kind": "expect",
+     "at": "161",
+     "expect": {
+      "location": "OVERHEATED"
+     }
+    },
+    {
+     "id": "s6",
+     "kind": "expect",
+     "at": "161",
+     "expect": {
+      "window": {
+       "label": "cooled_down!",
+       "status": "later",
+       "earliest": "30"
+      }
+     }
+    },
+    {
+     "id": "s7",
+     "kind": "expect",
+     "at": "161",
+     "expect": {
+      "monitor": {
+       "id": "never-overheated",
+       "status": "violated"
+      }
+     }
+    },
+    {
+     "id": "s8",
+     "kind": "event",
+     "level": "pt",
+     "label": "latch_reset!",
+     "at": "235"
+    },
+    {
+     "id": "s9",
+     "kind": "expect",
+     "at": "235",
+     "expect": {
+      "location": "IDLE"
+     }
+    }
+   ]
+  },
+  {
+   "id": "reset-too-early",
+   "name": "Reset before cool-down (refused)",
+   "description": "Resetting the latch 10 s after an over-temperature is not admitted by the verified model (guard t >= 30): the kernel refuses the step and explains the earliest legal time.",
+   "start": {
+    "kind": "initial"
+   },
+   "steps": [
+    {
+     "id": "s1",
+     "kind": "event",
+     "label": "start_heating!",
+     "at": "5"
+    },
+    {
+     "id": "s2",
+     "kind": "event",
+     "label": "high_temperature!",
+     "at": "100"
+    },
+    {
+     "id": "s3",
+     "kind": "event",
+     "label": "cooled_down!",
+     "at": "110",
+     "expectRefused": true
+    },
+    {
+     "id": "s4",
+     "kind": "expect",
+     "at": "110",
+     "expect": {
+      "location": "OVERHEATED"
+     }
+    }
+   ]
+  }
+ ]
+}

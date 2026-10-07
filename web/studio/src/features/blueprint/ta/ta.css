@@ -1,0 +1,12 @@
+/* Timed-automaton editor: connection handles (whole state = drop target, dot = drag source). */
+.vts-ta-node { position: relative; }
+.vts-ta-node .vts-ta-target {
+  position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important;
+  transform: none !important; border-radius: 999px !important; opacity: 0; border: 0 !important; background: transparent !important;
+}
+.vts-ta-node .vts-ta-source {
+  width: 11px !important; height: 11px !important; background: var(--accent) !important; border: 2px solid var(--surface) !important;
+  opacity: 0; transition: opacity var(--duration);
+}
+.vts-ta-node:hover .vts-ta-source, .vts-ta-node.is-selected .vts-ta-source { opacity: 1; }
+.react-flow__node-loc.selected .vts-ta-node { box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 4px var(--accent); }

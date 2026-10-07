@@ -55,12 +55,20 @@ struct Twin {
     std::optional<std::string> runtime_url; ///< twin-runtime base URL, if connected.
     json::Json presentation = json::Json::object();  ///< Display-only metadata (variables, labels, plugin hints).
     std::string created_at;                 ///< ISO 8601 UTC.
+    std::optional<std::string> blueprint_id;       ///< Blueprint this twin is an instance of (none for legacy twins).
+    std::optional<std::int64_t> blueprint_version; ///< Blueprint version the instance was created from / upgraded to.
+    json::Json instance_config = json::Json::object();  ///< Instance configuration (identity, placement, bindings, target).
+    std::optional<std::string> world_url;          ///< Physical-twin simulator base URL (ground truth, visualisation only).
+    std::string desired_state{"stopped"};          ///< "running" or "stopped" (deployment supervisor reconciles).
 };
+
+/// @brief Package owner key of a Blueprint version's packages ("blueprint:<id>").
+[[nodiscard]] std::string blueprint_owner(std::string_view blueprint_id);
 
 /// @brief A package record.
 struct PackageRecord {
     std::string id;                          ///< "PKG-0001".
-    std::string twin_id;                     ///< Twin.
+    std::string twin_id;                     ///< Owner: a twin id, or blueprint_owner() for a Blueprint version's package.
     std::string directory;                   ///< Package directory (absolute).
     std::string package_hash;                ///< SHA-256 of manifest.json.
     std::string ir_sha256;                   ///< IR hash.
@@ -75,6 +83,10 @@ struct PackageRecord {
     /// @brief The binding in @p role, if any.
     [[nodiscard]] const Binding* binding(std::string_view role) const noexcept;
 };
+
+/// @brief Whether @p twin may run @p package: packages built for the twin itself, or for the
+/// Blueprint the twin is an instance of (every version of that Blueprint).
+[[nodiscard]] bool package_usable_by(const Twin& twin, const PackageRecord& package);
 
 /// @brief A deployment record.
 struct Deployment {
@@ -126,13 +138,16 @@ public:
     [[nodiscard]] Result<PackageRecord> package(std::string_view id) const;
     /// @brief Packages of a twin (all twins when empty), newest first.
     [[nodiscard]] Result<std::vector<PackageRecord>> packages(std::string_view twin_id) const;
+    /// @brief Packages @p twin may run (its own and its Blueprint's, see package_usable_by), newest first.
+    [[nodiscard]] Result<std::vector<PackageRecord>> packages_usable_by(const Twin& twin) const;
     /// @brief Marks a built package released (packages are otherwise immutable).
     [[nodiscard]] Result<PackageRecord> mark_released(std::string_view id);
     /// @}
 
     /// @name Deployments
     /// @{
-    /// @brief Append a deployment; @p kind "rollback" requires a non-empty reason.
+    /// @brief Append a deployment; @p kind "rollback" requires a non-empty reason. The package must
+    /// belong to the twin or to the Blueprint the twin is an instance of.
     [[nodiscard]] Result<Deployment> deploy(std::string_view twin_id, std::string_view package_id, std::string_view kind,
                                             std::string_view reason, std::string_view actor);
     /// @brief The twin's latest deployment, or nullopt if never deployed.

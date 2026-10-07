@@ -10,6 +10,7 @@
 
 #include "services_impl.hpp"
 #include "twin/ontology/source.hpp"
+#include "twin/studio/blueprints.hpp"
 
 namespace twin::studio {
 
@@ -24,31 +25,27 @@ std::string lower(std::string_view s) {
     return out;
 }
 
-bool contains_ci(std::string_view hay, const std::string& needle_lower) {
-    return lower(hay).find(needle_lower) != std::string::npos;
-}
-
 std::string route_for_version(ArtifactKind kind, const ArtifactRef& r) {
     switch (kind) {
         case ArtifactKind::Ontology:
-            return "/engineering/ontologies/" + r.artifact_id + "/versions/" + std::to_string(r.version);
+            return "/studio/ontologies/" + r.artifact_id + "/versions/" + std::to_string(r.version);
         case ArtifactKind::Interpretation:
-            return "/engineering/interpretations/" + r.artifact_id + "/versions/" + std::to_string(r.version);
+            return "/studio/interpretations/" + r.artifact_id + "/versions/" + std::to_string(r.version);
         case ArtifactKind::PtModel:
         case ArtifactKind::DtModel:
-            return "/engineering/models/" + r.artifact_id + "/versions/" + std::to_string(r.version);
+            return "/studio/models/" + r.artifact_id + "/versions/" + std::to_string(r.version);
     }
-    return "/engineering";
+    return "/studio";
 }
 
 std::string route_for_artifact(ArtifactKind kind, const std::string& id) {
     switch (kind) {
-        case ArtifactKind::Ontology: return "/engineering/ontologies/" + id;
-        case ArtifactKind::Interpretation: return "/engineering/interpretations/" + id;
+        case ArtifactKind::Ontology: return "/studio/ontologies/" + id;
+        case ArtifactKind::Interpretation: return "/studio/interpretations/" + id;
         case ArtifactKind::PtModel:
-        case ArtifactKind::DtModel: return "/engineering/models/" + id;
+        case ArtifactKind::DtModel: return "/studio/models/" + id;
     }
-    return "/engineering";
+    return "/studio";
 }
 
 }  // namespace
@@ -391,124 +388,181 @@ Result<json::Json> Services::overview() {
 
 // --- search ---------------------------------------------------------------------------------
 
+int search_score(std::string_view text, std::string_view query_lower) {
+    if (query_lower.empty() || text.size() < query_lower.size()) return -1;
+    const std::string t = lower(text);
+    if (t == query_lower) return 0;
+    if (t.rfind(query_lower, 0) == 0) return 1;
+    std::size_t pos = t.find(query_lower);
+    if (pos == std::string::npos) return -1;
+    for (; pos != std::string::npos; pos = t.find(query_lower, pos + 1)) {
+        if (std::isalnum(static_cast<unsigned char>(t[pos - 1])) == 0) return 2;
+    }
+    return 3;
+}
+
+namespace {
+
+/// @brief Display order of kinds with the same match quality (most concrete first).
+int kind_rank(std::string_view kind) {
+    static const std::map<std::string, int, std::less<>> ranks = {
+        {"twin", 0},           {"blueprint", 1},          {"asset", 2},
+        {"blueprint_asset", 3}, {"asset_type", 3},        {"telemetry", 4},
+        {"telemetry_channel", 4}, {"event", 4},           {"command", 4},
+        {"state", 5},          {"world_object", 5},       {"data_source", 5},
+        {"requirement", 6},    {"monitor", 6},            {"scenario", 6},
+        {"ontology_symbol", 7}, {"ontology_axiom", 7},    {"interpretation_entry", 7},
+        {"ontology", 8},       {"interpretation", 8},     {"pt_model", 8},
+        {"dt_model", 8},       {"ontology_version", 8},   {"interpretation_version", 8},
+        {"pt_model_version", 8}, {"dt_model_version", 8}, {"evidence", 9},
+        {"package", 9},        {"deployment", 9},         {"change", 9}};
+    auto it = ranks.find(kind);
+    return it == ranks.end() ? 10 : it->second;
+}
+
+}  // namespace
+
 Result<json::Json> Services::search(std::string_view query, std::size_t limit) {
     const std::string q = lower(query);
-    json::Json hits = json::Json::array();
-    if (q.size() < 2) return json::Json{{"query", std::string(query)}, {"hits", hits}};
-    auto l = impl_->lock();
-    auto add = [&](std::string kind, std::string id, std::string title, std::string subtitle, std::string route) {
-        if (hits.size() < limit) {
-            hits.push_back({{"kind", std::move(kind)}, {"id", std::move(id)}, {"title", std::move(title)},
-                            {"subtitle", std::move(subtitle)}, {"route", std::move(route)}});
-        }
-    };
-    AssetFilter af;
-    af.text = std::string(query);
-    af.limit = static_cast<std::int64_t>(limit);
-    if (auto a = impl_->assets->list(af); a) {
-        for (const auto& x : a.value()) add("asset", x.id, x.name, x.type, "/assets/" + x.id);
-    }
-    if (auto t = impl_->twins->twins(); t) {
-        for (const auto& x : t.value()) {
-            if (contains_ci(x.id, q) || contains_ci(x.name, q) || contains_ci(x.model_id, q)) {
-                add("twin", x.id, x.name, "Digital twin · model " + x.model_id,
-                    x.asset_id ? "/assets/" + *x.asset_id : "/engineering/deployments");
+    std::vector<SearchHit> hits;
+    if (q.size() < 2) return json::Json{{"query", std::string(query)}, {"hits", json::Json::array()}, {"total", 0}};
+    {
+        auto l = impl_->lock();
+        // Best score of the given fields; the hit is kept only if one of them matches.
+        auto add = [&](std::string kind, std::string id, std::string title, std::string subtitle, std::string route,
+                       std::initializer_list<std::string_view> fields) {
+            int best = -1;
+            for (std::string_view f : fields) {
+                const int sc = search_score(f, q);
+                if (sc >= 0 && (best < 0 || sc < best)) best = sc;
+            }
+            if (best < 0) return;
+            hits.push_back({std::move(kind), std::move(id), std::move(title), std::move(subtitle), std::move(route), best});
+        };
+        AssetFilter af;
+        af.text = std::string(query);
+        af.limit = 200;
+        if (auto a = impl_->assets->list(af); a) {
+            // The asset filter also matches descriptions and properties: such hits rank as substrings.
+            for (const auto& x : a.value()) {
+                const int sc = std::min(search_score(x.id, q) < 0 ? 3 : search_score(x.id, q),
+                                        search_score(x.name, q) < 0 ? 3 : search_score(x.name, q));
+                hits.push_back({"asset", x.id, x.name, "Asset · " + x.type, "/assets/" + x.id, sc});
             }
         }
-    }
-    if (auto arts = impl_->artifacts->list(); arts) {
-        for (const auto& a : arts.value()) {
-            if (contains_ci(a.id, q) || contains_ci(a.name, q)) {
-                add(std::string(to_string(a.kind)), a.id, a.name, a.id, route_for_artifact(a.kind, a.id));
+        if (auto t = impl_->twins->twins(); t) {
+            for (const auto& x : t.value()) {
+                const std::string what = x.blueprint_id ? "Twin · instance of " + *x.blueprint_id +
+                                                              (x.blueprint_version ? " v" + std::to_string(*x.blueprint_version) : "")
+                                                        : "Twin · model " + x.model_id;
+                add("twin", x.id, x.name, what, "/twins/" + x.id, {x.id, x.name, x.model_id});
             }
-            // Versions: "process-pump@2" style queries.
-            if (q.find('@') != std::string::npos) {
-                if (auto r = parse_ref(query); r && r.value().artifact_id == a.id) {
-                    add(std::string(to_string(a.kind)) + "_version", r.value().str(), a.name + " v" + std::to_string(r.value().version),
-                        r.value().str(), route_for_version(a.kind, r.value()));
+        }
+        if (auto arts = impl_->artifacts->list(); arts) {
+            for (const auto& a : arts.value()) {
+                add(std::string(to_string(a.kind)), a.id, a.name, a.id, route_for_artifact(a.kind, a.id), {a.id, a.name});
+                // Versions: "process-pump@2" style queries.
+                if (q.find('@') != std::string::npos) {
+                    if (auto r = parse_ref(query); r && r.value().artifact_id == a.id) {
+                        hits.push_back({std::string(to_string(a.kind)) + "_version", r.value().str(),
+                                        a.name + " v" + std::to_string(r.value().version), r.value().str(),
+                                        route_for_version(a.kind, r.value()), 0});
+                    }
                 }
-            }
-            if (a.kind != ArtifactKind::Ontology) continue;
-            // Ontology symbols of the published (or latest) version.
-            auto pub = impl_->artifacts->published(a.id);
-            std::optional<ArtifactVersion> v = pub && pub.value() ? pub.value() : std::nullopt;
-            if (!v) {
-                auto vs = impl_->artifacts->versions(a.id);
-                if (vs && !vs.value().empty()) v = vs.value().front();
-            }
-            if (!v) continue;
-            auto text = impl_->artifacts->content(v->ref());
-            if (!text) continue;
-            const auto src = onto::parse_ontology(text.value()).source;
-            auto sym = [&](const std::string& name, const std::string& what) {
-                if (contains_ci(name, q)) {
+                if (a.kind != ArtifactKind::Ontology) continue;
+                // Ontology symbols of the published (or latest) version.
+                auto pub = impl_->artifacts->published(a.id);
+                std::optional<ArtifactVersion> v = pub && pub.value() ? pub.value() : std::nullopt;
+                if (!v) {
+                    auto vs = impl_->artifacts->versions(a.id);
+                    if (vs && !vs.value().empty()) v = vs.value().front();
+                }
+                if (!v) continue;
+                auto text = impl_->artifacts->content(v->ref());
+                if (!text) continue;
+                const auto src = onto::parse_ontology(text.value()).source;
+                auto sym = [&](const std::string& name, const std::string& what) {
                     add("ontology_symbol", name, name, what + " in " + v->ref().str(),
-                        route_for_version(a.kind, v->ref()) + "?symbol=" + name);
-                }
-            };
-            for (const auto& s : src.sorts) sym(s.name, "sort");
-            for (const auto& f : src.functions) sym(f.name, "function");
-            for (const auto& r : src.relations) sym(r.name, "relation");
-            for (const auto& ax : src.axioms) {
-                if (contains_ci(ax.id, q)) {
+                        route_for_version(a.kind, v->ref()) + "?symbol=" + name, {name});
+                };
+                for (const auto& s : src.sorts) sym(s.name, "sort");
+                for (const auto& f : src.functions) sym(f.name, "function");
+                for (const auto& r : src.relations) sym(r.name, "relation");
+                for (const auto& ax : src.axioms) {
                     add("ontology_axiom", ax.id, ax.id, "axiom in " + v->ref().str(),
-                        route_for_version(a.kind, v->ref()) + "?axiom=" + ax.id);
+                        route_for_version(a.kind, v->ref()) + "?axiom=" + ax.id, {ax.id});
                 }
             }
         }
-    }
-    // Interpretation keys (propositions/events), e.g. "bearing_risk", "DEGRADED".
-    if (auto interps = impl_->artifacts->list(ArtifactKind::Interpretation); interps) {
-        for (const auto& a : interps.value()) {
-            auto pub = impl_->artifacts->published(a.id);
-            if (!pub || !pub.value()) continue;
-            auto text = impl_->artifacts->content(pub.value()->ref());
-            if (!text) continue;
-            for (const auto& e : onto::parse_interpretation(text.value()).source.entries) {
-                if (contains_ci(e.key, q)) {
-                    add("interpretation_entry", e.key, e.key, (e.is_event ? "event in " : "location in ") + pub.value()->ref().str(),
-                        route_for_version(ArtifactKind::Interpretation, pub.value()->ref()) + "?entry=" + e.key);
+        // Interpretation keys (propositions/events), e.g. "bearing_risk", "DEGRADED".
+        if (auto interps = impl_->artifacts->list(ArtifactKind::Interpretation); interps) {
+            for (const auto& a : interps.value()) {
+                auto pub = impl_->artifacts->published(a.id);
+                if (!pub || !pub.value()) continue;
+                auto text = impl_->artifacts->content(pub.value()->ref());
+                if (!text) continue;
+                for (const auto& e : onto::parse_interpretation(text.value()).source.entries) {
+                    add("interpretation_entry", e.key, e.key,
+                        (e.is_event ? "event in " : "location in ") + pub.value()->ref().str(),
+                        route_for_version(ArtifactKind::Interpretation, pub.value()->ref()) + "?entry=" + e.key, {e.key});
                 }
             }
         }
-    }
-    if (auto chans = impl_->telemetry->channels(""); chans) {
-        for (const auto& c : chans.value()) {
-            const std::string label = c.presentation.value("label", c.name);
-            if (contains_ci(c.id, q) || contains_ci(label, q)) {
+        if (auto chans = impl_->telemetry->channels(""); chans) {
+            for (const auto& c : chans.value()) {
+                const std::string label = c.presentation.value("label", c.name);
                 add("telemetry_channel", c.id, label, c.id + (c.unit.empty() ? "" : " · " + c.unit),
-                    "/assets/" + c.asset_id + "/telemetry?channel=" + c.id);
+                    "/assets/" + c.asset_id + "/telemetry?channel=" + c.id, {c.id, c.name, label});
+            }
+        }
+        // Identifiers of engineering records.
+        const std::string upper = [&] {
+            std::string u(query);
+            std::transform(u.begin(), u.end(), u.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+            return u;
+        }();
+        if (upper.rfind("EV-", 0) == 0) {
+            if (auto e = impl_->evidence->get(upper); e) {
+                hits.push_back({"evidence", e.value().id, e.value().id + " · " + std::string(to_string(e.value().kind)),
+                                e.value().summary,
+                                e.value().kind == EvidenceKind::Refinement ? "/studio/refinement/" + e.value().id
+                                                                           : "/studio/verification/" + e.value().id,
+                                0});
+            }
+        }
+        if (upper.rfind("PKG-", 0) == 0) {
+            if (auto p = impl_->twins->package(upper); p) {
+                hits.push_back({"package", p.value().id, p.value().id, p.value().twin_id, "/studio/packages/" + p.value().id, 0});
+            }
+        }
+        if (upper.rfind("DEP-", 0) == 0) {
+            if (auto d = impl_->twins->deployment(upper); d) {
+                hits.push_back({"deployment", d.value().id, d.value().id, d.value().twin_id + " · " + d.value().package_id,
+                                "/studio/deployments?twin=" + d.value().twin_id, 0});
+            }
+        }
+        if (auto cs = impl_->twins->changes(); cs) {
+            for (const auto& c : cs.value()) {
+                add("change", c.id, c.title, c.id + " · " + c.state, "/studio/changes/" + c.id, {c.id, c.title});
             }
         }
     }
-    // Identifiers of engineering records.
-    const std::string upper = [&] {
-        std::string u(query);
-        std::transform(u.begin(), u.end(), u.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-        return u;
-    }();
-    if (upper.rfind("EV-", 0) == 0) {
-        if (auto e = impl_->evidence->get(upper); e) {
-            add("evidence", e.value().id, e.value().id + " · " + std::string(to_string(e.value().kind)), e.value().summary,
-                e.value().kind == EvidenceKind::Refinement ? "/maintenance/refinement/" + e.value().id
-                                                           : "/engineering/verification/" + e.value().id);
-        }
+    if (blueprints_) blueprints_->search(q, hits);
+
+    std::stable_sort(hits.begin(), hits.end(), [](const SearchHit& a, const SearchHit& b) {
+        if (a.score != b.score) return a.score < b.score;
+        const int ka = kind_rank(a.kind);
+        const int kb = kind_rank(b.kind);
+        if (ka != kb) return ka < kb;
+        return a.title < b.title;
+    });
+    json::Json out = json::Json::array();
+    for (std::size_t i = 0; i < hits.size() && i < limit; ++i) {
+        const SearchHit& h = hits[i];
+        out.push_back({{"kind", h.kind}, {"id", h.id}, {"title", h.title}, {"subtitle", h.subtitle}, {"route", h.route},
+                       {"match", h.score == 0 ? "exact" : h.score == 1 ? "prefix" : h.score == 2 ? "word" : "substring"}});
     }
-    if (upper.rfind("PKG-", 0) == 0) {
-        if (auto p = impl_->twins->package(upper); p) add("package", p.value().id, p.value().id, p.value().twin_id, "/engineering/packages/" + p.value().id);
-    }
-    if (upper.rfind("DEP-", 0) == 0) {
-        if (auto d = impl_->twins->deployment(upper); d) {
-            add("deployment", d.value().id, d.value().id, d.value().twin_id + " · " + d.value().package_id,
-                "/engineering/deployments?twin=" + d.value().twin_id);
-        }
-    }
-    if (auto cs = impl_->twins->changes(); cs) {
-        for (const auto& c : cs.value()) {
-            if (contains_ci(c.id, q) || contains_ci(c.title, q)) add("change", c.id, c.title, c.id + " · " + c.state, "/maintenance/changes/" + c.id);
-        }
-    }
-    return json::Json{{"query", std::string(query)}, {"hits", hits}};
+    return json::Json{{"query", std::string(query)}, {"hits", out}, {"total", static_cast<std::int64_t>(hits.size())}};
 }
 
 // --- audit & logs ---------------------------------------------------------------------------

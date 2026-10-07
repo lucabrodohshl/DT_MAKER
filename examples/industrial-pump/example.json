@@ -1,114 +1,301 @@
 {
-  "id": "industrial-pump",
-  "name": "Industrial process pump P-101",
-  "description": "Second reference example (non-drone): a centrifugal process pump with a reliability-engineering Digital Twin, used to demonstrate that every generic Studio view works without domain-specific UI code, and to exercise the ontology-maintenance lifecycle.",
+ "format": "twin-example/2",
+ "id": "industrial-pump",
+ "name": "Industrial process pump P-101",
+ "description": "Second reference example (non-drone): a centrifugal process pump with a reliability-engineering Digital Twin, used to demonstrate that every generic Studio view works without domain-specific UI code, and to exercise the ontology-maintenance lifecycle.",
+ "blueprint": {
+  "id": "centrifugal-pump",
+  "name": "Centrifugal Pump",
+  "domain": "process",
+  "icon": "pump",
+  "description": "Centrifugal process pump with a reliability twin (monitor mode, PLC event script as simulator).",
+  "document": "blueprint.json",
+  "formal": {
+   "ontology": {
+    "id": "process-pump",
+    "name": "Process pump domain",
+    "description": "Domain theory of centrifugal process pumps (bearing condition, vibration, speed, pressure).",
+    "file": "models/process-pump.ont"
+   },
+   "pt_interpretation": {
+    "id": "p101-pt-semantics",
+    "name": "P-101 PT interpretation",
+    "description": "Meaning of the control-system view's labels.",
+    "file": "models/pt.interp"
+   },
+   "dt_interpretation": {
+    "id": "p101-dt-semantics",
+    "name": "P-101 DT interpretation",
+    "description": "Meaning of the reliability twin's labels.",
+    "file": "models/dt.interp"
+   },
+   "pt_model": {
+    "id": "p101-pt-view",
+    "name": "P-101 PT view (PumpControlPT)",
+    "description": "Physical Twin view from the control-system specification.",
+    "file": "models/pump_pt.xml"
+   },
+   "dt_model": {
+    "id": "p101-dt-view",
+    "name": "P-101 DT view (ProcessPumpDT)",
+    "description": "Digital Twin behavioural view executed by the kernel.",
+    "file": "models/pump_dt.xml"
+   }
+  }
+ },
+ "estate": {
   "assets": [
-    {"id": "plant-a", "name": "Plant A", "type": "Site", "description": "Chemical process plant", "tags": ["site"], "properties": {"location": "North site", "operator": "Operations Team 2"}},
-    {"id": "line-4", "name": "Line 4", "type": "ProductionLine", "parentId": "plant-a", "description": "Solvent transfer line", "tags": ["line"], "properties": {"capacity": "120 m3/h"}},
-    {"id": "tank-t4", "name": "Tank T-4", "type": "Tank", "parentId": "line-4", "description": "Suction vessel", "properties": {"volume": "40 m3"}},
-    {"id": "pump-p101", "name": "Pump P-101", "type": "CentrifugalPump", "parentId": "line-4", "description": "Process transfer pump, end-suction, API 610 OH2", "tags": ["critical", "rotating-equipment"], "properties": {"manufacturer": "Example Pumps GmbH", "serial": "OH2-22-0417", "commissioned": "2022-03-14", "duty": "95 m3/h @ 11 bar"}, "twinId": "pump-p101-dt"},
-    {"id": "motor-m12", "name": "Motor M12", "type": "InductionMotor", "parentId": "pump-p101", "description": "75 kW, 2-pole, IE3", "properties": {"ratedPower": "75 kW", "ratedSpeed": "2980 rpm"}},
-    {"id": "bearing-b4", "name": "Bearing B4", "type": "Bearing", "parentId": "pump-p101", "description": "Drive-end rolling-element bearing", "tags": ["wear-part"], "properties": {"type": "6312 C3"}},
-    {"id": "cooling-cu7", "name": "Cooling unit CU-7", "type": "CoolingUnit", "parentId": "pump-p101", "description": "Auxiliary bearing cooling"},
-    {"id": "hx-2", "name": "Heat exchanger HX-2", "type": "HeatExchanger", "parentId": "line-4", "description": "Downstream cooler"},
-    {"id": "pump-p102", "name": "Pump P-102", "type": "CentrifugalPump", "parentId": "line-4", "description": "Standby pump (no Digital Twin)", "tags": ["standby"]},
-    {"id": "sensor-tt101", "name": "TT-101", "type": "TemperatureSensor", "parentId": "pump-p101", "description": "Bearing temperature RTD (Pt100)"},
-    {"id": "sensor-vt101", "name": "VT-101", "type": "VibrationSensor", "parentId": "pump-p101", "description": "Bearing-housing velocity sensor"},
-    {"id": "sensor-pt101", "name": "PT-101", "type": "PressureTransmitter", "parentId": "pump-p101", "description": "Discharge pressure transmitter"},
-    {"id": "sensor-st101", "name": "ST-101", "type": "SpeedSensor", "parentId": "motor-m12", "description": "Shaft speed pickup"},
-    {"id": "plc-4", "name": "PLC-4", "type": "Controller", "parentId": "line-4", "description": "Line 4 control system"}
+   {
+    "id": "plant-a",
+    "name": "Plant A",
+    "type": "Site",
+    "description": "Chemical process plant",
+    "tags": [
+     "site"
+    ],
+    "properties": {
+     "location": "North site",
+     "operator": "Operations Team 2"
+    }
+   },
+   {
+    "id": "line-4",
+    "name": "Line 4",
+    "type": "ProductionLine",
+    "parentId": "plant-a",
+    "description": "Solvent transfer line",
+    "tags": [
+     "line"
+    ],
+    "properties": {
+     "capacity": "120 m3/h"
+    }
+   },
+   {
+    "id": "tank-t4",
+    "name": "Tank T-4",
+    "type": "Tank",
+    "parentId": "line-4",
+    "description": "Suction vessel",
+    "properties": {
+     "volume": "40 m3"
+    }
+   },
+   {
+    "id": "hx-2",
+    "name": "Heat exchanger HX-2",
+    "type": "HeatExchanger",
+    "parentId": "line-4",
+    "description": "Downstream cooler"
+   },
+   {
+    "id": "pump-p102",
+    "name": "Pump P-102",
+    "type": "CentrifugalPump",
+    "parentId": "line-4",
+    "description": "Standby pump (no Digital Twin)",
+    "tags": [
+     "standby"
+    ]
+   },
+   {
+    "id": "plc-4",
+    "name": "PLC-4",
+    "type": "Controller",
+    "parentId": "line-4",
+    "description": "Line 4 control system"
+   }
   ],
   "relationships": [
-    ["tank-t4", "feeds", "pump-p101"],
-    ["pump-p101", "feeds", "hx-2"],
-    ["pump-p102", "feeds", "hx-2"],
-    ["motor-m12", "powers", "pump-p101"],
-    ["cooling-cu7", "cools", "bearing-b4"],
-    ["sensor-tt101", "monitors", "bearing-b4"],
-    ["sensor-vt101", "monitors", "bearing-b4"],
-    ["sensor-pt101", "monitors", "pump-p101"],
-    ["sensor-st101", "monitors", "motor-m12"],
-    ["plc-4", "controls", "pump-p101"],
-    ["plc-4", "controls", "cooling-cu7"],
-    ["pump-p102", "standbyFor", "pump-p101"]
-  ],
-  "twin": {
-    "id": "pump-p101-dt",
-    "name": "P-101 reliability twin",
-    "assetId": "pump-p101",
-    "modelId": "process-pump-p101",
-    "modelVersion": "1.0.0",
-    "ticksPerUnit": 1000,
-    "description": "Behavioural Digital Twin of Pump P-101: operating mode, admissible actions and conformance of the physical pump to the verified DT view.",
-    "presentation": {
-      "timeUnit": "s",
-      "states": {
-        "STOPPED": {"label": "Stopped", "tone": "neutral", "summary": "Pump at rest, ready to start."},
-        "NORMAL": {"label": "Normal operation", "tone": "ok", "summary": "Running within bearing temperature and vibration limits."},
-        "DEGRADED": {"label": "Degraded", "tone": "warning", "summary": "A condition limit is exceeded; an operator decision is due."},
-        "COOLING": {"label": "Cooling", "tone": "warning", "summary": "Auxiliary bearing cooling is running."},
-        "STOPPING": {"label": "Stopping", "tone": "info", "summary": "Controlled spin-down in progress."},
-        "FAULT": {"label": "Tripped", "tone": "critical", "summary": "Protective trip on bearing temperature."}
-      },
-      "events": {
-        "restart": {"label": "Start pump"},
-        "increase_load": {"label": "Increase load"},
-        "condition_degraded": {"label": "Condition degraded"},
-        "condition_recovered": {"label": "Condition recovered"},
-        "start_cooling": {"label": "Start cooling"},
-        "cooling_complete": {"label": "Cooling complete"},
-        "controlled_stop": {"label": "Controlled stop"},
-        "pump_stopped": {"label": "Pump stopped"},
-        "trip": {"label": "Protective trip"},
-        "fault_reset": {"label": "Reset trip"}
-      },
-      "keyTelemetry": ["pump-p101.bearing_temp", "pump-p101.vibration_rms", "pump-p101.discharge_pressure", "pump-p101.shaft_speed"]
-    }
-  },
-  "artifacts": {
-    "ontology": {"id": "process-pump", "name": "Process pump domain", "description": "Domain theory of centrifugal process pumps (bearing condition, vibration, speed, pressure).", "file": "models/process-pump.ont"},
-    "pt_interpretation": {"id": "p101-pt-semantics", "name": "P-101 PT interpretation", "description": "Meaning of the control-system view's labels.", "file": "models/pt.interp"},
-    "dt_interpretation": {"id": "p101-dt-semantics", "name": "P-101 DT interpretation", "description": "Meaning of the reliability twin's labels.", "file": "models/dt.interp"},
-    "pt_model": {"id": "p101-pt-view", "name": "P-101 PT view (PumpControlPT)", "description": "Physical Twin view from the control-system specification.", "file": "models/pump_pt.xml"},
-    "dt_model": {"id": "p101-dt-view", "name": "P-101 DT view (ProcessPumpDT)", "description": "Digital Twin behavioural view executed by the kernel.", "file": "models/pump_dt.xml"}
-  },
-  "maintenanceHistory": [
-    {"kind": "rejected-ontology-change", "title": "Raise bearing alarm limit to 95 °C", "description": "Proposed after nuisance alarms in summer. Rejected: not a refinement of the deployed ontology (contradicts the datasheet limit) and would require re-alignment.", "file": "evolution/process-pump-relaxed.ont"}
-  ],
-  "history": {"days": 7, "periodSeconds": 30, "seed": 4101},
-  "telemetry": [
-    {"id": "pump-p101.bearing_temp", "assetId": "sensor-tt101", "name": "bearing_temp", "valueType": "number", "unit": "degC", "ontologySymbol": "bearing_temp", "source": "runtime:pump-p101-dt/telemetry#bearing_temp", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Bearing temperature", "category": "Condition monitoring", "precision": 1, "preferredView": "line"},
-     "profile": {"base": 72, "dailyAmplitude": 4, "noise": 0.6, "episodes": [
-       {"startHoursAgo": 122, "durationMinutes": 150, "value": 108, "rampMinutes": 40, "mode": "set"},
-       {"startHoursAgo": 46, "durationMinutes": 55, "value": 21, "rampMinutes": 15, "mode": "offset"},
-       {"startHoursAgo": 3, "durationMinutes": 25, "value": 19, "rampMinutes": 10, "mode": "offset"}]}},
-    {"id": "pump-p101.vibration_rms", "assetId": "sensor-vt101", "name": "vibration_rms", "valueType": "number", "unit": "mm/s", "ontologySymbol": "vibration_rms", "source": "runtime:pump-p101-dt/telemetry#vibration_rms", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Bearing vibration (RMS)", "category": "Condition monitoring", "precision": 2, "preferredView": "line"},
-     "profile": {"base": 3.1, "dailyAmplitude": 0.3, "noise": 0.15, "min": 0, "episodes": [
-       {"startHoursAgo": 122, "durationMinutes": 150, "value": 2.8, "rampMinutes": 30, "mode": "offset"},
-       {"startHoursAgo": 46, "durationMinutes": 55, "value": 4.6, "rampMinutes": 15, "mode": "offset"},
-       {"startHoursAgo": 30, "durationMinutes": 20, "gap": true}]}},
-    {"id": "pump-p101.discharge_pressure", "assetId": "sensor-pt101", "name": "discharge_pressure", "valueType": "number", "unit": "bar", "ontologySymbol": "discharge_pressure", "source": "runtime:pump-p101-dt/telemetry#discharge_pressure", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Discharge pressure", "category": "Process", "precision": 2, "preferredView": "line"},
-     "profile": {"base": 11.2, "dailyAmplitude": 0.4, "noise": 0.08, "min": 0, "episodes": [
-       {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 2, "mode": "set"}]}},
-    {"id": "pump-p101.shaft_speed", "assetId": "sensor-st101", "name": "shaft_speed", "valueType": "number", "unit": "rpm", "ontologySymbol": "shaft_speed", "source": "runtime:pump-p101-dt/telemetry#shaft_speed", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Shaft speed", "category": "Drive", "precision": 0, "preferredView": "line"},
-     "profile": {"base": 2965, "dailyAmplitude": 6, "noise": 2, "min": 0, "episodes": [
-       {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 1, "mode": "set"}]}},
-    {"id": "pump-p101.motor_current", "assetId": "motor-m12", "name": "motor_current", "valueType": "number", "unit": "A", "source": "runtime:pump-p101-dt/telemetry#motor_current", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Motor current", "category": "Drive", "precision": 1, "preferredView": "line"},
-     "profile": {"base": 118, "dailyAmplitude": 5, "noise": 1.2, "min": 0, "episodes": [
-       {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "rampMinutes": 1, "mode": "set"}]}},
-    {"id": "pump-p101.cooling_active", "assetId": "cooling-cu7", "name": "cooling_active", "valueType": "boolean", "unit": "", "ontologySymbol": "cooling_active", "source": "runtime:pump-p101-dt/telemetry#cooling_active", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Bearing cooling running", "category": "Auxiliaries", "preferredView": "state"},
-     "profile": {"base": 0, "episodes": [
-       {"startHoursAgo": 45.6, "durationMinutes": 30, "value": 1, "mode": "set"},
-       {"startHoursAgo": 2.8, "durationMinutes": 18, "value": 1, "mode": "set"}]}},
-    {"id": "pump-p101.motor_running", "assetId": "motor-m12", "name": "motor_running", "valueType": "boolean", "unit": "", "ontologySymbol": "motor_running", "source": "runtime:pump-p101-dt/telemetry#motor_running", "expectedPeriodMs": 5000,
-     "presentation": {"label": "Motor running", "category": "Drive", "preferredView": "state"},
-     "profile": {"base": 1, "episodes": [
-       {"startHoursAgo": 120, "durationMinutes": 120, "value": 0, "mode": "set"}]}}
+   [
+    "pump-p102",
+    "feeds",
+    "hx-2"
+   ]
   ]
+ },
+ "instances": [
+  {
+   "id": "pump-p101-dt",
+   "name": "P-101",
+   "description": "Behavioural Digital Twin of Pump P-101: operating mode, admissible actions and conformance of the physical pump to the verified DT view.",
+   "assetIds": {
+    "pump": "pump-p101",
+    "motor": "motor-m12",
+    "bearing": "bearing-b4",
+    "cooling": "cooling-cu7",
+    "tt": "sensor-tt101",
+    "vt": "sensor-vt101",
+    "pt-sensor": "sensor-pt101",
+    "st": "sensor-st101",
+    "line": "line-4",
+    "suction-tank": "tank-t4",
+    "downstream-hx": "hx-2",
+    "controller": "plc-4"
+   },
+   "properties": {
+    "pump": {
+     "manufacturer": "Example Pumps GmbH",
+     "serial": "OH2-22-0417",
+     "commissioned": "2022-03-14",
+     "duty": "95 m3/h @ 11 bar"
+    }
+   },
+   "target": {
+    "kind": "local",
+    "speed": "1"
+   },
+   "deploy": true,
+   "estateRelationships": [
+    [
+     "pump-p102",
+     "standbyFor",
+     "pump-p101"
+    ]
+   ],
+   "history": {
+    "days": 7,
+    "periodSeconds": 30,
+    "seed": 4101
+   },
+   "profiles": {
+    "bearing_temp": {
+     "base": 72,
+     "dailyAmplitude": 4,
+     "noise": 0.6,
+     "episodes": [
+      {
+       "startHoursAgo": 122,
+       "durationMinutes": 150,
+       "value": 108,
+       "rampMinutes": 40,
+       "mode": "set"
+      },
+      {
+       "startHoursAgo": 46,
+       "durationMinutes": 55,
+       "value": 21,
+       "rampMinutes": 15,
+       "mode": "offset"
+      },
+      {
+       "startHoursAgo": 3,
+       "durationMinutes": 25,
+       "value": 19,
+       "rampMinutes": 10,
+       "mode": "offset"
+      }
+     ]
+    },
+    "vibration_rms": {
+     "base": 3.1,
+     "dailyAmplitude": 0.3,
+     "noise": 0.15,
+     "min": 0,
+     "episodes": [
+      {
+       "startHoursAgo": 122,
+       "durationMinutes": 150,
+       "value": 2.8,
+       "rampMinutes": 30,
+       "mode": "offset"
+      },
+      {
+       "startHoursAgo": 46,
+       "durationMinutes": 55,
+       "value": 4.6,
+       "rampMinutes": 15,
+       "mode": "offset"
+      },
+      {
+       "startHoursAgo": 30,
+       "durationMinutes": 20,
+       "gap": true
+      }
+     ]
+    },
+    "discharge_pressure": {
+     "base": 11.2,
+     "dailyAmplitude": 0.4,
+     "noise": 0.08,
+     "min": 0,
+     "episodes": [
+      {
+       "startHoursAgo": 120,
+       "durationMinutes": 120,
+       "value": 0,
+       "rampMinutes": 2,
+       "mode": "set"
+      }
+     ]
+    },
+    "shaft_speed": {
+     "base": 2965,
+     "dailyAmplitude": 6,
+     "noise": 2,
+     "min": 0,
+     "episodes": [
+      {
+       "startHoursAgo": 120,
+       "durationMinutes": 120,
+       "value": 0,
+       "rampMinutes": 1,
+       "mode": "set"
+      }
+     ]
+    },
+    "motor_current": {
+     "base": 118,
+     "dailyAmplitude": 5,
+     "noise": 1.2,
+     "min": 0,
+     "episodes": [
+      {
+       "startHoursAgo": 120,
+       "durationMinutes": 120,
+       "value": 0,
+       "rampMinutes": 1,
+       "mode": "set"
+      }
+     ]
+    },
+    "cooling_active": {
+     "base": 0,
+     "episodes": [
+      {
+       "startHoursAgo": 45.6,
+       "durationMinutes": 30,
+       "value": 1,
+       "mode": "set"
+      },
+      {
+       "startHoursAgo": 2.8,
+       "durationMinutes": 18,
+       "value": 1,
+       "mode": "set"
+      }
+     ]
+    },
+    "motor_running": {
+     "base": 1,
+     "episodes": [
+      {
+       "startHoursAgo": 120,
+       "durationMinutes": 120,
+       "value": 0,
+       "mode": "set"
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "maintenanceHistory": [
+  {
+   "kind": "rejected-ontology-change",
+   "title": "Raise bearing alarm limit to 95 \u00b0C",
+   "description": "Proposed after nuisance alarms in summer. Rejected: not a refinement of the deployed ontology (contradicts the datasheet limit) and would require re-alignment.",
+   "file": "evolution/process-pump-relaxed.ont"
+  }
+ ]
 }

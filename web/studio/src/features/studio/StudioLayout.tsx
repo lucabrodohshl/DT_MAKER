@@ -1,22 +1,26 @@
 /**
- * STUDIO mode: the authoring environment. Separate from operating twins: definitions are
- * created and changed here (artefact versions, change workspaces, verification, packages),
- * and "Back to Operate" returns to the twin the user came from.
+ * STUDIO mode: the authoring environment, separate from operating twins. Twin Blueprints are
+ * designed, verified and released here (each Blueprint opens its own workspace); the
+ * engineering library (changes to deployed twins, shared formal artefacts, evidence, packages)
+ * stays available. "Back to Operate" returns to the twin the user came from.
  */
-import { ArrowLeft, BookOpen, ClipboardCheck, FileClock, FileCode2, GitCompare, GitPullRequest, Home, Network, Package, Rocket, ShieldCheck, Workflow } from 'lucide-react';
+import { ArrowLeft, BookOpen, ClipboardCheck, FileClock, FileCode2, GitCompare, GitPullRequest, LayoutGrid, Network, Package, Plus, Rocket, ShieldCheck, Workflow } from 'lucide-react';
 import clsx from 'clsx';
 import { Link, NavLink, Outlet, useSearchParams } from 'react-router-dom';
 import { lastTwin, twinRoute } from '@/app/twinScope';
 import '../twins/twins.css';
 
 const NAV = [
-  { group: '', items: [{ to: '/studio', label: 'Studio home', icon: Home, end: true }] },
-  { group: 'Change', items: [
+  { group: '', items: [
+    { to: '/studio', label: 'Blueprints', icon: LayoutGrid, end: true },
+    { to: '/studio/new', label: 'New Blueprint', icon: Plus },
+  ] },
+  { group: 'Change deployed twins', items: [
     { to: '/studio/changes', label: 'Changes', icon: GitPullRequest },
     { to: '/studio/impact', label: 'Impact analysis', icon: Network },
     { to: '/studio/history', label: 'Version history', icon: GitCompare },
   ] },
-  { group: 'Definitions', items: [
+  { group: 'Formal artefacts', items: [
     { to: '/studio/models', label: 'Models (PT / DT)', icon: Workflow },
     { to: '/studio/ontologies', label: 'Ontologies', icon: BookOpen },
     { to: '/studio/interpretations', label: 'Interpretations', icon: FileCode2 },

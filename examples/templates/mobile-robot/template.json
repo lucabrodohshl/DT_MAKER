@@ -1,0 +1,3 @@
+{"name": "Mobile robot", "description": "Indoor mobile robot or drone: asset types (building, floor, robot, sensors), a spatial world with the mobile-robot tool palette, the robot simulator with an observation model, and a data contract bound to the simulator's fields. Bring your own PT/DT views or import UPPAAL files.",
+ "domain": "mobile-robot", "icon": "drone", "order": 20, "document": "blueprint.json",
+ "includes": ["Asset types", "Spatial world: floor 20 m × 12 m", "Robot simulator and observation model", "Data contract: position, velocity, battery, range"]}

@@ -1,0 +1,23 @@
+{
+  "rooms": [
+    {"id": "zone-workshop-w1", "name": "Workshop W-1", "cells": [1, 1, 12, 11], "furniture": "Workbench"},
+    {"id": "zone-storage-s2", "name": "North storage S-2", "asset": "storage-s2", "cells": [14, 1, 27, 11], "furniture": "Storage rack"},
+    {"id": "zone-server-s1", "name": "Server room S-1", "asset": "server-s1", "cells": [29, 1, 39, 11], "furniture": "Server rack"},
+    {"id": "zone-electrical-e1", "name": "Electrical room E-1", "asset": "electrical-e1", "cells": [41, 1, 54, 11], "furniture": "Switchgear cabinet"},
+    {"id": "zone-corridor-c1", "name": "Central corridor C-1", "asset": "corridor-c1", "semanticType": "corridor", "cells": [1, 13, 54, 15], "furniture": "Obstacle"},
+    {"id": "zone-lobby-l1", "name": "Lobby L-1", "asset": "lobby-l1", "cells": [1, 17, 12, 28], "furniture": "Reception furniture"},
+    {"id": "zone-office-o1", "name": "Open-plan office O-1", "asset": "office-o1", "cells": [14, 17, 39, 28], "furniture": "Desk cluster"},
+    {"id": "zone-meeting-m1", "name": "Meeting room M-1", "cells": [41, 17, 54, 28], "furniture": "Meeting table"}
+  ],
+  "special": [
+    {"id": "fire-door-fd2", "name": "Fire door FD-2", "asset": "fire-door-fd2", "semanticType": "door",
+     "cells": [[31, 13], [31, 14], [31, 15]], "asBuilt": {"state": "closed"}, "planned": {"state": "open"}}
+  ],
+  "eventObject": "nofly-server-s1",
+  "start": {"id": "start-pad-p1", "name": "Landing pad P-1", "asset": "pad-p1"},
+  "robot": {"id": "robot-drone", "name": "Drone (initial position)", "asset": "drone"},
+  "targets": [
+    {"id": "target-t1", "asset": "switchboard-msb1"},
+    {"id": "target-t2", "asset": "riser-sr2"}
+  ]
+}

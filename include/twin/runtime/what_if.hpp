@@ -36,7 +36,8 @@ namespace twin::runtime {
  *    `{"kind": "initial"}`, or `{"kind": "configurations", "configurations": [{location,
  *    clocks: {name: "<decimal>"}, time: "<decimal>"}]}` (for example a recorded replay state;
  *    every configuration must satisfy its location invariant and share one time);
- *  - `steps`: list of `{"kind": "delay", "delay": "<decimal>"}` or `{"kind": "event",
+ *  - `steps`: list of `{"kind": "delay", "delay": "<decimal>"}` (or `"until": "<decimal>"`: let
+ *    time pass up to that absolute time, a no-op when it is not in the future) or `{"kind": "event",
  *    "label": "<label>" | "transition": "<id>", "delay": "<decimal>" | "at": "<decimal>"}`
  *    (`delay` is relative to the end of the previous step, `at` is absolute logical time;
  *    naming a transition selects that branch only).

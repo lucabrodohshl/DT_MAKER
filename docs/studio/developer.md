@@ -10,13 +10,22 @@
                                                            ├─ ontology: strict parser · validation · evaluation · diff ·
                                                            │    refinement (Def. 4, Z3) · Theorem 3 assessment
                                                            ├─ compiler / aligner (SemPTDTAlignmentICSE, unmodified)
+                                                           ├─ blueprints: catalogue · sections · PT/DT models · validation ·
+                                                           │    timing windows & scenarios (kernel) · previews · release gate ·
+                                                           │    package + bundle · instances · live monitors
+                                                           ├─ supervisor: deployed instances ──▶ twin-runtime / twin-world /
+                                                           │    twin-pt-feed processes (pid files, health checks, fail-stop)
                                                            ├─ runtime bridge: ingests runtime telemetry (Last-Event-ID resume)
                                                            └─ proxy  /api/v1/twins/{id}/{runtime|simulation|planner|world|
                                                                      mission|observer|scenario}/…  ──▶ twin-runtime / twin-world
 ```
 
 - **`twin-studio`** owns the engineering lifecycle and the platform data. It never executes
-  behaviour.
+  behaviour itself: timing windows and scenarios run on the semantic kernel library, previews and
+  deployed instances run `twin-runtime` processes under its supervisor.
+- **Blueprints** (`BlueprintService`, `include/twin/studio/blueprints.hpp`) compose the existing
+  authorities — validators, aligner, compiler, kernel, package verifier — and record evidence
+  for exactly a version's inputs. Every mutating operation appends an engineering-audit record.
 - **`twin-runtime`** runs the verified kernel for one twin. It owns the behavioural state, the
   execution ledger, prediction, simulation and replay. Studio reaches it only through the
   proxy, so the browser has a single origin.
@@ -30,6 +39,8 @@
 | `include/twin/ontology`, `src/ontology` | Strict `.ont`/`.interp` parser, validation, three-valued evaluation, structural diff, refinement checker |
 | `include/twin/platform`, `src/platform` | Database, object store, artefacts and lifecycle, evidence and applicability, audit, assets, telemetry, twins/packages/deployments, app log |
 | `include/twin/studio`, `src/studio` | Services (core, artefacts, checks, release, ops), HTTP server, SSE events, seed, runtime bridge |
+| `src/studio/blueprints_*.cpp` | Blueprint service: catalogue and sections (`core`), validation and world rasterisation (`validate`), formal artefacts, alignment and compilation (`formal`), timing windows and scenarios (`test`), previews (`preview`), release gate, package, instances and deployment (`release`), live monitors (`monitors`) |
+| `src/studio/supervisor.cpp` | Deployment supervisor of instance and preview processes |
 | `apps/twin-studio` | `serve`, `seed`, `demo`, `version` |
 | `tests/studio` | GoogleTest suites (ontology, platform, services and HTTP) |
 | `web/studio/src/api` | Typed client, zod schemas for trust-relevant payloads, TanStack Query hooks |
@@ -37,8 +48,11 @@
 | `web/studio/src/live` | Studio SSE stream (sequence, epoch, gap detection, resync) |
 | `web/studio/src/design` | Design system: tokens, components, tables, graph layout |
 | `web/studio/src/features` | One folder per product area |
+| `web/studio/src/features/blueprint` | The Blueprint workspace: pages per section, the timed-automaton canvas (`ta/`), the world editor (`world/`), semantics editors, the Scenario Builder (`test/`), the guided wizard, undo/redo and reference-following renames |
+| `web/studio/src/features/studio` | Studio home and navigation |
 | `web/studio/src/plugins` | Plugin contract, registry and the drone reference plugin |
-| `examples/*` | The drone and pump examples (models, ontologies, interpretations, evolutions, seed data) |
+| `examples/*` | The drone, pump and thermal-chamber examples (Blueprint documents, models, ontologies, interpretations, evolutions, seed data) |
+| `examples/templates` | Blueprint templates offered by *From template* |
 
 ## Building
 
@@ -87,6 +101,13 @@ from disk. It needs Python-Markdown (`pip install markdown`).
   - 500: I/O or internal error
   The UI shows the message and the code-specific explanation; technical context is shown only
   on request.
+- **Contract checks**: the component schemas of `api/studio.openapi.yaml` are generated from the
+  client's types in `web/studio/src/api/types.ts` (`python3 scripts/openapi/studio_components.py`;
+  `--check` fails when the file is out of date), and
+  `STUDIO_URL=… python3 scripts/openapi/check_studio_contract.py` calls every documented `GET`
+  operation of a running server, with identifiers discovered from it, and validates the
+  responses against the specification (Blueprints, versions, sections, previews, instances and
+  their monitors included). `make api-check` runs both.
 - **Runtime API** (through the proxy): [`api/runtime.openapi.yaml`](../../api/runtime.openapi.yaml)
   and [`../runtime-api.md`](../runtime-api.md).
 - **Live events**: `GET /api/v1/stream`, SSE with `seq`, server `epoch` and `lastEventId`
@@ -102,10 +123,10 @@ from disk. It needs Python-Markdown (`pip install markdown`).
 
 | Suite | Command | Covers |
 |---|---|---|
-| C++ unit and integration | `ctest --test-dir build/studio-release -L studio` | Parser, validation, evaluation, diff, refinement corpus (CS1–CS8, drone, pump), platform repositories, lifecycle, applicability, audit chain, services, HTTP API, proxy, SSE |
+| C++ unit and integration | `ctest --test-dir build/studio-release -L studio` | Parser, validation, evaluation, diff, refinement corpus (CS1–CS8, drone, pump), platform repositories, lifecycle, applicability, audit chain, services, HTTP API, proxy, SSE; Blueprints (`studio_blueprint_tests`): creation, sections and revisions, validation, the drone and pump Blueprints end to end, timing windows and scenarios, release gate, package and bundle, instances, deployment, previews, live monitors |
 | Frontend unit and component | `cd web/studio && npm test` | Stream ordering/gaps/pause, logical time, prediction tree, telemetry gaps/quality/CSV, schemas, graph layout, replay accessors; trust badges, error states, refinement verdicts, publish gating and 409, diagnostics, rollback reason, audit-chain failure (API mocked with MSW, in tests only) |
-| End-to-end | `cd web/studio && npm run e2e` (against a running stack; `STUDIO_URL` to point elsewhere) | Asset → telemetry → behaviour → *Why?* → prediction → ledger verification → replay → ledger export; the ontology journey (draft, diagnostics, validate, refinement, impact, publish gating); the drone integration |
-| Screenshots | `scripts/capture-screenshots.sh` | Regenerates `docs/screenshots/` (including the tutorial) from an isolated stack |
+| End-to-end | `cd web/studio && npm run e2e` (against a running stack; `STUDIO_URL` to point elsewhere) | Asset → telemetry → behaviour → *Why?* → prediction → ledger verification → replay → ledger export; the ontology journey (draft, diagnostics, validate, refinement, impact, publish gating); the drone integration; `blueprint-studio.spec.ts`: a thermal-chamber twin built from scratch to a deployed, monitored instance, the drone preview, the Scenario Builder refusing an illegal step |
+| Screenshots | `scripts/capture-screenshots.sh` | Regenerates `docs/screenshots/` (including both tutorials and the Studio tour: `scripts/screenshots/first-twin.mjs`, `scripts/screenshots/studio.mjs`) from an isolated stack |
 
 If `npx playwright install` is not possible, set `PLAYWRIGHT_CHROMIUM` to an existing Chromium
 binary.
@@ -116,7 +137,7 @@ binary.
   There is no authentication in this version. Expose it only behind an authenticating reverse
   proxy that enforces roles server-side.
 - **Actor.** `X-Twin-Actor` attributes engineering actions in the audit trail. It is
-  self-declared and **not** an access-control mechanism. The UI's Operations/Engineering switch
+  self-declared and **not** an access-control mechanism. The UI's Operator/Engineer detail level
   is presentation only.
 - **No secrets in the UI or logs.** Structured log fields whose names look like credentials
   (password, secret, token, credential, authorization, api_key, private_key, cookie) are redacted before they are written. The UI shows hashes,

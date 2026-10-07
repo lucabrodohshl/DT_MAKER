@@ -4,6 +4,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <fstream>
+#include <sstream>
+
 #include <algorithm>
 #include <iterator>
 
@@ -82,9 +85,18 @@ TEST(Feed, RejectsMalformedFeeds) {
     EXPECT_FALSE(feed_from_json(Json::parse(R"({"cycle_s": 5, "channels": {"t": {"keys": [[2, 1], [1, 0]]}}})")).ok());
 }
 
-TEST(Feed, ThePumpCycleLoads) {
-    Result<Feed> f = load_feed(std::filesystem::path(TWIN_SOURCE_DIR) / "scenarios" / "pump_operating_cycle.json");
+/// The pump Blueprint's event script (its simulator configuration, authored in Studio) is a feed;
+/// decimals are canonical-safe strings there and read exactly as numbers.
+TEST(Feed, ThePumpBlueprintScriptLoads) {
+    std::ifstream in(std::filesystem::path(TWIN_SOURCE_DIR) / "examples" / "industrial-pump" / "blueprint.json");
+    std::ostringstream text;
+    text << in.rdbuf();
+    const Json blueprint = Json::parse(text.str());
+    Result<Feed> f = feed_from_json(blueprint.at("simulation").at("script"));
     ASSERT_TRUE(f.ok()) << f.error().to_string();
+    const auto bearing = std::find_if(f.value().channels.begin(), f.value().channels.end(), [](const Channel& c) { return c.name == "bearing_temp"; });
+    ASSERT_NE(bearing, f.value().channels.end());
+    EXPECT_DOUBLE_EQ(channel_value(*bearing, 171.0), 90.6);  // the decimal string "90.6", exactly
     EXPECT_EQ(f.value().channels.size(), 7U);
     EXPECT_EQ(f.value().events.size(), 7U);
 }

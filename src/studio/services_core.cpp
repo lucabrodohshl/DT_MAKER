@@ -5,6 +5,9 @@
 #include <fstream>
 
 #include "services_impl.hpp"
+#include "twin/authoring/toolchain.hpp"
+#include "twin/studio/blueprints.hpp"
+#include "twin/studio/supervisor.hpp"
 #include "twin/alignment/aligner_identity.hpp"
 #include "twin/core/version.hpp"
 #include "twin/ontology/verdict.hpp"
@@ -45,10 +48,18 @@ Result<fs::path> Services::Impl::materialize(const Binding& b) {
     if (fs::exists(path, ec)) return path;
     auto bytes = store->get(b.sha256);
     if (!bytes) return std::move(bytes).error();
+    // Model artefacts hold canonical twin-ta/1 content (Studio's editors and importers) or legacy
+    // UPPAAL XML; the formal tools always read the toolchain rendering (one semantics).
+    std::string text = std::move(bytes).value();
+    if (b.role == "pt_model" || b.role == "dt_model") {
+        auto rendered = authoring::toolchain_source(text);
+        if (!rendered) return std::move(rendered).error().with("ref", b.ref.str());
+        text = std::move(rendered).value();
+    }
     const fs::path tmp = path.string() + ".tmp";
     {
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        out << bytes.value();
+        out << text;
         if (!out) return make_error(ErrorCode::IoError, "cannot write work file");
     }
     fs::rename(tmp, path, ec);
@@ -109,7 +120,10 @@ Services::Services(StudioConfig config, std::unique_ptr<Clock> clock)
       log_(std::make_unique<AppLog>(config_.data_dir / "logs" / "studio.jsonl", *clock_)),
       impl_(std::make_unique<Impl>(*this)) {}
 
-Services::~Services() { events_.close(); }
+Services::~Services() {
+    supervisor_.reset();  // stops instance processes and their telemetry bridges first
+    events_.close();
+}
 
 Result<std::unique_ptr<Services>> Services::open(const StudioConfig& config, std::unique_ptr<Clock> clock) {
     std::error_code ec;
@@ -130,6 +144,9 @@ Result<std::unique_ptr<Services>> Services::open(const StudioConfig& config, std
     i.assets = std::make_unique<AssetRepository>(*i.db);
     i.telemetry = std::make_unique<TelemetryRepository>(*i.db);
     i.twins = std::make_unique<TwinRepository>(*i.db, *s->clock_);
+    s->blueprints_ = std::make_unique<BlueprintService>(*s, config.templates_dir);
+    s->supervisor_ = std::make_unique<Supervisor>(*s, config.bin_dir, config.port_range_begin, config.port_range_end);
+    s->blueprints_->attach(s->supervisor_.get());
     s->log_->write(LogLevel::Info, "studio.services", "data directory opened",
                    {{"dataDir", config.data_dir.string()}, {"schemaVersion", i.db->schema_version()}});
     return s;

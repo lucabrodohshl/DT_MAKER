@@ -329,7 +329,15 @@ namespace {
 Result<Json> delay_step(const kernel::Model& m, kernel::StateSet& s, const Json& step, Json out, bool& invalid) {
     const TimeBase base = m.time_base();
     const Ticks now = s.time();
-    Result<Ticks> d = parse_decimal(step, "delay", base);
+    // {"until": t} lets time pass up to the absolute time t (no-op when t is not in the future).
+    Result<Ticks> d = Ticks{0};
+    if (!step.contains("delay") && step.contains("until")) {
+        Result<Ticks> until = parse_decimal(step, "until", base);
+        if (!until) return std::move(until).error();
+        d = std::max<Ticks>(0, until.value() - now);
+    } else {
+        d = parse_decimal(step, "delay", base);
+    }
     if (!d) return std::move(d).error();
     out["requested"] = Json{{"delay", tv(d.value(), base)}, {"at", tv(now + d.value(), base)}};
     Result<kernel::StateSet> r = d.value() < 0 ? Result<kernel::StateSet>(make_error(ErrorCode::InvalidArgument, "a delay cannot be negative"))
