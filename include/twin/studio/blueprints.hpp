@@ -158,7 +158,9 @@ public:
     /**
      * @brief Create an instance of a published version: {blueprintId, version, id, name,
      * description?, assetIds?: {blueprintAsset: assetId}, placement?: {parentAssetId?, world?: {...}},
-     * properties?: {...}, connectivity?: {sources?, bindings?}, target?: {kind: "local", speed?, paused?}}.
+     * properties?: {...}, connectivity?: {sources?, bindings?}, target?: {kind: "local", speed?, paused?},
+     * connection?: {rest?, mqtt?, broker?, timestamp?, eventField?, clock?}} (see update_connection();
+     * an instance with an active plant connection is fed by the plant, never by the simulator).
      * assetIds names the instance's assets (instance scope) or the existing estate assets the
      * Blueprint's context assets denote (reused, never modified).
      * Instantiates the Blueprint's instance-scoped assets and the telemetry channels of its data
@@ -179,6 +181,26 @@ public:
     [[nodiscard]] Result<json::Json> run_instance(std::string_view id, const std::string& package_id, const Actor& actor);
     /// @brief Stop or start an instance's processes ({action: "stop"|"start"}).
     [[nodiscard]] Result<json::Json> control_instance(std::string_view id, std::string_view action, const Actor& actor);
+
+    // ------------------------------------------------------------------ plant connection
+    /**
+     * @brief How the plant reaches an instance: its inputs (REST endpoint, MQTT endpoint, broker
+     * subscription) with addresses and ports, the access token, the message contract (which
+     * fields, codes and topics the twin understands), ready-to-run examples, and the live
+     * status of its twin-ingest process (null when it does not run).
+     */
+    [[nodiscard]] Result<json::Json> connection(std::string_view id);
+    /**
+     * @brief Change an instance's plant connection: {rest?: {enabled, port?}, mqtt?: {enabled, port?},
+     * broker?: {enabled, host, port?, topics, qos?, clientId?, username?, password?},
+     * timestamp?: {field, unit}, eventField?, clock?: {syncSeconds, graceSeconds}, bindings?}.
+     * An empty port is chosen automatically (19000–19999). A running instance's twin-ingest is
+     * restarted with the new settings; its runtime keeps running.
+     */
+    [[nodiscard]] Result<json::Json> update_connection(std::string_view id, const json::Json& body, const Actor& actor);
+    /// @brief Issue a new access token; the previous one stops working at once.
+    [[nodiscard]] Result<json::Json> rotate_connection_token(std::string_view id, const Actor& actor);
+
     /// @brief Test a data-source binding: fetch a sample and show raw, canonical, type, unit, timestamp and quality.
     [[nodiscard]] Result<json::Json> test_binding(std::string_view id, std::int64_t version, const json::Json& body);
 

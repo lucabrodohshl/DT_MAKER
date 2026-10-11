@@ -444,6 +444,20 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
     }
     if (services_.twin_record(id)) return make_error(ErrorCode::StateError, "a twin with this id already exists").with("id", id);
     const Json& doc = ver.document;
+    // The plant connection (REST / MQTT inputs), checked before anything is created.
+    Json connection = nullptr;
+    if (body.contains("connection") && !body.at("connection").is_null()) {
+        if (doc.value("identity", Json::object()).value("runtimeMode", std::string("monitor")) == "cosimulation" &&
+            connection_active(body.at("connection").is_object() ? Json{{"rest", body.at("connection").value("rest", Json::object())},
+                                                                       {"mqtt", body.at("connection").value("mqtt", Json::object())},
+                                                                       {"broker", body.at("connection").value("broker", Json::object())}}
+                                                                 : Json::object())) {
+            return make_error(ErrorCode::InvalidArgument, "a co-simulation twin is driven by its simulator; plant connections are for monitoring twins");
+        }
+        auto c = impl_->prepare_connection(body.at("connection"), id, Json::object());
+        if (!c) return std::move(c).error();
+        connection = c.value();
+    }
     const Json structure = doc.value("structure", Json::object());
     const Json placement = body.value("placement", Json::object());
     const std::string parent_override = placement.value("parentAssetId", std::string());
@@ -518,7 +532,13 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
     }
 
     // Telemetry channels from the data contract; values reach them through the runtime and the bridge.
-    const Json conn = body.contains("connectivity") ? body.at("connectivity") : doc.value("connectivity", Json::object());
+    Json conn = body.contains("connectivity") ? body.at("connectivity") : doc.value("connectivity", Json::object());
+    if (connection_active(connection)) conn = without_simulator_sources(conn);  // fed by the plant
+    if (!connection.is_null() && body.at("connection").contains("names")) {
+        auto named = apply_plant_names(conn, body.at("connection").at("names"), connection.value("eventField", std::string("event")));
+        if (!named) return std::move(named).error();
+        conn = named.value();
+    }
     std::map<std::string, Json> binding_of;
     for (const Json& b : conn.value("bindings", Json::array())) {
         if (b.value("target", Json::object()).value("kind", std::string()) == "telemetry") binding_of[b["target"].value("id", std::string())] = b;
@@ -544,9 +564,7 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
         Json transform = nullptr;
         if (binding_of.count(tid)) {
             const Json& b = binding_of.at(tid);
-            const Json sel = b.value("select", Json::object());
-            field = sel.value("field", sel.value("path", tid));
-            if (field.rfind("$.", 0) == 0) field = field.substr(2);
+            field = channel_key(b, tid);
             const Json unit = b.value("unit", Json::object());
             if (unit.contains("scale") || unit.contains("offset")) {
                 transform = Json{{"scale", unit.value("scale", Json("1"))}, {"offset", unit.value("offset", Json("0"))}};
@@ -598,6 +616,7 @@ Result<Json> BlueprintService::create_instance(const Json& body, const Actor& ac
                              {"target", body.value("target", Json{{"kind", "local"}})},
                              {"assetMap", asset_map},
                              {"channels", channels}};
+    if (!connection.is_null()) t.instance_config["connection"] = connection;
     t.desired_state = "stopped";
     if (auto st = services_.upsert_twin(t); !st) return st.error();
     {
@@ -715,6 +734,13 @@ Result<Json> BlueprintService::launch(std::string_view twin_id, std::string_view
             plan.feed = bdir / "simulation" / "event-script.json";
             if (!target.contains("speed")) plan.speed = 1.0;
         }
+    }
+    // The plant connection (twin-ingest), when the instance has one: the plant feeds the twin.
+    if (plan.mode != "cosimulation") {
+        auto ingest_cfg = impl_->write_ingest_config(t, ver.document);
+        if (!ingest_cfg) return std::move(ingest_cfg).error();
+        plan.ingest_config = ingest_cfg.value();
+        if (plan.ingest_config) plan.feed.reset();
     }
     auto started = supervisor_->start(plan);
     {

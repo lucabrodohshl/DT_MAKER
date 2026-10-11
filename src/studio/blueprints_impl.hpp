@@ -55,6 +55,16 @@ struct BlueprintService::Impl {
 
     Impl(BlueprintService& s, Services& svc, std::filesystem::path templates);
 
+    // Plant connection (blueprints_connection.cpp).
+    /// @brief Check and complete a requested plant connection of instance @p id (ports allocated
+    /// or kept, token kept or issued, broker password stored apart); @p previous is the current one.
+    [[nodiscard]] Result<json::Json> prepare_connection(const json::Json& requested, const std::string& id, const json::Json& previous);
+    /// @brief Write the twin-ingest configuration of @p t for the data contract of @p document
+    /// (mode 0600: it holds the token); none when the instance has no active plant connection.
+    [[nodiscard]] Result<std::optional<std::filesystem::path>> write_ingest_config(const platform::Twin& t, const json::Json& document);
+    /// @brief Point the instance's telemetry channels at the plant fields its bindings select.
+    [[nodiscard]] Status sync_channels(const platform::Twin& t, const json::Json& document);
+
     /// @brief A version (NotFound otherwise); the caller holds core.lock() or tolerates races.
     [[nodiscard]] Result<platform::BlueprintVersion> load(std::string_view id, std::int64_t version);
     /// @brief A draft version whose revision is @p revision (StateError otherwise).
@@ -101,5 +111,18 @@ struct BlueprintService::Impl {
 
 /// @brief "pt" -> "pt_model", "dt" -> "dt_model" (InvalidArgument otherwise).
 [[nodiscard]] Result<std::string> model_role(std::string_view short_role);
+
+/// @brief Key of telemetry @p telemetry_id in the runtime's telemetry stream: the plant field the
+/// @p binding selects ("$." stripped from a path), else the id itself. The instance's channel
+/// listens to exactly this key (runtime:<instance>/telemetry#<key>).
+[[nodiscard]] std::string channel_key(const json::Json& binding, const std::string& telemetry_id);
+/// @brief Whether a plant connection enables at least one input (REST, MQTT endpoint, broker).
+[[nodiscard]] bool connection_active(const json::Json& connection);
+/// @brief @p connectivity without its simulator sources (an instance fed by the plant).
+[[nodiscard]] json::Json without_simulator_sources(const json::Json& connectivity);
+/// @brief @p connectivity with the plant's own names: {telemetry: {id: "TT101_degC" | {field | topic}},
+/// events: {id: ["START", ...]}} (codes are values of @p event_field). Existing bindings are
+/// updated in place (units kept); an empty name returns a signal to the twin's own name.
+[[nodiscard]] Result<json::Json> apply_plant_names(const json::Json& connectivity, const json::Json& names, const std::string& event_field);
 
 }  // namespace twin::studio

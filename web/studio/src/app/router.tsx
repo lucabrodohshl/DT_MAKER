@@ -6,6 +6,7 @@
  *   /twins/{twinId}/assets[/{assetId}/...]        assets of the twin
  *   /twins/{twinId}/knowledge                     knowledge graph around the twin
  *   /twins/{twinId}/operations/{live|telemetry|events}
+ *   /twins/{twinId}/connection                    plant connection (REST / MQTT inputs, token, status)
  *   /twins/{twinId}/behavior[/model|/facts|/conformance]
  *   /twins/{twinId}/predict/{what-if|predictions|planning}
  *   /twins/{twinId}/audit[/provenance|/replay|/ledger|/executions/{session}[/replay]]
@@ -70,6 +71,7 @@ const P: Record<string, Loader> = {
   twinData: named(twinPages, 'TwinDataSourcesPage'),
   twinRuntime: named(twinPages, 'TwinRuntimeHealthPage'),
   twinStorage: named(twinPages, 'TwinStoragePage'),
+  twinConnection: named(() => import('@/features/twins/PlantConnection'), 'TwinConnectionPage'),
   studio: () => import('@/features/studio/StudioLayout') as never,
   studioHome: () => import('@/features/studio/StudioHomePage') as never,
   bpRedirect: () => import('@/features/blueprint/BlueprintRedirect') as never,
@@ -151,6 +153,7 @@ const twinChildren: RouteObject[] = [
   r('operations/live', page(P.twinLive!)),
   r('operations/telemetry', page(P.assetTelemetry!)),
   r('operations/events', page(P.events!)),
+  r('connection', page(P.twinConnection!)),
   r('behavior', page(P.assetBehavior!, { view: 'state' })),
   r('behavior/model', page(P.models!, { behaviourOnly: true })),
   r('behavior/facts', page(P.assetBehavior!, { view: 'facts' })),

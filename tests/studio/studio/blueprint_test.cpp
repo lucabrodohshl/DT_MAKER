@@ -14,6 +14,12 @@
 #include <sstream>
 #include <thread>
 
+#include <httplib.h>
+
+#include <array>
+
+#include "twin/ingest/mqtt.hpp"
+#include "twin/ingest/net.hpp"
 #include "twin/studio/blueprints.hpp"
 #include "twin/studio/seed.hpp"
 #include "twin/studio/services.hpp"
@@ -444,4 +450,121 @@ TEST_F(BlueprintTest, SeededInstanceDeploysRealProcesses) {
     ASSERT_TRUE(back.ok()) << back.error().to_string();
     EXPECT_EQ(back.value()["runtime"]["packageId"], v1_package);
     ASSERT_TRUE(bp().control_instance("chamber-tc1-dt", "stop", alice).ok());
+}
+
+TEST_F(BlueprintTest, PlantConnectionFeedsADeployedInstance) {
+    if (!s().supervisor().available()) GTEST_SKIP() << "runtime binaries not built next to the tests";
+    SeedOptions options;
+    options.telemetry_history = false;
+    auto seeded = seed_example(s(), fs::path(TWIN_SOURCE_DIR) / "examples" / "industrial-pump", options);
+    ASSERT_TRUE(seeded.ok()) << seeded.error().to_string();
+
+    // A plant-facing port inside the runtimes' range is refused before anything is created.
+    auto bad = bp().create_instance(Json{{"blueprintId", "centrifugal-pump"}, {"version", 1}, {"id", "pump-p199-dt"},
+                                         {"connection", {{"rest", {{"enabled", true}, {"port", 18500}}}}}}, alice);
+    EXPECT_FALSE(bad.ok());
+    EXPECT_FALSE(s().twin_record("pump-p199-dt").ok());
+
+    // REST and MQTT endpoints on automatic ports; the simulator no longer feeds this instance.
+    const Json connection{{"rest", {{"enabled", true}}}, {"mqtt", {{"enabled", true}}}, {"timestamp", {{"field", "ts"}, {"unit", "ms"}}}};
+    auto inst = bp().create_instance(Json{{"blueprintId", "centrifugal-pump"}, {"version", 1}, {"id", "pump-p102-dt"}, {"name", "Pump P-102"},
+                                          {"connection", connection}}, alice);
+    ASSERT_TRUE(inst.ok()) << inst.error().to_string();
+    const Json cfg = inst.value()["instanceConfig"];
+    ASSERT_TRUE(cfg["connection"]["rest"]["port"].is_number_integer());
+    EXPECT_NE(cfg["connection"]["rest"]["port"], cfg["connection"]["mqtt"]["port"]);
+    EXPECT_EQ(cfg["connection"]["token"].get<std::string>().size(), 48U);
+    for (const Json& src : cfg["connectivity"]["sources"]) EXPECT_NE(src["kind"], "simulator");
+
+    // The plant's own vocabulary, bound for this instance: tag TT101_degC, event code START.
+    Json bindings = Json::array();
+    for (Json b : cfg["connectivity"]["bindings"]) {
+        if (b["target"]["id"] == "bearing_temp") b["select"] = Json{{"field", "TT101_degC"}};
+        bindings.push_back(b);
+    }
+    bindings.push_back(Json{{"id", "b-start"}, {"target", {{"kind", "event"}, {"id", "start_command"}}}, {"source", "plc-mqtt"},
+                            {"select", {{"field", "event"}, {"value", "START"}}}});
+    Json update = connection;
+    update["bindings"] = bindings;
+    auto updated = bp().update_connection("pump-p102-dt", update, alice);
+    ASSERT_TRUE(updated.ok()) << updated.error().to_string();
+    const Json info = updated.value();
+    EXPECT_TRUE(info["configured"].get<bool>());
+    EXPECT_EQ(info["rest"]["port"], cfg["connection"]["rest"]["port"]) << "ports are kept across edits";
+    EXPECT_NE(info["examples"]["curl"].get<std::string>().find("Authorization: Bearer"), std::string::npos);
+    EXPECT_NE(info["examples"]["mosquittoPub"].get<std::string>().find("-t twins/pump-p102-dt/data"), std::string::npos);
+    bool bound = false;
+    for (const Json& t : info["contract"]["telemetry"]) bound = bound || (t["id"] == "bearing_temp" && t["field"] == "TT101_degC");
+    EXPECT_TRUE(bound) << info["contract"].dump();
+
+    // Plant names, as the UI sends them: codes per event (the START binding above is kept).
+    Json named = connection;
+    named["names"] = Json{{"events", {{"halted", Json::array({"STOPPED"})}}}};
+    auto renamed = bp().update_connection("pump-p102-dt", named, alice);
+    ASSERT_TRUE(renamed.ok()) << renamed.error().to_string();
+    std::map<std::string, Json> codes;
+    for (const Json& e : renamed.value()["contract"]["events"]) codes[e["id"].get<std::string>()] = e["codes"];
+    EXPECT_EQ(codes["halted"], Json::array({"STOPPED"}));
+    EXPECT_EQ(codes["start_command"], Json::array({"START"}));
+
+    // Deploy: the runtime and the plant connection start together.
+    auto deployed = bp().deploy_instance("pump-p102-dt", Json::object(), alice);
+    ASSERT_TRUE(deployed.ok()) << deployed.error().to_string();
+    std::set<std::string> names;
+    for (const Json& p : deployed.value()["runtime"]["processes"]) names.insert(p["name"].get<std::string>());
+    EXPECT_EQ(names, (std::set<std::string>{"twin-runtime", "twin-ingest"}));
+
+    // REST: the plant posts in its own vocabulary; the kernel decides.
+    const std::string token = info["token"].get<std::string>();
+    httplib::Client rest("127.0.0.1", info["rest"]["port"].get<int>());
+    rest.set_read_timeout(10, 0);
+    EXPECT_EQ(rest.Post("/v1/messages", R"({"event": "START"})", "application/json")->status, 401);
+    auto r = rest.Post("/v1/messages", httplib::Headers{{"Authorization", "Bearer " + token}},
+                       R"({"ts": 1000, "event": "START", "TT101_degC": 71.5})", "application/json");
+    ASSERT_TRUE(r);
+    ASSERT_EQ(r->status, 200) << r->body;
+    const Json verdict = json::parse(r->body).value()["results"][0];
+    ASSERT_EQ(verdict["events"].size(), 1U) << verdict.dump();
+    EXPECT_TRUE(verdict["events"][0]["accepted"].get<bool>()) << verdict.dump();
+    EXPECT_EQ(verdict["events"][0]["to"], "NORMAL");
+
+    // MQTT: the same twin through its own endpoint (password = token).
+    auto sock = ingest::net::connect_tcp("127.0.0.1", info["mqtt"]["port"].get<int>(), std::chrono::milliseconds(3000));
+    ASSERT_TRUE(sock.ok()) << sock.error().to_string();
+    ingest::mqtt::Connect hello;
+    hello.client_id = "plc-p102";
+    hello.username = "pump-p102-dt";
+    hello.password = token;
+    ASSERT_TRUE(ingest::net::write_all(sock.value().fd(), ingest::mqtt::connect(hello)).ok());
+    ASSERT_TRUE(ingest::net::write_all(sock.value().fd(), ingest::mqtt::publish({"twins/pump-p102-dt/data", R"({"ts": 2000, "TT101_degC": 72.0})", 1, false, false, 1})).ok());
+    ingest::mqtt::FrameReader reader;
+    std::vector<ingest::mqtt::Type> got;
+    std::array<char, 512> buf{};
+    for (int i = 0; i < 50 && got.size() < 2; ++i) {
+        auto rd = ingest::net::read_for(sock.value().fd(), buf.data(), buf.size(), std::chrono::milliseconds(100));
+        if (rd.ok() && rd.value().kind == ingest::net::ReadResult::Kind::Data) reader.feed(std::string_view(buf.data(), rd.value().bytes));
+        for (auto p = reader.next(); p.ok() && p.value(); p = reader.next()) got.push_back(p.value()->type);
+    }
+    EXPECT_EQ(got, (std::vector<ingest::mqtt::Type>{ingest::mqtt::Type::Connack, ingest::mqtt::Type::Puback}));
+
+    // Both samples reach the instance's channel; Studio shows the connection's live status.
+    bool stored = false;
+    for (int i = 0; i < 100 && !stored; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        auto series = s().telemetry_series("pump-p102-dt.bearing_temp", 0, std::int64_t{1} << 50, 1000);
+        stored = series.ok() && series.value()["samples"].size() >= 2;
+    }
+    EXPECT_TRUE(stored) << "the plant's samples did not reach the channel";
+    const Json status = bp().connection("pump-p102-dt").value()["status"];
+    ASSERT_TRUE(status.is_object());
+    EXPECT_EQ(status["counters"]["eventsAccepted"], 1);
+    EXPECT_GE(status["counters"]["telemetrySamples"].get<int>(), 2);
+
+    // A new token locks the old one out; the runtime keeps running.
+    auto rotated = bp().rotate_connection_token("pump-p102-dt", alice);
+    ASSERT_TRUE(rotated.ok()) << rotated.error().to_string();
+    EXPECT_NE(rotated.value()["token"], token);
+    EXPECT_EQ(rest.Post("/v1/messages", httplib::Headers{{"Authorization", "Bearer " + token}}, R"({"TT101_degC": 1})", "application/json")->status, 401);
+    EXPECT_EQ(bp().instance("pump-p102-dt").value()["runtime"]["state"], "running");
+    ASSERT_TRUE(bp().control_instance("pump-p102-dt", "stop", alice).ok());
 }

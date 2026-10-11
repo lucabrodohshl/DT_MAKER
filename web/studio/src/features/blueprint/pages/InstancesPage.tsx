@@ -5,12 +5,13 @@
  * properties such as a serial number), a placement in the asset hierarchy and a deployment
  * target. The Blueprint stays the single definition: instances never copy its formal artefacts.
  */
-import { ArrowUpCircle, Boxes, ExternalLink, Plus, Rocket } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ArrowUpCircle, Boxes, Cable, ExternalLink, Plus, Rocket } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { blueprintApi, blueprintRoute, useBlueprint, useBlueprintMutation, useInstances } from '@/api/blueprints';
+import { blueprintApi, blueprintRoute, useBlueprint, useBlueprintMutation, useConnection, useInstances } from '@/api/blueprints';
 import type { InstanceView } from '@/api/types';
-import { Button, Callout, Dialog, EmptyState, ErrorBlock, Skeleton, StatusBadge } from '@/design';
+import { Button, Callout, Dialog, EmptyState, ErrorBlock, KeyValue, Skeleton, StatusBadge } from '@/design';
+import { ConnectionForm, defaultDraft, namesFromBindings, requestFromDraft, type ConnectionDraft, type ContractRows } from '@/features/twins/PlantConnection';
 import { useEditor } from '../editor';
 import { EdPage, Pane, SLUG } from '../ui';
 
@@ -21,6 +22,29 @@ export function runtimeTone(s: string | undefined): 'ok' | 'info' | 'neutral' | 
 export function RuntimeBadge({ i }: { i: InstanceView }) {
   const s = i.runtime?.state ?? 'not_started';
   return <StatusBadge tone={runtimeTone(s)} label={s === 'running' ? 'DEPLOYED · RUNNING' : s === 'not_started' ? 'NOT DEPLOYED' : s.replace('_', ' ').toUpperCase()} spin={s === 'starting'} title={i.runtime?.message} />;
+}
+
+/** Where a just-created instance's plant connection listens (before and after deployment). */
+function ConnectionSummary({ id }: { id: string }) {
+  const q = useConnection(id, false);
+  const c = q.data;
+  if (!c?.configured) return null;
+  return (
+    <Callout tone="info" title="Plant connection">
+      <KeyValue
+        compact
+        items={[
+          ...(c.rest.enabled && c.rest.url ? [['REST', <code key="r" className="vts-formula">{`POST ${c.rest.url}`}</code>] as [string, ReactNode]] : []),
+          ...(c.mqtt.enabled && c.mqtt.url ? [['MQTT', <code key="m" className="vts-formula">{`${c.mqtt.url} · topic ${c.mqtt.topic}`}</code>] as [string, ReactNode]] : []),
+          ...(c.broker.enabled ? [['Broker', <code key="b" className="vts-formula">{`${c.broker.host}:${c.broker.port} · ${(c.broker.topics ?? []).join(', ')}`}</code>] as [string, ReactNode]] : []),
+          ['Access token', <code key="t" className="vts-formula">{c.token}</code>],
+        ]}
+      />
+      <p className="xsmall" style={{ margin: '6px 0 0' }}>
+        The endpoints open when the twin is deployed. Examples, the message contract and the live status: <Link to={`/twins/${encodeURIComponent(id)}/connection`}>Plant connection</Link>.
+      </p>
+    </Callout>
+  );
 }
 
 function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -39,6 +63,21 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [parent, setParent] = useState('');
   const [paused, setPaused] = useState(false);
   const [created, setCreated] = useState<InstanceView | null>(null);
+  // Where the data comes from: the plant (REST / MQTT inputs) or the Blueprint's simulator.
+  const monitoring = doc.identity.runtimeMode !== 'cosimulation';
+  const hasSimulator = monitoring && doc.connectivity.sources.some((x) => x.kind === 'simulator');
+  const plantBroker = doc.connectivity.sources.find((x) => x.kind === 'mqtt');
+  const rows: ContractRows = {
+    telemetry: doc.data.telemetry.map((t) => ({ id: t.id, label: t.label || t.id })),
+    events: doc.data.events.filter((x) => x.formal?.pt).map((x) => ({ id: x.id, label: x.label || x.id })),
+  };
+  const initialDraft = () =>
+    defaultDraft(
+      plantBroker ? { host: String(plantBroker.config.host ?? ''), port: Number(plantBroker.config.port) || 1883, topic: String(plantBroker.config.topic ?? '') } : undefined,
+      namesFromBindings(rows, doc.connectivity.bindings),
+    );
+  const [feed, setFeed] = useState<'plant' | 'simulator'>(hasSimulator ? 'simulator' : 'plant');
+  const [conn, setConn] = useState<ConnectionDraft>(initialDraft);
   const create = useBlueprintMutation((body: Record<string, unknown>) => blueprintApi.createInstance(body));
   const deploy = useBlueprintMutation((iid: string) => blueprintApi.deployInstance(iid));
   const root = doc.structure.root;
@@ -52,6 +91,8 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     setAssetIds({});
     setIdentity({});
     setParent('');
+    setFeed(hasSimulator ? 'simulator' : 'plant');
+    setConn(initialDraft());
     setCreated(null);
     create.reset();
     deploy.reset();
@@ -69,6 +110,7 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         identity,
         placement: parent ? { parentAssetId: parent } : {},
         target: { kind: 'local', ...(doc.identity.runtimeMode === 'cosimulation' ? { paused } : {}) },
+        ...(monitoring && feed === 'plant' ? { connection: requestFromDraft(conn) } : {}),
       },
       { onSuccess: (r) => setCreated(r) },
     );
@@ -102,7 +144,7 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 deploy.mutate(created.id, {
                   onSuccess: () => {
                     onOpenChange(false);
-                    navigate(blueprintRoute(e.id, e.version, 'release/deployment'));
+                    navigate(created.instanceConfig?.connection ? `/twins/${encodeURIComponent(created.id)}/connection` : blueprintRoute(e.id, e.version, 'release/deployment'));
                   },
                 })
               }
@@ -125,6 +167,7 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <p style={{ margin: 0 }}>
             <strong>{created.name}</strong> ({created.id}) runs v{created.blueprintVersion}. {Object.keys((created.instanceConfig?.assetMap as Record<string, string>) ?? {}).length} assets were created or bound.
           </p>
+          {!!created.instanceConfig?.connection && <ConnectionSummary id={created.id} />}
           {deploy.isError && <ErrorBlock error={deploy.error} compact />}
         </div>
       ) : published.length === 0 ? (
@@ -213,9 +256,30 @@ function CreateInstanceDialog({ open, onOpenChange }: { open: boolean; onOpenCha
               )}
             </div>
           </div>
-          <p className="xsmall subtle" style={{ margin: 0 }}>
-            Data sources and bindings come from the Blueprint&apos;s connectivity ({doc.connectivity.sources.map((s) => s.name || s.id).join(', ') || 'none'}).
-          </p>
+          {monitoring ? (
+            <fieldset className="vts-f" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend className="vts-label row" style={{ gap: 6 }}><Cable size={14} aria-hidden="true" /> Data comes from</legend>
+              <div className="row" style={{ gap: 16, marginBottom: 8 }}>
+                <label className="vts-check small">
+                  <input type="radio" name="feed" checked={feed === 'plant'} onChange={() => setFeed('plant')} /> The real system (plant connection)
+                </label>
+                {hasSimulator && (
+                  <label className="vts-check small">
+                    <input type="radio" name="feed" checked={feed === 'simulator'} onChange={() => setFeed('simulator')} /> The Blueprint&apos;s simulator (demonstration)
+                  </label>
+                )}
+              </div>
+              {feed === 'plant' ? (
+                <ConnectionForm value={conn} onChange={setConn} rows={rows} />
+              ) : (
+                <p className="xsmall subtle" style={{ margin: 0 }}>The simulator plays the Blueprint&apos;s event script into the twin. A plant connection can be added later on the twin&apos;s Plant connection page.</p>
+              )}
+            </fieldset>
+          ) : (
+            <p className="xsmall subtle" style={{ margin: 0 }}>
+              A co-simulation twin is driven by its simulator ({doc.connectivity.sources.map((x) => x.name || x.id).join(', ') || 'none'}).
+            </p>
+          )}
           {create.isError && <ErrorBlock error={create.error} compact />}
         </div>
       )}

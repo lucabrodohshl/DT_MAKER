@@ -882,7 +882,8 @@ export interface BindingDef {
   id: string;
   target: { kind: 'telemetry' | 'event' | 'command'; id: string };
   source: string;
-  select: { field?: string; path?: string; topic?: string; node?: string };
+  /** Where the value is read; for an event, `value` is the code that raises it (e.g. "START"). */
+  select: { field?: string; path?: string; topic?: string; node?: string; value?: string };
   unit?: { from?: string; scale?: string; offset?: string };
 }
 
@@ -1457,4 +1458,65 @@ export interface WorldRaster {
   groundTruth: string[];
   knowledge: string[];
   findings: { severity: string; code: string; message: string; object?: string; path?: string }[];
+}
+
+// ------------------------------------------------------------------ plant connection
+/** One logical time as the runtime reports it. */
+export interface IngestTime {
+  ticks: number;
+  text: string;
+}
+
+/** Live status of an instance's plant connection (twin-ingest GET /status, through Studio). */
+export interface IngestStatus {
+  instance: string;
+  startedAt: string;
+  runtime: { connected: boolean; time: IngestTime | null; deadline: IngestTime | null; lastError: string | null };
+  clock: { last: IngestTime; timestamps: string; syncSeconds: number; graceSeconds: number };
+  counters: {
+    messages: number;
+    telemetrySamples: number;
+    events: number;
+    eventsAccepted: number;
+    eventsRejected: number;
+    notDelivered: number;
+    unmappedCodes: number;
+    problems: number;
+    late: number;
+    timeAdvances: number;
+  };
+  lastMessage: { at: string; transport: string; client: string; topic?: string } | null;
+  lastEvent: { pt: string; label?: string; accepted: boolean; from?: string; to?: string; at: IngestTime; transport: string; error?: { message: string } } | null;
+  missedDeadline: { deadline: IngestTime | null; at: IngestTime; detectedAt: string; message: string } | null;
+  recent: { at: string; kind: string; text: string }[];
+  rest: { listening: boolean; port: number; requests: number; messages: number; unauthorized: number; badRequests: number } | null;
+  mqtt: { listening: boolean; port: number; clients: { clientId: string; address: string; connectedAt: string; messages: number; lastMessageAt: string | null }[]; connections: number; refused: number; protocolErrors: number } | null;
+  broker: { state: string; broker: string; topics: string[]; connectedAt: string | null; lastError: string | null; messages: number; lastMessageAt: string | null; reconnects: number } | null;
+}
+
+/** How the plant reaches an instance (GET /instances/{id}/connection). */
+export interface PlantConnectionView {
+  instance: string;
+  /** At least one input (REST, MQTT endpoint, broker) is enabled. */
+  configured: boolean;
+  /** Access token: REST bearer token and MQTT password. */
+  token: string | null;
+  /** Addresses of this machine the plant can use (first = preferred). */
+  hosts: string[];
+  rest: { enabled: boolean; port: number | null; url?: string; urls?: string[]; header?: string };
+  mqtt: { enabled: boolean; port: number | null; host?: string; url?: string; username?: string; topic?: string };
+  broker: { enabled: boolean; host?: string; port?: number; topics?: string[]; qos?: number; clientId?: string; username?: string; passwordSet?: boolean };
+  timestamp: { field: string; unit: 'ms' | 's' | 'iso8601' };
+  eventField: string;
+  clock: { syncSeconds: number; graceSeconds: number };
+  contract: {
+    telemetry: { id: string; label: string; type: string; unit: string; field: string; topic: string }[];
+    events: { id: string; label: string; pt: string; codes: string[]; signals: Record<string, string>[] }[];
+  };
+  examples: { payload: Record<string, unknown>; curl?: string; curlBatch?: string; mosquittoPub?: string };
+  /** Supervisor state of the instance ("running", "stopped", "not_started", ...). */
+  runtime: string;
+  status: IngestStatus | null;
+  /** After an update: whether the running connection was restarted with it. */
+  applied?: { restarted: boolean; error?: string };
 }

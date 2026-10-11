@@ -456,7 +456,12 @@ function BindingsTable() {
                       {conn.sources.map((s) => <option key={s.id} value={s.id}>{s.name || s.id}</option>)}
                     </select>
                   </td>
-                  <td><input className="vts-input mono" value={b.select.field ?? b.select.path ?? ''} disabled={!e.editable} aria-label="Field or JSON path" onChange={(x) => set(i, { select: x.target.value.startsWith('$.') ? { path: x.target.value } : { field: x.target.value } })} /></td>
+                  <td>
+                    <input className="vts-input mono" value={b.select.field ?? b.select.path ?? ''} disabled={!e.editable} aria-label="Field or JSON path" onChange={(x) => set(i, { select: { ...(x.target.value.startsWith('$.') ? { path: x.target.value } : { field: x.target.value }), ...(b.select.value !== undefined ? { value: b.select.value } : {}) } })} />
+                    {b.target.kind === 'event' && (
+                      <input className="vts-input mono" style={{ marginTop: 4 }} value={b.select.value ?? ''} placeholder="code, e.g. START" disabled={!e.editable} aria-label="Event code" title="The value of the field that raises this event (empty: the field is true)" onChange={(x) => set(i, { select: { ...b.select, value: x.target.value || undefined } })} />
+                    )}
+                  </td>
                   <td><input className="vts-input num" style={{ width: 70 }} value={b.unit?.scale ?? ''} placeholder="1" disabled={!e.editable} aria-label="Scale" onChange={(x) => set(i, { unit: { ...b.unit, scale: x.target.value || undefined } })} /></td>
                   <td><input className="vts-input num" style={{ width: 70 }} value={b.unit?.offset ?? ''} placeholder="0" disabled={!e.editable} aria-label="Offset" onChange={(x) => set(i, { unit: { ...b.unit, offset: x.target.value || undefined } })} /></td>
                   <td style={{ minWidth: 260 }}>

@@ -905,7 +905,9 @@ paths:
         '200': { description: Instances, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/InstanceView' } } } } }
     post:
       tags: [instances]
-      summary: Create an instance from a published Blueprint version (assets, identity, placement, target).
+      summary: >-
+        Create an instance from a published Blueprint version (assets, identity, placement, target, and optionally its
+        plant connection — the same object as PUT /instances/{instanceId}/connection).
       operationId: createInstance
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [blueprintId, version, id] } } } }
       responses:
@@ -940,6 +942,67 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { version: { type: integer }, reason: { type: string } } } } } }
       responses:
         '200': { description: Deployment, content: { application/json: { schema: { type: object } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /instances/{instanceId}/connection:
+    parameters: [{ $ref: '#/components/parameters/instanceId' }]
+    get:
+      tags: [instances]
+      summary: >-
+        Plant connection of an instance: its inputs (REST endpoint, MQTT endpoint, broker subscription) with addresses,
+        ports and access token, the message contract, ready-to-run examples, and the live status of its twin-ingest.
+      operationId: getInstanceConnection
+      responses:
+        '200': { description: Connection, content: { application/json: { schema: { $ref: '#/components/schemas/PlantConnectionView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    put:
+      tags: [instances]
+      summary: >-
+        Change the plant connection (inputs, ports — empty for automatic —, broker, timestamp, event field, clock,
+        plant names). A running instance's twin-ingest restarts with it; its runtime keeps running.
+      operationId: updateInstanceConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rest: { type: object, properties: { enabled: { type: boolean }, port: { type: [integer, 'null'] } } }
+                mqtt: { type: object, properties: { enabled: { type: boolean }, port: { type: [integer, 'null'] } } }
+                broker:
+                  type: object
+                  properties:
+                    enabled: { type: boolean }
+                    host: { type: string }
+                    port: { type: integer }
+                    topics: { type: array, items: { type: string } }
+                    qos: { type: integer, enum: [0, 1, 2] }
+                    clientId: { type: string }
+                    username: { type: string }
+                    password: { type: string, description: Stored apart from the database; never returned. }
+                timestamp: { type: object, properties: { field: { type: string }, unit: { type: string, enum: [ms, s, iso8601] } } }
+                eventField: { type: string }
+                clock: { type: object, properties: { syncSeconds: { type: number }, graceSeconds: { type: number } } }
+                names:
+                  type: object
+                  description: The plant's own names — per signal a field, JSON path or MQTT topic; per event its codes.
+                  properties:
+                    telemetry: { type: object, additionalProperties: { type: object, properties: { field: { type: string }, topic: { type: string } } } }
+                    events: { type: object, additionalProperties: { type: array, items: { type: string } } }
+      responses:
+        '200': { description: Connection, content: { application/json: { schema: { $ref: '#/components/schemas/PlantConnectionView' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /instances/{instanceId}/connection/token:
+    parameters: [{ $ref: '#/components/parameters/instanceId' }]
+    post:
+      tags: [instances]
+      summary: Issue a new access token; the previous one stops working at once.
+      operationId: rotateInstanceConnectionToken
+      responses:
+        '200': { description: Connection, content: { application/json: { schema: { $ref: '#/components/schemas/PlantConnectionView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
   /instances/{instanceId}/{action}:
     parameters:
@@ -1795,6 +1858,7 @@ components:
         id:
           type: string
         select:
+          description: Where the value is read; for an event, `value` is the code that raises it (e.g. "START").
           properties:
             field:
               type: string
@@ -1803,6 +1867,8 @@ components:
             path:
               type: string
             topic:
+              type: string
+            value:
               type: string
           type: object
         source:
@@ -3685,6 +3751,300 @@ components:
       - analyzedAt
       - legend
       type: object
+    IngestStatus:
+      description: Live status of an instance's plant connection (twin-ingest GET /status, through Studio).
+      properties:
+        broker:
+          anyOf:
+          - properties:
+              broker:
+                type: string
+              connectedAt:
+                type:
+                - string
+                - 'null'
+              lastError:
+                type:
+                - string
+                - 'null'
+              lastMessageAt:
+                type:
+                - string
+                - 'null'
+              messages:
+                type: number
+              reconnects:
+                type: number
+              state:
+                type: string
+              topics:
+                items:
+                  type: string
+                type: array
+            required:
+            - state
+            - broker
+            - topics
+            - connectedAt
+            - lastError
+            - messages
+            - lastMessageAt
+            - reconnects
+            type: object
+          - type: 'null'
+        clock:
+          properties:
+            graceSeconds:
+              type: number
+            last:
+              $ref: '#/components/schemas/IngestTime'
+            syncSeconds:
+              type: number
+            timestamps:
+              type: string
+          required:
+          - last
+          - timestamps
+          - syncSeconds
+          - graceSeconds
+          type: object
+        counters:
+          properties:
+            events:
+              type: number
+            eventsAccepted:
+              type: number
+            eventsRejected:
+              type: number
+            late:
+              type: number
+            messages:
+              type: number
+            notDelivered:
+              type: number
+            problems:
+              type: number
+            telemetrySamples:
+              type: number
+            timeAdvances:
+              type: number
+            unmappedCodes:
+              type: number
+          required:
+          - messages
+          - telemetrySamples
+          - events
+          - eventsAccepted
+          - eventsRejected
+          - notDelivered
+          - unmappedCodes
+          - problems
+          - late
+          - timeAdvances
+          type: object
+        instance:
+          type: string
+        lastEvent:
+          anyOf:
+          - properties:
+              accepted:
+                type: boolean
+              at:
+                $ref: '#/components/schemas/IngestTime'
+              error:
+                properties:
+                  message:
+                    type: string
+                required:
+                - message
+                type: object
+              from:
+                type: string
+              label:
+                type: string
+              pt:
+                type: string
+              to:
+                type: string
+              transport:
+                type: string
+            required:
+            - pt
+            - accepted
+            - at
+            - transport
+            type: object
+          - type: 'null'
+        lastMessage:
+          anyOf:
+          - properties:
+              at:
+                type: string
+              client:
+                type: string
+              topic:
+                type: string
+              transport:
+                type: string
+            required:
+            - at
+            - transport
+            - client
+            type: object
+          - type: 'null'
+        missedDeadline:
+          anyOf:
+          - properties:
+              at:
+                $ref: '#/components/schemas/IngestTime'
+              deadline:
+                anyOf:
+                - $ref: '#/components/schemas/IngestTime'
+                - type: 'null'
+              detectedAt:
+                type: string
+              message:
+                type: string
+            required:
+            - deadline
+            - at
+            - detectedAt
+            - message
+            type: object
+          - type: 'null'
+        mqtt:
+          anyOf:
+          - properties:
+              clients:
+                items:
+                  properties:
+                    address:
+                      type: string
+                    clientId:
+                      type: string
+                    connectedAt:
+                      type: string
+                    lastMessageAt:
+                      type:
+                      - string
+                      - 'null'
+                    messages:
+                      type: number
+                  required:
+                  - clientId
+                  - address
+                  - connectedAt
+                  - messages
+                  - lastMessageAt
+                  type: object
+                type: array
+              connections:
+                type: number
+              listening:
+                type: boolean
+              port:
+                type: number
+              protocolErrors:
+                type: number
+              refused:
+                type: number
+            required:
+            - listening
+            - port
+            - clients
+            - connections
+            - refused
+            - protocolErrors
+            type: object
+          - type: 'null'
+        recent:
+          items:
+            properties:
+              at:
+                type: string
+              kind:
+                type: string
+              text:
+                type: string
+            required:
+            - at
+            - kind
+            - text
+            type: object
+          type: array
+        rest:
+          anyOf:
+          - properties:
+              badRequests:
+                type: number
+              listening:
+                type: boolean
+              messages:
+                type: number
+              port:
+                type: number
+              requests:
+                type: number
+              unauthorized:
+                type: number
+            required:
+            - listening
+            - port
+            - requests
+            - messages
+            - unauthorized
+            - badRequests
+            type: object
+          - type: 'null'
+        runtime:
+          properties:
+            connected:
+              type: boolean
+            deadline:
+              anyOf:
+              - $ref: '#/components/schemas/IngestTime'
+              - type: 'null'
+            lastError:
+              type:
+              - string
+              - 'null'
+            time:
+              anyOf:
+              - $ref: '#/components/schemas/IngestTime'
+              - type: 'null'
+          required:
+          - connected
+          - time
+          - deadline
+          - lastError
+          type: object
+        startedAt:
+          type: string
+      required:
+      - instance
+      - startedAt
+      - runtime
+      - clock
+      - counters
+      - lastMessage
+      - lastEvent
+      - missedDeadline
+      - recent
+      - rest
+      - mqtt
+      - broker
+      type: object
+    IngestTime:
+      description: One logical time as the runtime reports it.
+      properties:
+        text:
+          type: string
+        ticks:
+          type: number
+      required:
+      - ticks
+      - text
+      type: object
     InstanceMonitorResult:
       description: One monitor's live result (GET /instances/{id}/monitors).
       properties:
@@ -4690,6 +5050,218 @@ components:
       - mandatory
       - detail
       - evidence
+      type: object
+    PlantConnectionView:
+      description: How the plant reaches an instance (GET /instances/{id}/connection).
+      properties:
+        applied:
+          description: 'After an update: whether the running connection was restarted with it.'
+          properties:
+            error:
+              type: string
+            restarted:
+              type: boolean
+          required:
+          - restarted
+          type: object
+        broker:
+          properties:
+            clientId:
+              type: string
+            enabled:
+              type: boolean
+            host:
+              type: string
+            passwordSet:
+              type: boolean
+            port:
+              type: number
+            qos:
+              type: number
+            topics:
+              items:
+                type: string
+              type: array
+            username:
+              type: string
+          required:
+          - enabled
+          type: object
+        clock:
+          properties:
+            graceSeconds:
+              type: number
+            syncSeconds:
+              type: number
+          required:
+          - syncSeconds
+          - graceSeconds
+          type: object
+        configured:
+          description: At least one input (REST, MQTT endpoint, broker) is enabled.
+          type: boolean
+        contract:
+          properties:
+            events:
+              items:
+                properties:
+                  codes:
+                    items:
+                      type: string
+                    type: array
+                  id:
+                    type: string
+                  label:
+                    type: string
+                  pt:
+                    type: string
+                  signals:
+                    items:
+                      additionalProperties:
+                        type: string
+                      properties: {}
+                      type: object
+                    type: array
+                required:
+                - id
+                - label
+                - pt
+                - codes
+                - signals
+                type: object
+              type: array
+            telemetry:
+              items:
+                properties:
+                  field:
+                    type: string
+                  id:
+                    type: string
+                  label:
+                    type: string
+                  topic:
+                    type: string
+                  type:
+                    type: string
+                  unit:
+                    type: string
+                required:
+                - id
+                - label
+                - type
+                - unit
+                - field
+                - topic
+                type: object
+              type: array
+          required:
+          - telemetry
+          - events
+          type: object
+        eventField:
+          type: string
+        examples:
+          properties:
+            curl:
+              type: string
+            curlBatch:
+              type: string
+            mosquittoPub:
+              type: string
+            payload:
+              additionalProperties: {}
+              properties: {}
+              type: object
+          required:
+          - payload
+          type: object
+        hosts:
+          description: Addresses of this machine the plant can use (first = preferred).
+          items:
+            type: string
+          type: array
+        instance:
+          type: string
+        mqtt:
+          properties:
+            enabled:
+              type: boolean
+            host:
+              type: string
+            port:
+              type:
+              - number
+              - 'null'
+            topic:
+              type: string
+            url:
+              type: string
+            username:
+              type: string
+          required:
+          - enabled
+          - port
+          type: object
+        rest:
+          properties:
+            enabled:
+              type: boolean
+            header:
+              type: string
+            port:
+              type:
+              - number
+              - 'null'
+            url:
+              type: string
+            urls:
+              items:
+                type: string
+              type: array
+          required:
+          - enabled
+          - port
+          type: object
+        runtime:
+          description: Supervisor state of the instance ("running", "stopped", "not_started", ...).
+          type: string
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/IngestStatus'
+          - type: 'null'
+        timestamp:
+          properties:
+            field:
+              type: string
+            unit:
+              enum:
+              - ms
+              - s
+              - iso8601
+          required:
+          - field
+          - unit
+          type: object
+        token:
+          description: 'Access token: REST bearer token and MQTT password.'
+          type:
+          - string
+          - 'null'
+      required:
+      - instance
+      - configured
+      - token
+      - hosts
+      - rest
+      - mqtt
+      - broker
+      - timestamp
+      - eventField
+      - clock
+      - contract
+      - examples
+      - runtime
+      - status
       type: object
     Presentation:
       additionalProperties: {}

@@ -5,6 +5,7 @@
 import {
   Activity,
   Boxes,
+  Cable,
   BookOpenCheck,
   Cpu,
   Database,
@@ -51,6 +52,7 @@ export const TWIN_NAV: TwinNavGroup[] = [
       { to: 'operations/events', label: 'Events & alerts' },
     ],
   },
+  { id: 'connection', label: 'Plant connection', icon: Cable, to: 'connection' },
   {
     id: 'behavior',
     label: 'Behaviour',

@@ -10,12 +10,16 @@
  *    world, or monitor mode);
  *  - `twin-pt-feed` with the Blueprint's event script, when the instance's data source is the
  *    event-script simulator;
+ *  - `twin-ingest`, the instance's plant connection (REST endpoint, MQTT endpoint, broker
+ *    subscription), when one is configured;
  * on free local ports, waits until each answers its health check, registers the URLs on the
  * twin record and starts the telemetry bridge, so the instance appears in Operate at once.
  *
  * A runtime that exits unexpectedly is reported as `failed` and is never restarted
  * automatically: a fail-stop (e.g. the ledger could not be written) is an integrity event an
- * operator must see. Processes run in their own process group and are stopped with SIGTERM
+ * operator must see. The plant connection is different: it decides nothing and holds no state
+ * the twin depends on, so it is restarted after a crash (back-off 1 s doubling to 30 s) while
+ * the instance keeps running. Processes run in their own process group and are stopped with SIGTERM
  * (SIGKILL after a grace period) when the instance is stopped or Studio exits.
  */
 #pragma once
@@ -51,6 +55,7 @@ struct LaunchPlan {
     std::vector<std::filesystem::path> package_store;  ///< Directories of further packages (replay).
     std::string kind{"instance"};                  ///< "instance" (a twin) or "preview" (Studio sandbox).
     bool bridge{true};                             ///< Bridge runtime telemetry into the twin's channels.
+    std::optional<std::filesystem::path> ingest_config;  ///< twin-ingest configuration (plant connection), if any.
 };
 
 /// @brief See file documentation.
@@ -83,6 +88,15 @@ public:
     [[nodiscard]] json::Json status(const std::string& instance_id) const;
     /// @brief Process state of every supervised instance.
     [[nodiscard]] json::Json status_all() const;
+
+    /**
+     * @brief Start, restart or stop the plant connection of a running instance without touching
+     * its runtime: stops its twin-ingest, then starts it with @p config (none: leave it stopped).
+     * @return the instance status; StateError if the instance is not running here.
+     */
+    [[nodiscard]] Result<json::Json> restart_ingest(const std::string& instance_id, const std::optional<std::filesystem::path>& config);
+    /// @brief Live status of the instance's plant connection (twin-ingest GET /status); null if it does not run.
+    [[nodiscard]] json::Json ingest_status(const std::string& instance_id) const;
 
     /// @brief Implementation state.
     struct Instance;

@@ -775,6 +775,15 @@ void StudioServer::Impl::blueprint_routes() {
         if (!body) return std::move(body).error();
         return b.deploy_instance(r.path_params.at("id"), body.value(), a);
     });
+    route("GET", p + "/instances/:id/connection", [&b](const httplib::Request& r, const auto&) { return b.connection(r.path_params.at("id")); });
+    route("PUT", p + "/instances/:id/connection", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.update_connection(r.path_params.at("id"), body.value(), a);
+    });
+    route("POST", p + "/instances/:id/connection/token", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        return b.rotate_connection_token(r.path_params.at("id"), a);
+    });
     route("POST", p + "/instances/:id/:action", [&b](const httplib::Request& r, const Actor& a) -> Result<Json> {
         return b.control_instance(r.path_params.at("id"), r.path_params.at("action"), a);
     });

@@ -40,14 +40,19 @@ using platform::LogLevel;
 
 /// @brief One supervised process.
 struct Process {
-    std::string name;       ///< "twin-runtime", "twin-world", "twin-pt-feed".
+    std::string name;       ///< "twin-runtime", "twin-world", "twin-pt-feed", "twin-ingest".
     pid_t pid{-1};          ///< Process id (its own process group).
     int port{0};            ///< Port it serves on (0 = none).
     std::string url;        ///< Base URL (empty if none).
     fs::path log;           ///< Output log.
-    std::string state;      ///< "starting", "running", "exited", "stopped".
+    std::string state;      ///< "starting", "running", "restarting", "exited", "stopped".
     int exit_status{0};     ///< Exit code or -signal.
     std::string started_at; ///< ISO 8601 UTC.
+    std::vector<std::string> args;  ///< Command line (to restart it).
+    int restarts{0};                ///< Automatic restarts so far (twin-ingest only).
+    std::chrono::steady_clock::time_point spawned{};     ///< When the current process was started.
+    std::chrono::steady_clock::time_point restart_at{};  ///< When to restart it ("restarting").
+    std::chrono::milliseconds backoff{1000};             ///< Next restart delay.
 };
 
 struct Supervisor::Instance {
@@ -60,7 +65,8 @@ struct Supervisor::Instance {
     std::atomic<bool> bridge_stop{false};
     std::thread bridge;
     std::string started_at;
-    fs::path run_dir;  ///< Pid files of the running processes (orphan clean-up after a crash).
+    fs::path run_dir;   ///< Pid files of the running processes (orphan clean-up after a crash).
+    fs::path logs_dir;  ///< Process logs.
 };
 
 fs::path executable_dir() {
@@ -195,7 +201,54 @@ void reap_orphans(const fs::path& run_dir, const fs::path& bin_dir, platform::Ap
 
 Json process_json(const Process& p) {
     return Json{{"name", p.name}, {"pid", p.pid}, {"port", p.port}, {"url", p.url}, {"log", p.log.string()},
-                {"state", p.state}, {"exitStatus", p.exit_status}, {"startedAt", p.started_at}};
+                {"state", p.state}, {"exitStatus", p.exit_status}, {"startedAt", p.started_at}, {"restarts", p.restarts}};
+}
+
+/// @brief Spawn @p name from @p bin_dir with @p args, logging to <logs>/<name>.log, pid file in @p run.
+Result<Process> launch_process(const fs::path& bin_dir, const fs::path& logs, const fs::path& run, const std::string& name,
+                               const std::vector<std::string>& args, int port, const std::string& started_at) {
+    Process p;
+    p.name = name;
+    p.port = port;
+    p.url = port > 0 ? "http://127.0.0.1:" + std::to_string(port) : std::string();
+    p.log = logs / (name + ".log");
+    p.started_at = started_at;
+    p.args = args;
+    { std::ofstream(p.log, std::ios::app) << "\n--- " << p.started_at << " started by the Studio supervisor\n"; }
+    auto pid = spawn(bin_dir / name, args, p.log);
+    if (!pid) return std::move(pid).error();
+    p.pid = pid.value();
+    p.state = "starting";
+    p.spawned = std::chrono::steady_clock::now();
+    { std::ofstream(run / (name + ".pid"), std::ios::trunc) << p.pid << "\n"; }
+    return p;
+}
+
+/// @brief Wait (at most 30 s) until @p p answers GET /health; an error with its log tail if it exits first.
+Status wait_healthy(Process& p) {
+    httplib::Client cli(p.url);
+    cli.set_connection_timeout(0, 300000);
+    cli.set_read_timeout(2, 0);
+    for (int i = 0; i < 300; ++i) {
+        int status = 0;
+        if (::waitpid(p.pid, &status, WNOHANG) == p.pid) {
+            p.state = "exited";
+            p.exit_status = WIFEXITED(status) ? WEXITSTATUS(status) : -WTERMSIG(status);
+            return make_error(ErrorCode::Unavailable, p.name + " exited during start-up (status " + std::to_string(p.exit_status) + ")")
+                .with("log", tail_of(p.log, 12));
+        }
+        if (auto r = cli.Get("/health"); r && r->status == 200) {
+            p.state = "running";
+            return {};
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return make_error(ErrorCode::Unavailable, p.name + " did not become healthy within 30 s").with("log", tail_of(p.log, 12));
+}
+
+/// @brief Command line of twin-ingest.
+std::vector<std::string> ingest_args(const fs::path& config, const std::string& runtime_url, int admin_port) {
+    return {"--config", config.string(), "--runtime", runtime_url, "--admin-port", std::to_string(admin_port)};
 }
 
 }  // namespace
@@ -254,40 +307,9 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
     reap_orphans(run, bin_dir_, services_.app_log());
     inst->run_dir = run;
 
+    inst->logs_dir = logs;
     auto launch = [&](const std::string& name, const std::vector<std::string>& args, int port) -> Result<Process> {
-        Process p;
-        p.name = name;
-        p.port = port;
-        p.url = port > 0 ? "http://127.0.0.1:" + std::to_string(port) : std::string();
-        p.log = logs / (name + ".log");
-        p.started_at = platform::iso8601_utc(services_.clock().now_ms());
-        { std::ofstream(p.log, std::ios::app) << "\n--- " << p.started_at << " started by the Studio supervisor\n"; }
-        auto pid = spawn(bin_dir_ / name, args, p.log);
-        if (!pid) return std::move(pid).error();
-        p.pid = pid.value();
-        p.state = "starting";
-        { std::ofstream(run / (name + ".pid"), std::ios::trunc) << p.pid << "\n"; }
-        return p;
-    };
-    auto wait_healthy = [&](Process& p) -> Status {
-        httplib::Client cli(p.url);
-        cli.set_connection_timeout(0, 300000);
-        cli.set_read_timeout(2, 0);
-        for (int i = 0; i < 300; ++i) {
-            int status = 0;
-            if (::waitpid(p.pid, &status, WNOHANG) == p.pid) {
-                p.state = "exited";
-                p.exit_status = WIFEXITED(status) ? WEXITSTATUS(status) : -WTERMSIG(status);
-                return make_error(ErrorCode::Unavailable, p.name + " exited during start-up (status " + std::to_string(p.exit_status) + ")")
-                    .with("log", tail_of(p.log, 12));
-            }
-            if (auto r = cli.Get("/health"); r && r->status == 200) {
-                p.state = "running";
-                return {};
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        return make_error(ErrorCode::Unavailable, p.name + " did not become healthy within 30 s").with("log", tail_of(p.log, 12));
+        return launch_process(bin_dir_, logs, run, name, args, port, platform::iso8601_utc(services_.clock().now_ms()));
     };
     auto fail = [&](Error e) -> Result<Json> {
         for (Process& p : inst->processes) {
@@ -369,6 +391,23 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
         std::lock_guard l(mu_);
         inst->processes.push_back(f.value());
     }
+    if (plan.ingest_config) {  // the plant connection, once the runtime it feeds is healthy
+        int port = 0;
+        {
+            std::lock_guard l(mu_);
+            port = free_port();
+        }
+        if (port == 0) return fail(make_error(ErrorCode::Unavailable, "no free local port for twin-ingest"));
+        auto in = launch("twin-ingest", ingest_args(*plan.ingest_config, runtime_url, port), port);
+        if (!in) return fail(in.error());
+        {
+            std::lock_guard l(mu_);
+            inst->processes.push_back(in.value());
+        }
+        if (auto st = wait_healthy(inst->processes.back()); !st) {
+            return fail(Error(st.error()).with("hint", "the plant connection could not start: check the ports of the instance's plant connection"));
+        }
+    }
 
     // Register the URLs and start the telemetry bridge: Operate needs no configuration. A preview
     // has no twin record and records nothing.
@@ -416,6 +455,8 @@ void Supervisor::stop(const std::string& instance_id, const std::string& reason)
             if (p.state == "running" || p.state == "starting") {
                 p.state = "stopping";
                 victims.emplace_back(k, p.pid);
+            } else if (p.state == "restarting") {
+                p.state = "stopped";  // waiting for its restart: nothing to signal
             }
         }
     }
@@ -481,14 +522,35 @@ Json Supervisor::status_all() const {
 }
 
 void Supervisor::watch() {
+    using clock = std::chrono::steady_clock;
     while (!stopping_.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         std::vector<std::pair<std::string, std::string>> failures;
+        std::vector<std::pair<std::string, std::string>> notices;
         {
             std::lock_guard l(mu_);
+            const auto now = clock::now();
             for (auto& [id, inst] : instances_) {
                 if (inst->state != "running") continue;  // starting instances are reaped by start()
                 for (Process& p : inst->processes) {
+                    if (p.state == "restarting" && now >= p.restart_at) {
+                        // The plant connection holds no state the twin depends on: start it again.
+                        auto again = launch_process(bin_dir_, inst->logs_dir, inst->run_dir, p.name, p.args, p.port,
+                                                    platform::iso8601_utc(services_.clock().now_ms()));
+                        if (again) {
+                            const int restarts = p.restarts + 1;
+                            const auto backoff = p.backoff;
+                            p = again.value();
+                            p.state = "running";
+                            p.restarts = restarts;
+                            p.backoff = backoff;
+                            notices.emplace_back(id, p.name + " restarted (restart " + std::to_string(restarts) + ")");
+                        } else {
+                            p.restart_at = now + p.backoff;
+                            p.backoff = std::min(p.backoff * 2, std::chrono::milliseconds(30000));
+                        }
+                        continue;
+                    }
                     if (p.pid <= 0 || (p.state != "running" && p.state != "starting")) continue;
                     int status = 0;
                     if (::waitpid(p.pid, &status, WNOHANG) != p.pid) continue;
@@ -496,6 +558,15 @@ void Supervisor::watch() {
                     p.exit_status = WIFEXITED(status) ? WEXITSTATUS(status) : -WTERMSIG(status);
                     std::error_code ec;
                     fs::remove(inst->run_dir / (p.name + ".pid"), ec);
+                    if (p.name == "twin-ingest") {
+                        if (now - p.spawned > std::chrono::seconds(60)) p.backoff = std::chrono::milliseconds(1000);
+                        p.state = "restarting";
+                        p.restart_at = now + p.backoff;
+                        notices.emplace_back(id, "twin-ingest exited (status " + std::to_string(p.exit_status) + "); restarting in " +
+                                                     std::to_string(p.backoff.count()) + " ms");
+                        p.backoff = std::min(p.backoff * 2, std::chrono::milliseconds(30000));
+                        continue;
+                    }
                     if (inst->state == "running" && p.name != "twin-pt-feed") {
                         inst->state = "failed";
                         inst->message = p.name + " exited unexpectedly (status " + std::to_string(p.exit_status) +
@@ -505,12 +576,87 @@ void Supervisor::watch() {
                 }
             }
         }
+        for (const auto& [id, message] : notices) {
+            services_.app_log().write(LogLevel::Warn, "studio.supervisor", message, {{"instance", id}});
+        }
         for (const auto& [id, message] : failures) {
             services_.app_log().write(LogLevel::Error, "studio.supervisor", message, {{"instance", id}});
             services_.events().publish("instance", {{"instance", id}, {"state", "failed"}, {"message", message}},
                                        platform::iso8601_utc(services_.clock().now_ms()));
         }
     }
+}
+
+Result<Json> Supervisor::restart_ingest(const std::string& instance_id, const std::optional<fs::path>& config) {
+    std::shared_ptr<Instance> inst;
+    std::string runtime_url;
+    pid_t old_pid = -1;
+    {
+        std::lock_guard l(mu_);
+        auto it = instances_.find(instance_id);
+        if (it == instances_.end() || it->second->state != "running") {
+            return make_error(ErrorCode::StateError, "the instance is not running; the plant connection starts with its next deployment");
+        }
+        inst = it->second;
+        for (Process& p : inst->processes) {
+            if (p.name == "twin-runtime") runtime_url = p.url;
+            if (p.name == "twin-ingest" && (p.state == "running" || p.state == "starting" || p.state == "restarting")) {
+                if (p.state != "restarting") old_pid = p.pid;
+                p.state = "stopping";
+            }
+        }
+    }
+    if (old_pid > 0) (void)terminate_pid(old_pid);
+    {
+        std::lock_guard l(mu_);
+        std::erase_if(inst->processes, [](const Process& p) { return p.name == "twin-ingest"; });
+        std::error_code ec;
+        fs::remove(inst->run_dir / "twin-ingest.pid", ec);
+    }
+    if (!config) {
+        services_.app_log().write(LogLevel::Info, "studio.supervisor", "plant connection stopped", {{"instance", instance_id}});
+        return status(instance_id);
+    }
+    int port = 0;
+    {
+        std::lock_guard l(mu_);
+        port = free_port();
+    }
+    if (port == 0) return make_error(ErrorCode::Unavailable, "no free local port for twin-ingest");
+    auto p = launch_process(bin_dir_, inst->logs_dir, inst->run_dir, "twin-ingest", ingest_args(*config, runtime_url, port), port,
+                            platform::iso8601_utc(services_.clock().now_ms()));
+    if (!p) return std::move(p).error();
+    Process proc = std::move(p).value();
+    const Status healthy = wait_healthy(proc);
+    if (!healthy && proc.state == "starting") (void)terminate_pid(proc.pid);
+    if (!healthy) proc.state = "exited";
+    {
+        std::lock_guard l(mu_);
+        inst->processes.push_back(proc);
+    }
+    if (!healthy) return Error(healthy.error()).with("hint", "the plant connection could not start: check its ports");
+    services_.app_log().write(LogLevel::Info, "studio.supervisor", "plant connection (re)started", {{"instance", instance_id}, {"port", port}});
+    return status(instance_id);
+}
+
+Json Supervisor::ingest_status(const std::string& instance_id) const {
+    std::string url;
+    {
+        std::lock_guard l(mu_);
+        auto it = instances_.find(instance_id);
+        if (it == instances_.end() || it->second->state != "running") return nullptr;
+        for (const Process& p : it->second->processes) {
+            if (p.name == "twin-ingest" && p.state == "running") url = p.url;
+        }
+    }
+    if (url.empty()) return nullptr;
+    httplib::Client cli(url);
+    cli.set_connection_timeout(1, 0);
+    cli.set_read_timeout(2, 0);
+    auto r = cli.Get("/status");
+    if (!r || r->status != 200) return nullptr;
+    auto j = json::parse(r->body);
+    return j ? j.value() : Json(nullptr);
 }
 
 }  // namespace twin::studio

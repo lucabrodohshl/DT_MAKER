@@ -692,7 +692,7 @@ Result<Json> BlueprintService::test_binding(std::string_view id, std::int64_t v,
         return out;
     } else if (kind == "mqtt") {
         out["status"] = "adapter_unavailable";
-        out["detail"] = "Connection tests for MQTT need the twin-ingest connector, which this build does not include. The binding is validated and stored.";
+        out["detail"] = "MQTT bindings are not sampled from the Blueprint editor. A deployed instance subscribes to the broker through its plant connection, whose page (Operate → Plant connection) shows the broker connection and every message received.";
         return out;
     } else if (kind == "rest") {
         const std::string url = cfg.value("url", std::string());

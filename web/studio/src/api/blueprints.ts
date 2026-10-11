@@ -23,6 +23,7 @@ import type {
   BlueprintVersionSummary,
   CheckResult,
   InstanceView,
+  PlantConnectionView,
   ModelImportResult,
   ModelSaveResult,
   Palettes,
@@ -141,6 +142,14 @@ export const useInstances = (blueprint?: string) =>
   useQuery({ queryKey: bpKeys.instances(blueprint), queryFn: () => api.get<InstanceView[]>('/instances', { blueprint }), staleTime: 0, refetchInterval: 5000 });
 export const useInstance = (id: string | undefined) =>
   useQuery({ queryKey: bpKeys.instance(id ?? ''), queryFn: () => api.get<InstanceView>(`/instances/${enc(id!)}`), enabled: !!id, staleTime: 0 });
+export const useConnection = (id: string | undefined, poll = true) =>
+  useQuery({
+    queryKey: ['instances', id ?? '', 'connection'],
+    queryFn: () => api.get<PlantConnectionView>(`/instances/${enc(id!)}/connection`),
+    enabled: !!id,
+    staleTime: 0,
+    refetchInterval: poll ? 3000 : false,
+  });
 export const useSupervisor = () =>
   useQuery({
     queryKey: bpKeys.supervisor,
@@ -175,6 +184,8 @@ export const blueprintApi = {
   deployInstance: (id: string, body: Record<string, unknown> = {}) =>
     api.post<{ instance: string; version: number; runtime: SupervisorStatus; operate: string }>(`/instances/${enc(id)}/deploy`, body),
   controlInstance: (id: string, action: 'start' | 'stop') => api.post<InstanceView>(`/instances/${enc(id)}/${action}`),
+  updateConnection: (id: string, body: Record<string, unknown>) => api.put<PlantConnectionView>(`/instances/${enc(id)}/connection`, body),
+  rotateConnectionToken: (id: string) => api.post<PlantConnectionView>(`/instances/${enc(id)}/connection/token`),
   uploadBlob: (mime: string, data: string) => api.post<{ sha256: string; url: string; mime: string; size: number }>('/blobs', { mime, data }),
 };
 
