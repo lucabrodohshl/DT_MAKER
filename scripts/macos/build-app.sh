@@ -27,7 +27,7 @@ APP="$OUT/Verified Twin Studio.app"
 WORK="build/macos"
 VERSION="$(sed -n 's/^project([^)]*VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt | head -1)"
 VERSION="${VERSION:-1.0.0}"
-TOOLS=(twin twin-studio twin-runtime twin-world twin-pt-feed)
+TOOLS=(twin twin-studio twin-runtime twin-world twin-pt-feed twin-ingest)
 
 log() { printf '\033[1m[macos]\033[0m %s\n' "$*"; }
 

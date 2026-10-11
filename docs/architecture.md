@@ -32,6 +32,7 @@ transports, stores or displays.
 | `twin-world` | 8091 | Drone Physical Twin and building-information service. Holds the ground truth. | `apps/twin-world`, `src/world` |
 | `twin-runtime` (pump) | 8092 | Monitor mode: executes the pump package. The Physical Twin pushes events and telemetry to it. | same binary, `--monitor` |
 | `twin-pt-feed` | – | A scripted Physical Twin: the pump's PLC storyline. | `apps/twin-pt-feed`, `src/ptfeed` |
+| `twin-ingest` | 19000+ | Plant connection of one deployed instance: its REST endpoint, its MQTT endpoint and its subscription to the plant's broker. Maps plant messages to the data contract and places them in logical time; reaches the twin only through the runtime's HTTP API, so it decides nothing (checked by `tests/architecture`). Started and supervised by Studio. | `apps/twin-ingest`, `src/ingest` |
 | `twin` | – | Offline toolchain: `compile`, `align`, `package`, `ledger verify/anchor/show`, `replay`. | `apps/twin` |
 
 `make demo` (`scripts/start-demo.sh`) builds, seeds and starts all of them. It then starts each
@@ -63,10 +64,12 @@ a `twin-blueprint-bundle/1` document another Studio can import.
 
 The **supervisor** (`src/studio/supervisor.cpp`) deploys instances: on free local ports it starts
 `twin-runtime` on the instance's package (plus `twin-world` with the simulator scenario rasterised
-from the Blueprint's world, or `twin-pt-feed` with its event script), waits for each health
-check, registers the URLs on the twin record and starts the telemetry bridge, so the instance
-appears in Operate. While Studio runs, a runtime that exits unexpectedly is reported as failed
-and not restarted (fail-stop is an integrity event); when Studio starts, it redeploys every
+from the Blueprint's world, or `twin-pt-feed` with its event script, or `twin-ingest` for an
+instance fed by the real plant), waits for each health check, registers the URLs on the twin
+record and starts the telemetry bridge, so the instance appears in Operate. While Studio runs,
+a runtime that exits unexpectedly is reported as failed and not restarted (fail-stop is an
+integrity event); a plant connection that exits is restarted with back-off, since it decides
+nothing and holds no state the twin depends on; when Studio starts, it redeploys every
 instance whose desired state is running. A **Studio preview** runs the same processes
 for a version in its own sandbox under `<data>/previews/` — no twin record, no deployment, no
 stored telemetry.

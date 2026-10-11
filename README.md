@@ -91,6 +91,7 @@ the tutorial. See [Twin Blueprints](docs/studio/blueprints.md).
 | `twin-runtime` | 8090 / 8092 | One per twin: verified package → session → kernel → ledger; REST + SSE |
 | `twin-world` | 8091 | Drone Physical Twin simulator and building-information service (ground truth lives here) |
 | `twin-pt-feed` | – | Scripted pump control system (events + consistent telemetry) |
+| `twin-ingest` | 19000+ | Plant connection of a deployed instance: REST endpoint, MQTT endpoint, broker subscription (started by Studio) |
 
 Details: [docs/architecture.md](docs/architecture.md).
 
@@ -128,7 +129,7 @@ claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
 | [Integration audit](docs/integration-audit.md), [final report](docs/final-integration-report.md) | What exists, how it was integrated, limitations |
 | [Studio manual](docs/studio/) | Using Verified Twin Studio (designing twins, operations, engineering, maintenance) |
 | [Build Your First Twin](docs/studio/tutorial-first-twin.md) | A thermal-chamber twin from nothing to a monitored instance, step by step |
-| [Connect a Real Twin](docs/studio/tutorial-connect-real-twin.md) | Feed a deployed instance from a real PLC, gateway or historian ([reference bridge](examples/real-twin/twin_bridge.py)) |
+| [Connect a Real Twin](docs/studio/tutorial-connect-real-twin.md) | Feed a deployed instance from a real PLC, gateway or historian over its built-in REST and MQTT inputs |
 | [Screenshots](docs/screenshots/) | Captured from the running product (`scripts/capture-screenshots.sh`) |
 | API reference | `make docs` → `build/docs/html/index.html` (Doxygen) |
 
@@ -155,7 +156,7 @@ claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
 include/twin/<module>/, src/<module>/   C++ libraries (core, json, ir, kernel, compiler, alignment,
                                         package, ledger, runtime, planner, geo, world, ptfeed,
                                         ontology, platform, studio)
-apps/                                   twin, twin-runtime, twin-world, twin-pt-feed, twin-studio; macos/ (app launcher)
+apps/                                   twin, twin-runtime, twin-world, twin-pt-feed, twin-ingest, twin-studio; macos/ (app launcher)
 api/                                    OpenAPI contracts (runtime, Studio)
 web/studio/                             Verified Twin Studio (React + TypeScript); plugins/drone
 models/, examples/, scenarios/          drone models, Blueprints and examples (drone, pump, thermal chamber), templates, simulator scenarios

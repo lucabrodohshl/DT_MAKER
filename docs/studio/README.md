@@ -60,7 +60,7 @@ DESIGN:       blueprint → structure · world · data → PT/DT views → ontol
 |---|---|
 | [Getting started](getting-started.md) | Starting the demo, the layout, personas, search, live data and time |
 | [Tutorial: Build Your First Twin](tutorial-first-twin.md) | A thermal chamber twin from nothing to a monitored instance, with real screenshots |
-| [Tutorial: Connect a Real Twin](tutorial-connect-real-twin.md) | Feed a deployed instance from a real PLC, gateway or historian with the reference bridge, and read deviations |
+| [Tutorial: Connect a Real Twin](tutorial-connect-real-twin.md) | Give an instance a plant connection (REST endpoint, MQTT endpoint, broker subscription), send it real data, and read deviations |
 | [Twin Blueprints](blueprints.md) | Blueprints and instances, versions, the separate models, verified core vs. deployment bundle, status words, the Studio home, the five ways to create a twin, the wizard |
 | [The Blueprint workspace](blueprint-workspace.md) | Every editor: structure, world & layout, data & connectivity, presentation, the PT/DT views, ontology, interpretations, cross-layer binding, requirements, monitors, alignment, verification |
 | [Scenarios and preview](scenarios-and-preview.md) | The Scenario Builder with the kernel's timing windows, illegal steps, running scenarios, the isolated Studio preview |

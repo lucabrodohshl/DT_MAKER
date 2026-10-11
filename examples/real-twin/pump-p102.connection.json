@@ -1,0 +1,29 @@
+{
+  "rest": { "enabled": true },
+  "mqtt": { "enabled": true },
+  "timestamp": { "field": "ts", "unit": "ms" },
+  "eventField": "event",
+  "names": {
+    "telemetry": {
+      "bearing_temp": "TT101_degC",
+      "vibration_rms": "VT101_mm_s",
+      "discharge_pressure": "PT101_bar",
+      "shaft_speed": "ST101_rpm",
+      "motor_current": "IT101_A",
+      "cooling_active": "cooling",
+      "motor_running": "running"
+    },
+    "events": {
+      "start_command": ["START"],
+      "duty_increase": ["DUTY_UP"],
+      "bearing_alarm": ["BEARING_ALARM"],
+      "alarm_cleared": ["ALARM_CLEARED"],
+      "cooling_started": ["AUX_COOLING_ON"],
+      "cooling_done": ["AUX_COOLING_DONE"],
+      "ramp_down": ["STOP"],
+      "halted": ["STOPPED"],
+      "overheating_trip": ["TRIP"],
+      "trip_reset": ["TRIP_RESET"]
+    }
+  }
+}

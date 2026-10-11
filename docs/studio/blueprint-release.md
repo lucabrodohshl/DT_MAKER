@@ -59,9 +59,13 @@ says. An instance whose Blueprint has a newer published version shows **Upgrade*
 ## Release → Deployment
 
 **Deploy** starts the instance's runtime under the deployment supervisor of this Studio, on its
-version's released package and bundle: `twin-runtime` (plus `twin-world` for co-simulation, or
-`twin-pt-feed` for an event-script simulator), with a bridge that brings its telemetry into
-Operate. The processes run in their own process group and are stopped cleanly (SIGTERM, then
+version's released package and bundle: `twin-runtime` (plus `twin-world` for co-simulation,
+`twin-pt-feed` for an event-script simulator, or `twin-ingest` for an instance with a plant
+connection — its REST endpoint, MQTT endpoint or broker subscription, see
+[Tutorial: connect a real twin](tutorial-connect-real-twin.md)), with a bridge that brings its
+telemetry into Operate. A plant connection that exits is restarted automatically (back-off
+1 s doubling to 30 s); its settings can be changed while the twin runs, without restarting the
+runtime. The processes run in their own process group and are stopped cleanly (SIGTERM, then
 SIGKILL after a grace period) when the instance is stopped or Studio exits; processes left behind
 by a crash are found by their pid files and stopped before the instance starts again. While
 Studio runs, a runtime that exits unexpectedly is shown as **FAILED** with the reason and is not
