@@ -8,6 +8,7 @@
 #   core, json, ir, kernel <- package <- ledger <- runtime
 #   core <- geo <- planner, world; geo <- scene (World & Layout documents, simulator adapter)
 #   core, json <- ptfeed (scripted PT feeds; never linked into the runtime)
+#   core, json <- ingest (plant connectivity; reaches the twin only through the runtime's HTTP API)
 # =============================================================================
 
 # Generated header with version/format identifiers (single source of truth).
@@ -36,3 +37,4 @@ add_subdirectory(scene)
 add_subdirectory(planner)
 add_subdirectory(world)
 add_subdirectory(ptfeed)
+add_subdirectory(ingest)

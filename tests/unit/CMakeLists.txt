@@ -54,3 +54,7 @@ twin_add_test(monitoring_unit_tests LABEL unit
 twin_add_test(scene_unit_tests LABEL unit
     SOURCES scene/scene_test.cpp
     DEPS twin::scene twin::world)
+
+twin_add_test(ingest_unit_tests LABEL unit
+    SOURCES ingest/ingest_test.cpp
+    DEPS twin::ingest)

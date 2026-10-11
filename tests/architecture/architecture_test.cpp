@@ -9,7 +9,9 @@
  *  2. the runtime never reaches the simulator's ground truth;
  *  3. neither the mission controller, the planner nor the drone UI plugin
  *     embeds the twin's state machine (no location names in their logic);
- *  4. the world simulator and the PT feed are never linked into the runtime.
+ *  4. the world simulator and the PT feed are never linked into the runtime;
+ *  5. the plant connector (twin-ingest) reaches the twin only through the runtime's HTTP API:
+ *     it links neither the kernel, the ledger nor the runtime, so it cannot decide anything.
  */
 #include <gtest/gtest.h>
 
@@ -112,6 +114,21 @@ TEST(Architecture, NoShadowStateMachineOutsideTheKernel) {
         for (const std::string& loc : kDtLocations) {
             const std::regex literal("[\"'`]" + loc + "[\"'`]");
             EXPECT_FALSE(std::regex_search(s, literal)) << f << " branches on the twin location " << loc;
+        }
+    }
+}
+
+TEST(Architecture, ThePlantConnectorNeverReachesTheKernel) {
+    for (const fs::path& f : sources({"src/ingest", "include/twin/ingest", "apps/twin-ingest"}, kCpp)) {
+        const std::string s = code_of(f);
+        for (const char* forbidden : {"twin/kernel/", "twin/ledger/", "twin/runtime/", "twin/package/"}) {
+            EXPECT_EQ(s.find(forbidden), std::string::npos) << f << " includes " << forbidden;
+        }
+    }
+    for (const fs::path& f : {kRoot / "src/ingest/CMakeLists.txt", kRoot / "apps/twin-ingest/CMakeLists.txt"}) {
+        const std::string cmake = cmake_code(f);
+        for (const char* forbidden : {"twin::kernel", "twin::ledger", "twin::runtime", "twin::package"}) {
+            EXPECT_EQ(cmake.find(forbidden), std::string::npos) << f << " links " << forbidden;
         }
     }
 }
