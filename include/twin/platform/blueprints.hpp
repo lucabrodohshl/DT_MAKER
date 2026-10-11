@@ -124,6 +124,9 @@ public:
                                                         std::string_view actor);
     /**
      * @brief Saves a draft's document (see without_nulls()) and pins if @p expected_revision is current.
+     *
+     * When the document or the pins change, the package and bundle built for the previous content
+     * are detached (package_id and bundle_id cleared): they no longer describe this draft.
      * @return the saved version (revision + 1); StateError for a published version or a stale revision.
      */
     [[nodiscard]] Result<BlueprintVersion> save(std::string_view id, std::int64_t version, std::int64_t expected_revision,

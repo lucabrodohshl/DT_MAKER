@@ -165,8 +165,18 @@ public:
      * contract; never copies or changes formal artefacts.
      */
     [[nodiscard]] Result<json::Json> create_instance(const json::Json& body, const Actor& actor);
-    /// @brief Deploy or upgrade: {version?} (default: the instance's version); starts the runtime.
+    /**
+     * @brief Deploy, upgrade or start an instance: {version?, reason?}; starts its runtime.
+     *
+     * With a version, that published version's package is deployed (upgrade or rollback between
+     * Blueprint versions). Without one, the instance runs what is deployed for it: its current
+     * deployment (for example a package released through a change workspace), else its version's
+     * package. The bundle (simulator inputs) always comes from the instance's Blueprint version.
+     */
     [[nodiscard]] Result<json::Json> deploy_instance(std::string_view id, const json::Json& body, const Actor& actor);
+    /// @brief Restart an instance's runtime on @p package_id, already recorded as its deployment
+    /// (Services::deploy and rollback call this for a running instance).
+    [[nodiscard]] Result<json::Json> run_instance(std::string_view id, const std::string& package_id, const Actor& actor);
     /// @brief Stop or start an instance's processes ({action: "stop"|"start"}).
     [[nodiscard]] Result<json::Json> control_instance(std::string_view id, std::string_view action, const Actor& actor);
     /// @brief Test a data-source binding: fetch a sample and show raw, canonical, type, unit, timestamp and quality.
@@ -180,6 +190,10 @@ public:
     struct Impl;
 
 private:
+    /// Start the processes of instance @p twin_id of @p blueprint_id@@p version on @p package_id.
+    [[nodiscard]] Result<json::Json> launch(std::string_view twin_id, std::string_view blueprint_id, std::int64_t version,
+                                            const std::string& package_id, const Actor& actor);
+
     Services& services_;
     Supervisor* supervisor_{nullptr};
     std::unique_ptr<Impl> impl_;

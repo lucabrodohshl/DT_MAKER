@@ -23,6 +23,8 @@ export interface TwinNavItem {
   /** Path relative to the workspace ("" = Overview). */
   to: string;
   label: string;
+  /** Other workspace paths (and everything under them) that belong to this item. */
+  also?: string[];
 }
 
 export interface TwinNavGroup {
@@ -82,7 +84,7 @@ export const TWIN_NAV: TwinNavGroup[] = [
       { to: 'audit', label: 'Timeline' },
       { to: 'audit/provenance', label: 'Decision provenance' },
       { to: 'audit/replay', label: 'Replay' },
-      { to: 'audit/ledger', label: 'Ledger' },
+      { to: 'audit/ledger', label: 'Ledger', also: ['audit/executions'] },
     ],
   },
   {
@@ -129,15 +131,18 @@ export const TWIN_NAV: TwinNavGroup[] = [
 /** Icons used elsewhere for the same areas. */
 export const AREA_ICON = { history: History, simulation: FlaskConical, data: Database } as const;
 
-/** Group and item matching a workspace-relative path (longest prefix wins). */
-export function locate(rel: string): { group: TwinNavGroup; item?: TwinNavItem } | null {
-  let best: { group: TwinNavGroup; item?: TwinNavItem; len: number } | null = null;
+/** Group and item matching a workspace-relative path (longest prefix wins), and the prefix matched. */
+export function locate(rel: string): { group: TwinNavGroup; item?: TwinNavItem; matched: string } | null {
+  let best: { group: TwinNavGroup; item?: TwinNavItem; to: string } | null = null;
   for (const g of TWIN_NAV) {
-    const candidates: { to: string; item?: TwinNavItem }[] = [{ to: g.to }, ...(g.items ?? []).map((i) => ({ to: i.to, item: i }))];
+    const candidates: { to: string; item?: TwinNavItem }[] = [
+      { to: g.to },
+      ...(g.items ?? []).flatMap((i) => [i.to, ...(i.also ?? [])].map((to) => ({ to, item: i }))),
+    ];
     for (const c of candidates) {
       const match = c.to === '' ? rel === '' : rel === c.to || rel.startsWith(`${c.to}/`);
-      if (match && (!best || c.to.length > best.len || (c.to.length === best.len && c.item && !best.item))) best = { group: g, item: c.item, len: c.to.length };
+      if (match && (!best || c.to.length > best.to.length || (c.to.length === best.to.length && c.item && !best.item))) best = { group: g, item: c.item, to: c.to };
     }
   }
-  return best ? { group: best.group, item: best.item } : null;
+  return best ? { group: best.group, item: best.item, matched: best.to } : null;
 }

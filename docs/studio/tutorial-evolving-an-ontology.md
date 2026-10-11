@@ -16,14 +16,14 @@ them on an isolated stack by running exactly these steps
 (`scripts/screenshots/tutorial.mjs`). The identifiers below (v3, EV-…, CHG-…, PKG-0003) are
 those of a freshly seeded demo; yours may differ.
 
-You need the demo running (`./scripts/start-demo.sh`) and Studio open in
-**Engineering** mode.
+You need the demo running (`./scripts/start-demo.sh`) and Studio open with the **Engineer**
+detail level.
 
 ---
 
 ## 1. Open the published ontology
 
-Go to **Engineering → Ontologies → Process pump domain**, then open **v1**: the version
+Switch to **Studio** and go to **Ontologies → Process pump domain**, then open **v1**: the version
 deployed on twin *P-101 reliability twin*.
 
 ![Published ontology](../screenshots/tutorial/01-published-ontology.png)
@@ -36,9 +36,9 @@ a counter-model.
 
 ## 2. Create a draft
 
-First create a change workspace for the twin: **Maintenance → Change workspace → New change**,
-twin *P-101 reliability twin*, title *Datasheet revision C*. Then, back on v1, click **Create draft from v1**. Enter a change
-description and attach the draft to the change.
+First create a change workspace for the twin: **Studio → Changes → New change**, twin
+*P-101 reliability twin*, title *Datasheet revision C*. Then, back on v1, click **Create draft
+from v1**. Enter a change description and attach the draft to the change.
 
 ![Create draft](../screenshots/tutorial/02-create-draft.png)
 
@@ -140,7 +140,7 @@ Had the check been NOT A REFINEMENT, or run without interpretations, the alignme
 
 ## 8. Resolve the required verification and build the package
 
-Open the change (**Maintenance → Change workspace → Datasheet revision C**). The release
+Open the change (**Studio → Changes → Datasheet revision C**). The release
 pipeline is computed from stored evidence for exactly these artefacts:
 
 ![Pipeline](../screenshots/tutorial/08-pipeline.png)
@@ -162,13 +162,13 @@ reason.
 
 ![Deployments](../screenshots/tutorial/09-deployments.png)
 
-**Engineering → Deployments** shows the append-only history: the initial deployment of
-PKG-0001, then PKG-0003 with its reason and actor. **Maintenance → Rollback** could return to
+**Studio → Deployments** shows the append-only history: the initial deployment of
+PKG-0001, then PKG-0003 with its reason and actor. The twin's **Maintenance → Rollback** could return to
 PKG-0001 at any time (a reason is required), without deleting anything newer.
 
 ## 10. Old executions keep their semantics
 
-Open **Audit → Execution ledger**, select the P-101 twin and replay its **oldest** execution.
+Open P-101 in **Operate**, then **Audit → Ledger**, and replay its **oldest** execution.
 
 ![Old execution replay](../screenshots/tutorial/10-old-execution-replay.png)
 
@@ -183,7 +183,7 @@ although v3 is deployed now. History is never reinterpreted with today's ontolog
 
 | Question | Where you answered it |
 |---|---|
-| Which ontology is this twin using, which exact version? | Asset page → *Defined by*; Engineering → Deployments |
+| Which ontology is this twin using, which exact version? | The twin's **Engineering** page; Studio → Deployments |
 | Can I create a new version? Is my draft valid? | Create draft → Validate (step 2–4) |
 | What changed? | Compare (step 5) |
 | Is it a valid refinement, and who decided? | Refinement evidence (step 6): Z3 + aligner, with checker identity |

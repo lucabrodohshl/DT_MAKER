@@ -7,14 +7,14 @@ Studio keeps two separate audit trails:
 | Records | runtime behaviour (every semantic step) | artefact and lifecycle changes |
 | Kept by | each `twin-runtime`, per execution | `twin-studio` (SQLite) |
 | Integrity | hash chain, verified by the runtime | hash chain, verified by Studio |
-| Page | Audit → Execution ledger | Audit → Engineering audit |
+| Page | the twin's Audit → Ledger | Studio → Engineering audit |
 
-Application logs (Administration → System logs) are diagnostics. They are neither evidence
-nor part of either trail.
+Application logs (the twin's Administration → System logs) are diagnostics. They are neither
+evidence nor part of either trail.
 
 ## Execution ledger
 
-**Audit → Execution ledger** lists the executions of a twin, each with:
+**Audit → Ledger** (in the twin's workspace) lists the executions of the twin, each with:
 - status (running, closed, not closed)
 - the package it ran
 - the record count and the last state
@@ -40,12 +40,12 @@ and time. A record shows:
   modified: the record no longer matches its hash* or a broken predecessor link.
 - **Not verified in this view** until you run it. Studio never assumes validity.
 
-**Audit → Engineering audit → Verify** does the same for the engineering trail.
+**Studio → Engineering audit → Verify** does the same for the engineering trail.
 
 ## Decision provenance
 
-**Audit → Decision provenance** answers *why did this happen?* It works backwards from an
-event, transition, alert, planner decision or deviation:
+**Audit → Decision provenance** (in the twin's workspace) answers *why did this happen?* It
+works backwards from an event, transition, alert, planner decision or deviation:
 
 ```
 decision / event  →  behavioural transition (ledger record #n)  →  propositions that enabled it

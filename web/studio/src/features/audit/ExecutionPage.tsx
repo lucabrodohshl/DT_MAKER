@@ -142,7 +142,7 @@ export default function ExecutionPage() {
                 <KeyValue
                   compact
                   items={[
-                    ['Status', e.current ? <StatusBadge key="s" tone="info" label="Running" /> : e.ended ? <StatusBadge key="s" tone="neutral" label="Ended" /> : <StatusBadge key="s" tone="warning" label="Not closed" />],
+                    ['Status', e.ended ? <StatusBadge key="s" tone="neutral" label="Ended" /> : e.current ? <StatusBadge key="s" tone="info" label="Running" /> : <StatusBadge key="s" tone="warning" label="Not closed" />],
                     ['Model', `${e.model_id ?? '?'} ${e.model_version ?? ''}`],
                     ['Package', studioPkg ? <PackageLink key="p" id={studioPkg.id} /> : <HashChip key="p" value={e.package_hash} />],
                     ['Package hash', <HashChip key="ph" value={e.package_hash} />],

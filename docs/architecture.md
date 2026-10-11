@@ -65,8 +65,9 @@ The **supervisor** (`src/studio/supervisor.cpp`) deploys instances: on free loca
 `twin-runtime` on the instance's package (plus `twin-world` with the simulator scenario rasterised
 from the Blueprint's world, or `twin-pt-feed` with its event script), waits for each health
 check, registers the URLs on the twin record and starts the telemetry bridge, so the instance
-appears in Operate. A runtime that exits unexpectedly is reported as failed and never restarted
-automatically (fail-stop is an integrity event). A **Studio preview** runs the same processes
+appears in Operate. While Studio runs, a runtime that exits unexpectedly is reported as failed
+and not restarted (fail-stop is an integrity event); when Studio starts, it redeploys every
+instance whose desired state is running. A **Studio preview** runs the same processes
 for a version in its own sandbox under `<data>/previews/` — no twin record, no deployment, no
 stored telemetry.
 

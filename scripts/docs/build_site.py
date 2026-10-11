@@ -53,16 +53,16 @@ PAGES = [
 
 # Screenshot tour: (file under docs/screenshots, title, caption, page to read more).
 TOUR = [
-    ("01-overview.png", "Overview", "The estate at a glance: assets by state, telemetry freshness, every twin with its evidence-backed trust badges, open engineering changes and recent events.", "getting-started.html"),
+    ("01-overview.png", "Your twins", "Every twin with its live state, package, verification and conformance badges, alerts and data freshness; Create / Import twin starts a new one.", "getting-started.html#layout"),
     ("02-asset-knowledge-graph.png", "Knowledge graph", "Asset instances and operational relationships, explored around a focus asset with depth, filters and neighbourhood expansion.", "operations.html#assets-and-the-knowledge-graph"),
     ("03-drone-live-navigation.png", "Drone: live navigation", "The drone plugin: physical world vs. what the twin knows, the active route and the kernel's mode.", "operations.html#domain-views"),
     ("04-drone-obstacle-discovered.png", "Drone: obstacle discovered", "A closed fire door is discovered; the twin's knowledge changes and the route becomes invalid.", "operations.html#domain-views"),
     ("05-drone-replanning.png", "Drone: replanning", "Planner candidates with the kernel's admissibility verdicts; the selected plan and the invalidated one.", "operations.html#prediction-what-if-and-planning"),
     ("06-behavioral-graph.png", "Behavioural graph", "The DT model from the kernel: current state, enabled and recently taken transitions, with details on click.", "operations.html#behaviour"),
-    ("07-prediction-plans.png", "Prediction & planning", "Bounded future states explored by the kernel; every branch is admissible by the model.", "operations.html#prediction-what-if-and-planning"),
+    ("07-prediction-plans.png", "Planning", "Planning episodes: every candidate route checked on the known map and by the kernel; the lowest-objective admissible plan is selected.", "operations.html#prediction-what-if-and-planning"),
     ("08-ledger.png", "Execution ledger", "The tamper-evident ledger of an execution, with chain verification by the runtime.", "audit-and-replay.html#execution-ledger"),
     ("09-replay.png", "Replay", "A recorded execution re-executed with the exact historical package, synchronised across record, telemetry, graph and plugin.", "audit-and-replay.html#replay"),
-    ("10-engineering-assurance.png", "Engineering assurance", "Which model, ontology, interpretation and package each twin runs, with alignment, refinement and integrity evidence.", "release-and-deployment.html#verified-packages"),
+    ("10-engineering-assurance.png", "Engineering", "The verified definition a twin runs: its views, ontology and interpretations, alignment, compilation and package evidence, and its deployment.", "release-and-deployment.html#verified-packages"),
     ("11-ontology-editor.png", "Ontology editor", "The formal ontology with highlighting, located diagnostics, structure, symbols and dependencies.", "ontology-management.html#the-editor"),
     ("12-ontology-refinement.png", "Refinement result", "Definition 4 checked by Z3: conditions, obligations, counter-models, assumptions and checker identity.", "refinement.html#understanding-the-four-results"),
     ("13-pump-example.png", "Second example: industrial pump", "The same generic screens for a completely different twin, with no plugin and no custom UI.", "operations.html#domain-views"),

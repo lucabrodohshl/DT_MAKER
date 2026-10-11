@@ -136,8 +136,7 @@ function TwinCrumbs({ base, twinName }: { base: string; twinName: string }) {
   if (here && here.group.id !== 'overview') {
     items.push({ label: here.group.label, to: `${base}/${here.group.to}` });
     if (here.item && here.item.label !== here.group.label) items.push({ label: here.item.label, to: `${base}/${here.item.to}` });
-    const covered = here.item?.to ?? here.group.to;
-    const rest = rel.slice(covered.length).replace(/^\//, '');
+    const rest = rel.slice(here.matched.length).replace(/^\//, '');
     if (rest) items.push({ label: rest.split('/').slice(-1)[0] ?? rest });
   }
   return (

@@ -73,7 +73,7 @@ try {
   });
 
   // 01 — the deployed (published, immutable) ontology.
-  await page.goto(`${STUDIO}/engineering/ontologies/${ONT}/versions/${deployed.version}`);
+  await page.goto(`${STUDIO}/studio/ontologies/${ONT}/versions/${deployed.version}`);
   await page.getByText(/is published and immutable/).waitFor();
   await shot(page, '01-published-ontology');
 
@@ -84,7 +84,7 @@ try {
   await dialog.locator('select').selectOption(change.id);
   await shot(page, '02-create-draft');
   await dialog.getByRole('button', { name: 'Create draft' }).click();
-  await page.waitForURL(new RegExp(`/engineering/ontologies/${ONT}/versions/(?!${deployed.version}$)\\d+$`));
+  await page.waitForURL(new RegExp(`/studio/ontologies/${ONT}/versions/(?!${deployed.version}$)\\d+$`));
   const draft = Number(new URL(page.url()).pathname.split('/').pop());
 
   // 03 — an edit with a mistake: the strict parser locates it on save.
@@ -112,15 +112,15 @@ try {
   await page.keyboard.press('Escape');
 
   // 06 — Refinement check (Def. 4) against the deployed ontology and interpretations.
-  await page.goto(`${STUDIO}/engineering/ontologies/${ONT}/versions/${draft}`);
+  await page.goto(`${STUDIO}/studio/ontologies/${ONT}/versions/${draft}`);
   await page.getByRole('button', { name: /check refinement/i }).click();
   await page.getByRole('button', { name: /run refinement check/i }).click();
-  await page.waitForURL(/\/maintenance\/refinement\/EV-\d+/, { timeout: 120_000 });
+  await page.waitForURL(/\/studio\/refinement\/EV-\d+/, { timeout: 120_000 });
   await page.getByText('Valid refinement').first().waitFor();
   await shot(page, '06-refinement-result', { fullPage: true });
 
   // 07 — Impact: what depends on the deployed ontology, and what Theorem 3 preserves.
-  await page.goto(`${STUDIO}/maintenance/impact?ref=${encodeURIComponent(`${ONT}@${draft}`)}`);
+  await page.goto(`${STUDIO}/studio/impact?ref=${encodeURIComponent(`${ONT}@${draft}`)}`);
   await page.getByText(/Theorem 3/).first().waitFor();
   await shot(page, '07-impact', { fullPage: true });
 
@@ -130,21 +130,27 @@ try {
     const st = pipe.stages.find((s) => s.id === stage);
     if (st && st.runnable !== false && st.state !== 'pass') await api('POST', `/changes/${change.id}/stages/${stage}/run`);
   }
-  await page.goto(`${STUDIO}/maintenance/changes/${change.id}`);
+  await page.goto(`${STUDIO}/studio/changes/${change.id}`);
   await page.getByText('Release').first().waitFor();
   await shot(page, '08-pipeline', { fullPage: true });
 
   // 09 — Release (publishes the versions, marks the package released) and deploy explicitly.
   const released = await api('POST', `/changes/${change.id}/release`);
   await api('POST', '/deployments', { twinId: TWIN, packageId: released.package.id, reason: 'Datasheet revision C' });
-  await page.goto(`${STUDIO}/engineering/deployments`);
+  await page.goto(`${STUDIO}/studio/deployments`);
   await page.getByText(released.package.id).first().waitFor();
   await shot(page, '09-deployments');
 
   // 10 — The oldest recorded execution replays with ITS historical artefacts (ontology v1).
-  await page.goto(`${STUDIO}/audit/ledger?twin=${TWIN}`);
-  const replays = page.locator('a[href$="/replay"]');
-  await replays.first().waitFor();
+  // Deploying PKG-0003 restarted the pump's runtime on it, so the ledger now lists at least two
+  // executions (newest first); the oldest ran PKG-0001. (The sidebar's own "Replay" link is not one.)
+  await page.goto(`${STUDIO}/twins/${TWIN}/audit/ledger`);
+  const replays = page.locator('a[href*="/audit/executions/"][href$="/replay"]');
+  for (let i = 0; i < 120 && (await replays.count()) < 2; ++i) {
+    await page.waitForTimeout(500);
+    if (i % 20 === 19) await page.reload();
+  }
+  if ((await replays.count()) < 2) throw new Error('the redeployed pump did not start a new execution');
   await replays.last().click();
   await page.getByText('Historical artefacts').waitFor();
   await page.getByText(`${ONT}@${deployed.version}`).first().waitFor();

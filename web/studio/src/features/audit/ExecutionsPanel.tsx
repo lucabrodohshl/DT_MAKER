@@ -38,7 +38,7 @@ export function ExecutionsPanel({ twinId, title = 'Executions' }: { twinId: stri
                     </Link>
                     <div className="xsmall subtle">{e.started}</div>
                   </td>
-                  <td>{e.current ? <StatusBadge tone="info" label="Running" /> : e.ended ? <StatusBadge tone="neutral" label="Ended" /> : <StatusBadge tone="warning" label="Not closed" />}</td>
+                  <td>{e.ended ? <StatusBadge tone="neutral" label="Ended" /> : e.current ? <StatusBadge tone="info" label="Running" /> : <StatusBadge tone="warning" label="Not closed" />}</td>
                   <td><PackageCell twinId={twinId} hash={e.package_hash} /></td>
                   <td className="num">{e.records}</td>
                   <td>{e.last_location ?? '—'}</td>

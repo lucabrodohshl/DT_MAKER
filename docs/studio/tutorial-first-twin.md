@@ -26,8 +26,8 @@ Start the product (`./scripts/start-demo.sh`) and open <http://localhost:8080>.
 
 ## 2. Identity
 
-Name **Simple Thermal Chamber**, id `thermal-chamber`, domain `lab`, icon *thermometer*, a short
-description. Keep **Monitoring** (the twin follows the controller's events), time unit
+Name **Simple Thermal Chamber**, id `thermal-chamber`, domain `thermal` (it selects the world
+tool palette: chamber, heater, door, sensor), icon *thermometer*, a short description. Keep **Monitoring** (the twin follows the controller's events), time unit
 **seconds** and 1000 ticks per second (millisecond-exact logical time). **Create and continue
 (guided)** creates draft **v1** on the server and opens the guided flow at step 3.
 
@@ -150,7 +150,8 @@ The headline turns **VERIFIED**.
 
 ## 14. Read the alignment
 
-**Assurance → Alignment**: **PASS — STRONG** (neither view has internal transitions), the label
+**Assurance → Alignment**: **PASS** — *Aligned — STRONG alignment* (neither view has internal
+transitions, so weak and strong alignment coincide), the label
 equivalence the aligner found (`heater_on!` ≡ `start_heating!`, `overheat!` ≡
 `high_temperature!`, `latch_reset!` ≡ `cooled_down!`…), the hashes of exactly what was checked,
 the aligner's identity and the run's duration.
@@ -159,8 +160,9 @@ the aligner's identity and the run's duration.
 
 ## 15. A scenario
 
-**Test → Scenario Builder → Reset before cool-down**: heating starts at t = 5, the over-temperature
-event comes at t = 100, and resetting at t = 110 is marked as a step the model must **refuse**.
+**Test → Scenario Builder → Reset before cool-down (refused)**: heating starts at t = 5, the
+over-temperature event comes at t = 100, and resetting at t = 110 is marked as a step the model
+must **refuse**.
 **Run scenario**: PASS — the kernel refused the early reset, as the guard `t >= 30` demands. Try
 adding `cooled_down!` at t = 110 yourself: the builder refuses it, explains *too early: the
 earliest permitted time is t = 130*, and offers **Move to earliest legal time (t = 130)**.
@@ -178,7 +180,8 @@ Core Package (formally verified) and the Deployment Bundle (integrity-protected)
 ## 17. An instance
 
 **Release → Instances → New instance**: id `chamber-tc1-dt`, name *Chamber TC-1*, the chamber's
-asset id `chamber-tc1`, and bind the shared lab to the estate's `lab-m2`.
+asset id `chamber-tc1`, and bind the shared lab to `lab-m2` (created in the estate if it does not
+exist yet).
 
 ![New instance](../screenshots/first-twin/17-instance.png)
 

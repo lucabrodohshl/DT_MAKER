@@ -9,7 +9,7 @@ Twin View at t = 0. Its steps, in order:
 |---|---|
 | **Event** | A Digital Twin View event (`start_heating!`) or a plant event (`heater_on!`, translated to its DT counterpart through the alignment's label equivalence) at a logical time. Mark it **negative test** when the verified model must refuse it. |
 | **Wait** | Lets logical time pass. |
-| **World** | Changes the environment (ground truth): add, remove or move an object, change a property. The twin learns it only through an **observation**: choose the data-contract event the change produces. |
+| **World** | Changes the environment (ground truth): add or remove an object, or change a property of one. The twin learns it only through an **observation**: choose the data-contract event the change produces. |
 | **Telemetry** | Signal values at a time (context for expectations and monitors). |
 | **Expect** | The twin is in a state; the last event took a transition; an event is available now / later / not reachable (with its window); a property monitor is satisfied or violated; the state entails a semantic formula (Z3 over the ontology); the world has a property. An expectation at a later time lets time pass first. |
 
@@ -41,7 +41,8 @@ the legal times it reported:
 - **Choose another event**.
 
 A step that becomes illegal after an earlier edit is marked **ILLEGAL** in the list; **Why?**
-gives the same reasons and fixes. Studio computes no timing itself.
+gives the same reasons, **Move to earliest/latest legal time** and **Expect it to be refused**.
+Studio computes no timing itself.
 
 ![The kernel's legal window, its explanation and a refused step](../screenshots/studio/studio-event-timing-window.png)
 
@@ -55,8 +56,8 @@ the release gate. Scenario results are tests of example runs, **not proofs**.
 ## Test → Preview / Simulation
 
 **Start preview** runs the version for real — the runtime on its verified core (the version's
-package, or for a draft a sandbox build of the pinned artefacts that is never recorded) with its
-simulator — under a **STUDIO PREVIEW** banner:
+package when it has one built for its current content; otherwise a sandbox build of the pinned
+artefacts that is never recorded) with its simulator — under a **STUDIO PREVIEW** banner:
 
 - no twin record, no deployment, no stored telemetry; ledgers and logs live in the preview's own
   directory, and the preview is stopped with Studio;

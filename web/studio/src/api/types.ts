@@ -391,6 +391,15 @@ export interface Deployment {
   artifacts?: Record<string, string>;
   packageHash?: string;
   irSha256?: string;
+  /** Returned by a deploy or rollback of a running Blueprint instance: its runtime restart. */
+  instance?: DeploymentRestart;
+}
+
+/** Restart of a running Blueprint instance on a newly deployed package. */
+export interface DeploymentRestart {
+  restarted: boolean;
+  error?: string;
+  runtime?: SupervisorStatus | null;
 }
 
 export interface PackageRecord {
@@ -1343,6 +1352,8 @@ export interface SupervisorStatus {
   state: 'not_started' | 'starting' | 'running' | 'stopped' | 'failed';
   message?: string;
   startedAt?: string;
+  /** Package the runtime executes. */
+  packageId?: string | null;
   runtimeUrl?: string | null;
   worldUrl?: string | null;
   processes: SupervisedProcess[];

@@ -42,7 +42,7 @@ export function findingRoute(f: SectionFinding): string {
   const sel = f.target ? `?select=${encodeURIComponent(f.target)}` : '';
   switch (f.section) {
     case 'identity':
-      return `build/structure${sel}`;
+      return 'build/structure?tab=identity';
     case 'structure':
       return `build/structure${sel}`;
     case 'world':
@@ -296,10 +296,10 @@ function TopBar() {
                 </DropdownMenu.CheckboxItem>
                 <DropdownMenu.Separator className="vts-divider" />
                 <DropdownMenu.Item className="vts-menu__item" asChild>
-                  <a href="/docs/studio/studio-overview.html" target="_blank" rel="noopener">Studio manual</a>
+                  <a href="/docs/blueprint-workspace.html" target="_blank" rel="noopener">Studio manual</a>
                 </DropdownMenu.Item>
                 <DropdownMenu.Item className="vts-menu__item" asChild>
-                  <a href="/docs/studio/tutorial-first-twin.html" target="_blank" rel="noopener">Tutorial: build your first twin</a>
+                  <a href="/docs/tutorial-first-twin.html" target="_blank" rel="noopener">Tutorial: build your first twin</a>
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>

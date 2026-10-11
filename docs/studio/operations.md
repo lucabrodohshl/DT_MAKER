@@ -1,13 +1,17 @@
 # Operations
 
 The operations views follow the chain **asset → telemetry → meaning → verified behaviour →
-prediction → decision**. Every view is generic and works for any twin. The screenshots show
-both examples.
+prediction → decision**. Every view is generic and works for any twin. They live in **Operate**:
+**Your twins** lists every twin, and each twin opens in its own workspace with the navigation
+on the left (Overview, Assets, Knowledge graph, Operations, Behaviour, Predict, Audit,
+Engineering, Maintenance, Administration). The screenshots show both examples.
+
+![Your twins](../screenshots/01-overview.png)
 
 ## Assets and the knowledge graph
 
-**Assets → Asset explorer** shows the asset hierarchy on the left and a sortable, filterable
-table of all assets on the right:
+**Assets** shows the twin's asset hierarchy on the left and a searchable table of all its assets
+on the right (**Add asset** creates or links assets under the twin's root):
 - identifier, type and tags
 - the digital twin bound to the asset, if any
 
@@ -21,7 +25,7 @@ The **asset page** answers the operator's first questions at a glance:
 It also names the verified artefacts that define the twin: model, ontology, interpretation and
 package, each with its version.
 
-**Assets → Knowledge graph** explores asset *instances* and their operational relationships
+**Knowledge graph** explores asset *instances* and their operational relationships
 (`contains`, `feeds`, `powers`, `monitors`, `controls`, `locatedIn`, `observedBy`, ...). It
 always works around a focus:
 - **Depth** sets how many hops from the focus are shown.
@@ -39,7 +43,7 @@ Large estates are never drawn as a whole.
 
 ## Telemetry and what it means
 
-**Telemetry** (on the asset or under Operations) is schema-driven:
+**Operations → Telemetry** (also on each asset page) is schema-driven:
 - **Value types**: numeric, boolean, categorical and string channels.
 - **Display**: units, quality flags (good / uncertain / bad) and freshness (fresh, stale,
   missing).
@@ -80,7 +84,7 @@ A proposition can be **True**, **False**, **Unknown** or **Inconsistent observat
 
 Every item links to its definition.
 
-**Behaviour → Behavioural graph** draws the DT model:
+**Behaviour → Behavioural model** draws the DT model:
 - current state, enabled transitions (now / after a delay) and recently taken transitions
 - states and transitions open a detail panel: event, guard, clock resets, interpretation and
   last execution time
@@ -104,6 +108,10 @@ Problems are classified, so a missing observation is never reported as a violati
 **Model violation**, **Refused input**, **Monitoring alarm**, **Malformed observation time**,
 **Ambiguous state** (nondeterminism) and **Infrastructure error**.
 
+**Behaviour → Monitors** shows, for a twin created from a Blueprint, the live result of every
+monitor of its Blueprint version, the alerts raised now and the status of each requirement —
+see [live monitors](blueprint-release.md#in-operate).
+
 ## Events and alerts
 
 **Operations → Events & alerts** is one timeline for:
@@ -116,10 +124,12 @@ grouped (×N). Each event links to its ledger record and to *Why?*.
 
 ## Prediction, what-if and planning
 
-These are under **Predict** on an asset, or at the top level.
+These are under **Predict** (**What-if & simulation**, **Predictions**, **Planning**), and on
+each asset page.
 
-- **Future states**: the kernel explores the model from a copy of the current state, within the
-  depth / horizon / node limits you set. Every branch is **admissible by model**. The tree shows
+- **Predictions** (possible future states): the kernel explores the model from a copy of the
+  current state, within the depth / horizon / node limits you set. Every branch is
+  **admissible by model**. The tree shows
   the time window of each step. Nothing is called "safe" unless the model provides that basis.
 - **What-if simulation** works on a forked copy of the twin, under a **SIMULATION** banner. You
   can:
@@ -134,15 +144,15 @@ These are under **Predict** on an asset, or at the top level.
   kernel's reason). A plan can be a route, a control sequence, a maintenance sequence or a
   schedule. Domain plugins may render it richer; the drone draws routes on its map.
 
-![Prediction and plans](../screenshots/07-prediction-plans.png)
+![Planning episodes](../screenshots/07-prediction-plans.png)
 
 ## Domain views
 
-When a plugin applies to a twin, its asset page gets an extra tab, which is also reachable
-from **Digital twins** in the navigation. The drone's tab shows the physical world, the
-twin-known world, the drone, the executed path, current and invalidated plans, discovered
-obstacles and targets. Without a plugin, every generic view still works. The pump has no
-plugin.
+When a plugin applies to a twin, the twin's **Overview** shows its view (**Full screen** opens
+it alone) and the asset page gets an extra tab. The drone's mission map shows the physical
+world, the twin-known world, the drone, the executed path, current and invalidated plans,
+discovered obstacles and targets. Without a plugin, every generic view still works. The pump
+has no plugin.
 
 ![Drone replanning](../screenshots/05-drone-replanning.png)
 ![Pump](../screenshots/13-pump-example.png)

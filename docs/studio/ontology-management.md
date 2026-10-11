@@ -37,7 +37,7 @@ Entries that are not listed are internal (τ) for alignment purposes.
 
 ## Browsing
 
-Under **Engineering → Ontologies**, open an ontology, then a version. The version page has
+Under **Studio → Ontologies**, open an ontology, then a version. The version page has
 these tabs:
 
 | Tab | Shows |
@@ -142,7 +142,7 @@ error, and validation cross-checks that both parsers see the same theory.
 
 ## Ontology diff
 
-**Compare**, or **Maintenance → Version history**, shows two diffs:
+**Compare**, or **Studio → Version history**, shows two diffs:
 - **Semantic / structural diff**: symbols, relations and functions added, removed or changed,
   and axioms added, removed or modified. Comments and whitespace are ignored. It also lists
   *symbols whose meaning may change* and the **interpretation entries that depend on them**.

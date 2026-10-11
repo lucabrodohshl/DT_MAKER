@@ -12,40 +12,40 @@ make demo-fresh        # or: make demo   (keeps earlier executions)
 
 Open http://127.0.0.1:8080 in a browser window about 1600 px wide. The drone mission is paused
 and not yet started; the pump twin is already running. Keep a second tab open on
-**Assets → Inspection fleet → Drone-01 → Mission map**.
+**Your twins → Drone-01** (its overview shows the mission map; **Full screen** opens it alone).
 
 If something looks stale, reload the page: every screen refetches the authoritative state.
 
 ---
 
-### 1. The asset estate (20 s)
+### 1. Your twins (20 s)
 
-**Overview.**
-> "This is Verified Twin Studio. The estate holds 35 assets and two digital twins: an inspection
-> drone and an industrial pump. Each twin's mode, alignment and package integrity come from
-> evidence and from the twin's own verified runtime, not from the UI."
+**Your twins** (Operate).
+> "This is Verified Twin Studio. It runs two digital twins: an inspection drone and an
+> industrial pump. Each twin's mode, alignment and package integrity come from evidence and from
+> the twin's own verified runtime, not from the UI."
 
-**Knowledge graph**, focused on **Drone-01**.
+**Drone-01 → Knowledge graph**, focused on **Drone-01**.
 > "Drone-01 belongs to the inspection fleet. Its sensors feed the building-information service,
 > and mission INS-042 is assigned to it to inspect the main switchboard and a sprinkler valve on
 > floor 1."
 
 ### 2. Open Drone-01 (15 s)
 
-**Asset explorer → Inspection fleet → Drone-01.**
+**Overview** of Drone-01.
 > "Here is the drone and its twin. The mode badge at the top right is the semantic state of the
 > twin, as computed by the kernel."
 
 ### 3. Telemetry and semantic state (20 s)
 
-**Telemetry** tab (pick Battery), then **Behaviour → Current state**.
+**Operations → Telemetry** (pick Battery), then **Behaviour → Current state**.
 > "Telemetry is stored with three distinct times: when it was observed, when it was ingested, and
 > its logical time. The behavioural state, its clocks and the admissible next actions come from
 > the semantic kernel."
 
 ### 4. Start the mission (10 s)
 
-**Mission map → Start mission** (speed 2×).
+On the **Overview**, the mission map: **Start mission** (speed 2×).
 > "Left is the physical world, the simulator's ground truth. The twin never reads it. Right is
 > what the twin knows: the facility plan, plus whatever it has observed. The plan is outdated.
 > It shows fire door FD-2 open, and it doesn't know the refurbished office, which is hatched."
@@ -90,14 +90,14 @@ Let it run to completion (about 45 s at 2×), or move on and come back.
 
 ### 13. The behavioural model (20 s)
 
-**Behaviour → Behavioural graph.**
+**Behaviour → Behavioural model.**
 > "This is the verified model the kernel executes. The current location is highlighted, the
 > enabled transitions are green, and the edge just taken is marked. Click a transition to see its
 > guard, resets, ontology meaning and every ledger occurrence."
 
 ### 14–15. Ledger and verification (25 s)
 
-**History & audit → the execution →** select a `path_invalidated!` record, then **Verify chain
+**Audit → Ledger → the execution →** select a `path_invalidated!` record, then **Verify chain
 now**.
 > "Every semantic step is a hash-chained ledger record: the input, the transition, the guard
 > values, and the state before and after. Verification recomputes the chain on the server: ledger
@@ -113,21 +113,31 @@ now**.
 
 ### 17–18. Engineering and assurance (30 s)
 
-**Engineering → Assurance overview**, then the drone twin's **package**.
+**Engineering** (the drone twin's verified definition), then its **Package**.
 > "This is exactly what is executing: the PT view of the flight controller, the DT view of the
 > mission supervisor, the domain ontology, both interpretations, the alignment evidence from
 > SemPTDTAlignmentICSE, the compiled Twin IR, and the package with its hashes. These are the same
 > hashes the runtime recorded in every ledger record."
 
-Optionally, open **Ontologies → indoor-drone-domain** to show a versioned, published (and
-therefore immutable) ontology.
+Optionally, open **Studio → Ontologies → indoor-drone-domain** to show a versioned, published
+(and therefore immutable) ontology.
 
 ### 19. Generality: the pump (20 s)
 
-**Asset explorer → Line 4 → Pump P-101.**
+**Your twins → P-101.**
 > "The same screens serve an industrial pump, without any pump-specific UI code: telemetry from
 > its control system, a behavioural model whose state follows the PLC's events, semantic facts,
 > prediction, and its own ledger. The drone was just the most visual example."
+
+### 20. Designing a twin (optional, 60 s)
+
+**Open in Studio** in the drone's header, then **Test → Scenario Builder**.
+> "Every twin is designed in Studio as a Blueprint: its structure, world, data, the two timed
+> automata, the ontology and interpretations, monitors and scenarios. When I add a step, the
+> kernel tells me when each event may happen — available now, later, or not reachable — and
+> why. A release is only possible on evidence for exactly these inputs."
+
+See [Build Your First Twin](studio/tutorial-first-twin.md) for a full walkthrough.
 
 ---
 

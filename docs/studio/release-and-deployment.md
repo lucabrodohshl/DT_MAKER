@@ -1,10 +1,13 @@
 # Releases, deployment and rollback
 
+This page covers changes to the artefacts of a deployed twin. Releasing a new version of a
+Twin Blueprint is described in [release, instances and deployment](blueprint-release.md).
+
 ## Change workspace
 
 A **change** coordinates the artefact drafts that must evolve together for one twin, for
 example ontology `process-pump@3` together with interpretation `p101-dt-semantics@2`. Under
-**Maintenance → Change workspace** you can:
+**Studio → Changes** (or the twin's **Maintenance → Changes**) you can:
 - open a change for a twin, with a title and description
 - **Add artefact**, which creates a draft from the version the twin currently deploys (you can
   also attach a draft when creating it from a version page)
@@ -41,7 +44,7 @@ enforces this and lists the blocking stages. Release publishes every version in 
 
 ## Verified packages
 
-A package (**Engineering → Packages**) binds immutable artefact versions together:
+A package (**Studio → Packages**) binds immutable artefact versions together:
 - PT view, DT view, ontology, PT and DT interpretations, each with its version and hash
 - the Twin IR hash
 - the alignment evidence
@@ -54,32 +57,36 @@ it is built; a correction is a new package.
 
 ## Deployment
 
-**Engineering → Deployments** is the append-only history per twin. Each entry records:
+**Studio → Deployments** is the append-only history per twin. Each entry records:
 - the package and the previous package
 - the kind (deploy / rollback)
 - the reason, actor and time
 
 Deploying verifies the package's integrity first and refuses a package that fails. A twin
 always points at exactly one package: the runtime executes that package, and its ledger
-records the package hash.
+records the package hash. For a twin that is a running Blueprint instance, Studio's deployment
+supervisor restarts its runtime on the deployed package at once (a new execution starts; the
+earlier ones stay in the ledger and replay with their own package); a stopped instance runs it
+when it is next started.
 
 ![Deployments](../screenshots/tutorial/09-deployments.png)
 
 ## Rollback
 
-**Maintenance → Rollback** redeploys a previously released package. Before you confirm, it
-shows:
+The twin's **Maintenance → Rollback** redeploys a previously released package. Before you
+confirm, it shows:
 - the current deployment and the rollback target
 - per role (model, ontology, interpretations), what differs between them
 - the target's evidence and its **package integrity**, verified at that moment
 
 A **reason is required**. The rollback is a new deployment record of kind *rollback*, and it
-appears in the engineering audit. **Nothing newer is deleted**: newer versions, packages and
+appears in the engineering audit. A running Blueprint instance is restarted on the target, as for
+a deployment. **Nothing newer is deleted**: newer versions, packages and
 evidence remain, and you can deploy them again later.
 
 ## Engineering audit trail
 
-**Audit → Engineering audit** records every artefact and lifecycle operation, separately from
+**Studio → Engineering audit** records every artefact and lifecycle operation, separately from
 the execution ledger:
 
 | Area | Operations |
@@ -103,7 +110,8 @@ who acted; it is **not** authentication. See the [security notes](developer.md#s
 
 ## System logs
 
-**Administration → System logs** is the diagnostic log of `twin-studio`. You can filter by:
+**Administration → System logs** (in a twin's workspace) is the diagnostic log of `twin-studio`.
+You can filter by:
 - time and level
 - component
 - correlation (request) id

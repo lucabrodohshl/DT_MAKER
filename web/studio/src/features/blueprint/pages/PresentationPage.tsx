@@ -2,7 +2,8 @@
  * Build → Presentation: how Operate shows instances of this twin — names and tones of the DT
  * states and events, key signals, important assets and monitors, charts. This is metadata
  * for generated views, not a low-code builder, and it has no formal effect: it is outside the
- * verified core and changing it invalidates no evidence.
+ * verified core and changing it invalidates no alignment or compilation evidence (scenario
+ * tests and the deployment bundle cover the whole document, so they are re-run and rebuilt).
  */
 import { Boxes, LayoutDashboard, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -62,7 +63,7 @@ export default function PresentationPage() {
       actions={ws.expert && <Button size="sm" variant="ghost" onClick={() => setJson((j) => !j)}>{json ? 'Form view' : 'JSON view'}</Button>}
       guide={<>Give each Digital Twin View state an operator-friendly name, a tone and a one-line summary; choose the signals shown first. Operate's overview, live monitoring and twin cards use these values — they never change what the twin does.</>}
     >
-      <StatusBadge tone="neutral" label="No formal effect — changes invalidate no evidence" />
+      <StatusBadge tone="neutral" label="No formal effect — no verification evidence is invalidated" title="Alignment and compilation evidence stay valid. Like any edit, a change here is re-tested with the scenarios and rebuilt into the deployment bundle before release." />
       {json ? (
         <JsonSectionView value={p} label="Presentation" onApply={(v) => setP(v, { label: 'Edit presentation (JSON)' })} />
       ) : (

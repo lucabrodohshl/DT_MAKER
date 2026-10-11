@@ -53,6 +53,7 @@ struct Process {
 struct Supervisor::Instance {
     std::string id;
     std::string kind{"instance"};  ///< "instance" or "preview".
+    std::string package_id;        ///< Package the runtime executes (may be empty).
     std::string state{"starting"};  ///< "starting", "running", "stopped", "failed".
     std::string message;
     std::vector<Process> processes;
@@ -240,6 +241,7 @@ Result<Json> Supervisor::start(const LaunchPlan& plan) {
     auto inst = std::make_shared<Instance>();
     inst->id = plan.instance_id;
     inst->kind = plan.kind;
+    inst->package_id = plan.package_id;
     inst->started_at = platform::iso8601_utc(services_.clock().now_ms());
     std::error_code ec;
     const fs::path logs = plan.work_dir / "logs";
@@ -461,6 +463,7 @@ Json Supervisor::status(const std::string& instance_id) const {
                 {"state", i.state},
                 {"message", i.message},
                 {"startedAt", i.started_at},
+                {"packageId", i.package_id.empty() ? Json(nullptr) : Json(i.package_id)},
                 {"runtimeUrl", runtime_url.empty() ? Json(nullptr) : Json(runtime_url)},
                 {"worldUrl", world_url.empty() ? Json(nullptr) : Json(world_url)},
                 {"processes", procs}};

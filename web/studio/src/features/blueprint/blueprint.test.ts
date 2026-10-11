@@ -41,6 +41,7 @@ describe('refactors keep every reference', () => {
     expect(c.assurance!.requirements[0]!.monitors).toEqual(['overheat']);
     expect(c.assurance!.alerts[0]!.monitor).toBe('overheat');
     expect(c.presentation!.importantMonitors).toEqual(['overheat']);
+    expect((c.scenarios![0]!.steps[0]!.expect!.monitor as { id: string }).id).toBe('overheat');
   });
   it('renames a requirement in the monitors that trace to it', () => {
     const c = renameRequirement(doc(), 'REQ-1', 'REQ-S1');

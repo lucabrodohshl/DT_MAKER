@@ -3026,6 +3026,8 @@ components:
           type: string
         id:
           type: string
+        instance:
+          $ref: '#/components/schemas/DeploymentRestart'
         irSha256:
           type: string
         kind:
@@ -3056,6 +3058,20 @@ components:
       - reason
       - deployedAt
       - deployedBy
+      type: object
+    DeploymentRestart:
+      description: Restart of a running Blueprint instance on a newly deployed package.
+      properties:
+        error:
+          type: string
+        restarted:
+          type: boolean
+        runtime:
+          anyOf:
+          - $ref: '#/components/schemas/SupervisorStatus'
+          - type: 'null'
+      required:
+      - restarted
       type: object
     DiffResult:
       properties:
@@ -5625,6 +5641,11 @@ components:
           - preview
         message:
           type: string
+        packageId:
+          description: Package the runtime executes.
+          type:
+          - string
+          - 'null'
         processes:
           items:
             $ref: '#/components/schemas/SupervisedProcess'

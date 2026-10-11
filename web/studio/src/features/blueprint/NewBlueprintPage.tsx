@@ -355,7 +355,7 @@ export default function NewBlueprintPage() {
                   <option key={d} value={d} />
                 ))}
               </datalist>
-              <span className="vts-f__hint">Selects the world tool palette (e.g. mobile-robot, process, lab).</span>
+              <span className="vts-f__hint">Selects the world tool palette (e.g. mobile-robot, process, thermal).</span>
             </label>
             <label className="vts-f">
               <span>Icon</span>

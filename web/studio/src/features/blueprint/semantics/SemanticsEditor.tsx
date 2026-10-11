@@ -181,11 +181,29 @@ export function SemanticsEditor({
     setText(t);
     setState('dirty');
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(), 1500);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void save();
+    }, 1500);
   };
+  // Leaving the page saves a pending edit instead of dropping it; closing the tab with unsaved
+  // edits asks first.
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  });
   useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
+    if (!timer.current) return;
+    clearTimeout(timer.current);
+    timer.current = null;
+    void saveRef.current();
   }, []);
+  useEffect(() => {
+    if (state !== 'dirty' && state !== 'saving') return;
+    const onBefore = (ev: BeforeUnloadEvent) => ev.preventDefault();
+    window.addEventListener('beforeunload', onBefore);
+    return () => window.removeEventListener('beforeunload', onBefore);
+  }, [state]);
 
   if (q.isPending) return <Skeleton lines={8} />;
   if (q.isError) return <ErrorBlock error={q.error} onRetry={() => void q.refetch()} />;

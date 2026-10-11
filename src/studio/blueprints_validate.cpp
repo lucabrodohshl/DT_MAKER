@@ -13,6 +13,7 @@
 
 #include "blueprints_impl.hpp"
 #include "twin/authoring/model.hpp"
+#include "twin/authoring/properties.hpp"
 #include "twin/authoring/toolchain.hpp"
 #include "twin/monitoring/monitors.hpp"
 #include "twin/ptfeed/feed.hpp"
@@ -64,6 +65,7 @@ struct ModelFacts {
     std::set<std::string> locations;
     std::set<std::string> labels;  // "a!", "a?"
     std::size_t internal_edges{0};
+    std::optional<authoring::Model> model;  // the canonical model, when it is one
 };
 
 ModelFacts facts_of(Services::Impl& core, const BlueprintVersion& v, const std::string& role) {
@@ -94,7 +96,20 @@ ModelFacts facts_of(Services::Impl& core, const BlueprintVersion& v, const std::
         if (e.sync) f.labels.insert(authoring::edge_label(e));
         else ++f.internal_edges;
     }
+    f.model = std::move(m).value();
     return f;
+}
+
+/// Content of the artefact pinned for @p role (nullopt when absent or unreadable).
+std::optional<std::string> pinned_text(Services::Impl& core, const BlueprintVersion& v, const std::string& role) {
+    auto p = v.pins.find(role);
+    if (p == v.pins.end()) return std::nullopt;
+    auto ref = parse_ref(p->second);
+    if (!ref) return std::nullopt;
+    auto l = core.lock();
+    auto c = core.artifacts->content(ref.value());
+    if (!c) return std::nullopt;
+    return c.value();
 }
 
 void validate_identity(const Json& s, const Json& doc, Collector c) {
@@ -374,6 +389,38 @@ void validate_assurance(const Json& a, const std::set<std::string>& telemetry, C
     }
 }
 
+/// The monitors against the pinned views, as the runtime will evaluate them: conformance labels
+/// must be events of V_P and properties are analysed on V_D (with the ontology for semantic atoms).
+/// Document-level findings and data-contract fields are reported by validate_assurance.
+void validate_monitor_references(const Json& a, const ModelFacts& pt, const ModelFacts& dt, const std::optional<std::string>& ontology,
+                                 Collector c) {
+    if (!pt.model && !dt.model) return;
+    Json doc = a;
+    doc["format"] = std::string(monitoring::kMonitorsFormat);
+    auto m = monitoring::monitors_from_json(doc);
+    if (!m) return;  // reported by validate_assurance
+    std::set<std::pair<std::string, std::string>> structural;
+    for (const monitoring::Finding& f : monitoring::validate_document(m.value())) structural.insert({f.code, f.message});
+    const auto diagnostics = authoring::validate_monitors(m.value(), pt.model ? &*pt.model : nullptr, dt.model ? &*dt.model : nullptr,
+                                                          Json(nullptr), ontology);
+    for (const authoring::Diagnostic& d : diagnostics) {
+        if (structural.count({d.code, d.message})) continue;
+        // The element is "monitors[i].<field>": name the monitor so Problems can open it.
+        std::string target;
+        if (const std::string& path = d.element.name; path.rfind("monitors[", 0) == 0) {
+            const auto close = path.find(']');
+            const std::string index = close == std::string::npos ? std::string() : path.substr(9, close - 9);
+            if (!index.empty() && std::all_of(index.begin(), index.end(), [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+                const std::size_t i = std::stoul(index);
+                if (i < m.value().monitors.size()) target = m.value().monitors[i].id;
+            }
+        }
+        const std::string message = target.empty() ? d.message : "Monitor '" + target + "': " + d.message;
+        if (d.severity == "error") c.error(d.code, message, target, "monitors");
+        else if (d.severity == "warning") c.warning(d.code, message, target, "monitors");
+    }
+}
+
 void validate_simulation(const Json& s, const Json& world, const ModelFacts& pt, Collector c) {
     const std::string kind = s.value("kind", std::string("none"));
     if (kind != "none" && kind != "mobile-robot" && kind != "event-script") {
@@ -481,7 +528,11 @@ std::vector<SectionFinding> BlueprintService::Impl::validate_sections(const Blue
     });
     guarded("data", [&] { validate_data(d.value("data", Json::object()), assets, pt, dt, Collector{out, "data"}, telemetry, events); });
     guarded("connectivity", [&] { validate_connectivity(d.value("connectivity", Json::object()), telemetry, events, Collector{out, "connectivity"}); });
-    guarded("assurance", [&] { validate_assurance(d.value("assurance", Json::object()), telemetry, Collector{out, "assurance"}, monitors); });
+    guarded("assurance", [&] {
+        validate_assurance(d.value("assurance", Json::object()), telemetry, Collector{out, "assurance"}, monitors);
+        validate_monitor_references(d.value("assurance", Json::object()), pt, dt, pinned_text(core, v, "ontology"),
+                                    Collector{out, "assurance"});
+    });
     guarded("presentation", [&] {
         validate_presentation(d.value("presentation", Json::object()), telemetry, assets, dt, monitors, Collector{out, "presentation"});
     });
@@ -730,7 +781,13 @@ Result<Json> BlueprintService::status(std::string_view id, std::int64_t v) {
     }
     const bool package_current = package && ver.package_id;
     if (!package_current) {
-        gate.push_back(gate_item("package", "Package integrity", "not_run", "Build the Verified Core Package and the Deployment Bundle.", true, "release/package"));
+        // Package evidence for these formal inputs without a build attached to the version: the draft
+        // changed after its last build (a save detaches the build), so say why a rebuild is needed.
+        gate.push_back(gate_item("package", "Package integrity", "not_run",
+                                 package && ver.state == "draft"
+                                     ? "The draft changed after its last package build; build the Verified Core Package and the Deployment Bundle again."
+                                     : "Build the Verified Core Package and the Deployment Bundle.",
+                                 true, "release/package"));
     } else {
         gate.push_back(gate_item("package", "Package integrity", package->outcome == Outcome::Pass ? "pass" : "fail", package->summary, true, "release/package", package->id));
     }

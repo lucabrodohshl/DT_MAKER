@@ -21,7 +21,8 @@ const { chromium } = require('playwright');
 const STUDIO = process.env.STUDIO_URL ?? 'http://127.0.0.1:8080';
 const OUT = fileURLToPath(new URL('../../docs/screenshots/', import.meta.url));
 const DRONE = 'indoor-drone-dt';
-const VIEW = '/assets/drone-01/view/drone';
+const TW = `/twins/${DRONE}`; // the drone's twin workspace (Operate)
+const VIEW = `${TW}/assets/drone-01/view/drone`;
 mkdirSync(OUT, { recursive: true });
 
 async function api(method, path, body) {
@@ -88,27 +89,13 @@ try {
   await page.setViewportSize({ width: 1920, height: 1200 });
   await shot(page, 'verified-twin-studio-drone-hero.png', VIEW, { waitText: /Planner candidates/ });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await shot(page, '06-behavioral-graph.png', '/assets/drone-01/behavior', {
-    waitText: /Replanning|REPLANNING/,
-    action: async (p) => {
-      const tab = p.getByRole('tab', { name: /behavioural graph/i }).first();
-      if (await tab.count()) await tab.click();
-      else await p.getByText(/Behavioural graph/).first().click();
-    },
-  });
-  await shot(page, '07-prediction-plans.png', '/assets/drone-01/predict', {
-    waitText: /Predict|Planning/,
-    action: async (p) => {
-      const tab = p.getByRole('tab', { name: /planning/i }).first();
-      if (await tab.count()) await tab.click();
-    },
-    fullPage: true,
-  });
+  await shot(page, '06-behavioral-graph.png', `${TW}/behavior/model`, { waitText: /Replanning|REPLANNING/ });
+  await shot(page, '07-prediction-plans.png', `${TW}/predict/planning`, { waitText: /Episode 2/, fullPage: true });
 
   // ---- Complete the mission, then audit it
   const done = await stepTo(400);
   const session = done.session;
-  await shot(page, '08-ledger.png', `/audit/executions/${DRONE}/${encodeURIComponent(session)}`, {
+  await shot(page, '08-ledger.png', `${TW}/audit/executions/${encodeURIComponent(session)}`, {
     waitText: /ledger|Ledger/,
     action: async (p) => {
       const verify = p.getByRole('button', { name: /verify/i }).first();
@@ -118,27 +105,27 @@ try {
   // Replay positioned on the first route invalidation (found in the real ledger).
   const steps = await rt('GET', `/runtime/ledger?session=${encodeURIComponent(session)}&kind=step&limit=500`);
   const invalidation = steps.records.find((r) => r.body?.input?.name === 'path_invalidated!');
-  await shot(page, '09-replay.png', `/audit/executions/${DRONE}/${encodeURIComponent(session)}/replay`, {
+  await shot(page, '09-replay.png', `${TW}/audit/executions/${encodeURIComponent(session)}/replay`, {
     waitText: /Replay identical|Replay differs/,
     action: async (p) => {
       if (invalidation) await p.locator('select').first().selectOption(String(invalidation.seq)).catch(() => undefined);
     },
     fullPage: true,
   });
-  await shot(page, '01-overview.png', '/', { waitText: /Asset estate/i });
+  await shot(page, '01-overview.png', '/twins', { waitText: /Your twins/i });
 
   // ---- Engineering and maintenance
-  await shot(page, '10-engineering-assurance.png', '/engineering', { waitText: /Assurance|Verification/ });
-  await shot(page, '11-ontology-editor.png', '/engineering/ontologies/indoor-drone-domain/versions/1', { waitText: /indoor-drone-domain|Indoor drone domain/ });
+  await shot(page, '10-engineering-assurance.png', `${TW}/engineering`, { waitText: /Semantic alignment/ });
+  await shot(page, '11-ontology-editor.png', '/studio/ontologies/indoor-drone-domain/versions/1', { waitText: /indoor-drone-domain|Indoor drone domain/ });
   const evidence = await api('GET', '/evidence').catch(() => ({ items: [] }));
   const items = Array.isArray(evidence) ? evidence : evidence.items ?? evidence.evidence ?? [];
   const refinement = items.find((e) => (e.kind ?? '').toLowerCase().includes('refinement'));
   if (refinement) {
-    await shot(page, '12-ontology-refinement.png', `/maintenance/refinement/${encodeURIComponent(refinement.id)}`, { waitText: /refinement|Refinement/, fullPage: true });
+    await shot(page, '12-ontology-refinement.png', `/studio/refinement/${encodeURIComponent(refinement.id)}`, { waitText: /refinement|Refinement/, fullPage: true });
   } else {
     console.warn('no refinement evidence found; 12-ontology-refinement.png not captured');
   }
-  await shot(page, '13-pump-example.png', '/assets/pump-p101', { waitText: /P-101/ });
+  await shot(page, '13-pump-example.png', '/twins/pump-p101-dt', { waitText: /P-101/ });
 } finally {
   await browser.close();
 }

@@ -18,6 +18,7 @@
 #include "twin/ontology/diff.hpp"
 #include "twin/ontology/source.hpp"
 #include "twin/package/package.hpp"
+#include "twin/studio/blueprints.hpp"
 
 namespace twin::studio {
 
@@ -841,22 +842,45 @@ Result<json::Json> Services::release(std::string_view change_id, const Actor& ac
 
 // --- deployments ---------------------------------------------------------------------------
 
-Result<json::Json> Services::deploy(std::string_view twin_id, std::string_view package_id, std::string_view reason,
-                                    const Actor& actor) {
+Result<json::Json> Services::record_deployment(std::string_view twin_id, std::string_view package_id, std::string_view kind,
+                                               std::string_view reason, const Actor& actor) {
+    if (kind == "rollback" && reason.empty()) return make_error(ErrorCode::InvalidArgument, "a rollback requires a reason");
     auto v = verify_package(package_id);
     if (!v) return std::move(v).error();
     if (v.value()["integrity"] != "pass") {
-        return make_error(ErrorCode::IntegrityError, "the package failed integrity verification and cannot be deployed")
-            .with("firstFailure", v.value()["firstFailure"].get<std::string>());
+        return make_error(ErrorCode::IntegrityError, kind == "rollback" ? "the rollback target failed integrity verification"
+                                                                        : "the package failed integrity verification and cannot be deployed")
+            .with("firstFailure", v.value().value("firstFailure", std::string()));
     }
     auto l = impl_->lock();
-    auto d = impl_->twins->deploy(twin_id, package_id, "deploy", reason, actor.name);
+    auto d = impl_->twins->deploy(twin_id, package_id, kind, reason, actor.name);
     if (!d) return std::move(d).error();
-    impl_->record("deployment.deploy", "success", std::string(twin_id),
-                  {{"deploymentId", d.value().id}, {"packageId", std::string(package_id)},
-                   {"previousPackageId", d.value().previous_package_id ? json::Json(*d.value().previous_package_id) : json::Json(nullptr)}},
-                  actor, "deployment");
+    json::Json details{{"deploymentId", d.value().id}, {"packageId", std::string(package_id)},
+                       {"previousPackageId", d.value().previous_package_id ? json::Json(*d.value().previous_package_id) : json::Json(nullptr)}};
+    if (kind == "rollback") details["reason"] = std::string(reason);
+    impl_->record(kind == "rollback" ? "deployment.rollback" : "deployment.deploy", "success", std::string(twin_id), details, actor,
+                  "deployment");
     return to_json(d.value());
+}
+
+namespace {
+/// A running Blueprint instance executes what is deployed for it: restart it on @p package_id.
+/// Returns null for twins the supervisor does not run (not an instance, or stopped).
+json::Json relaunch(Services& services, std::string_view twin_id, std::string_view package_id, const Actor& actor) {
+    auto rec = services.twin_record(twin_id);
+    if (!rec || !rec.value().blueprint_id || rec.value().desired_state != "running") return nullptr;
+    auto r = services.blueprints().run_instance(twin_id, std::string(package_id), actor);
+    if (!r) return json::Json{{"restarted", false}, {"error", r.error().message}};
+    return json::Json{{"restarted", true}, {"runtime", r.value().value("runtime", json::Json(nullptr))}};
+}
+}  // namespace
+
+Result<json::Json> Services::deploy(std::string_view twin_id, std::string_view package_id, std::string_view reason,
+                                    const Actor& actor) {
+    auto d = record_deployment(twin_id, package_id, "deploy", reason, actor);
+    if (!d) return d;
+    if (json::Json r = relaunch(*this, twin_id, package_id, actor); !r.is_null()) d.value()["instance"] = std::move(r);
+    return d;
 }
 
 Result<json::Json> Services::rollback_preview(std::string_view twin_id, std::string_view package_id) {
@@ -899,21 +923,10 @@ Result<json::Json> Services::rollback_preview(std::string_view twin_id, std::str
 
 Result<json::Json> Services::rollback(std::string_view twin_id, std::string_view package_id, std::string_view reason,
                                       const Actor& actor) {
-    if (reason.empty()) return make_error(ErrorCode::InvalidArgument, "a rollback requires a reason");
-    auto v = verify_package(package_id);
-    if (!v) return std::move(v).error();
-    if (v.value()["integrity"] != "pass") {
-        return make_error(ErrorCode::IntegrityError, "the rollback target failed integrity verification");
-    }
-    auto l = impl_->lock();
-    auto d = impl_->twins->deploy(twin_id, package_id, "rollback", reason, actor.name);
-    if (!d) return std::move(d).error();
-    impl_->record("deployment.rollback", "success", std::string(twin_id),
-                  {{"deploymentId", d.value().id}, {"packageId", std::string(package_id)},
-                   {"previousPackageId", d.value().previous_package_id ? json::Json(*d.value().previous_package_id) : json::Json(nullptr)},
-                   {"reason", std::string(reason)}},
-                  actor, "deployment");
-    return to_json(d.value());
+    auto d = record_deployment(twin_id, package_id, "rollback", reason, actor);
+    if (!d) return d;
+    if (json::Json r = relaunch(*this, twin_id, package_id, actor); !r.is_null()) d.value()["instance"] = std::move(r);
+    return d;
 }
 
 Result<json::Json> Services::bootstrap_twin(std::string_view twin_id, const std::vector<Binding>& bindings,

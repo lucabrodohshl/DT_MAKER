@@ -282,8 +282,13 @@ Result<BlueprintVersion> BlueprintRepository::save(std::string_view id, std::int
             .with("currentRevision", std::to_string(current.value().revision))
             .with("updatedBy", current.value().updated_by);
     }
+    // A package and bundle are built for exactly one content of the draft: once the document or the
+    // pins change they no longer describe it, so they are detached (the gate then asks for a rebuild,
+    // and publishing or previewing can never use the stale build).
+    const bool content_changed = hash.value() != current.value().document_sha256 || pins != current.value().pins;
     auto q = db_.prepare("UPDATE blueprint_versions SET document = ?3, document_sha256 = ?4, pins = ?5, revision = revision + 1, "
-                         "updated_at = ?6, updated_by = ?7 WHERE blueprint_id = ?1 AND version = ?2");
+                         "updated_at = ?6, updated_by = ?7, package_id = CASE WHEN ?8 = 1 THEN NULL ELSE package_id END, "
+                         "bundle_id = CASE WHEN ?8 = 1 THEN NULL ELSE bundle_id END WHERE blueprint_id = ?1 AND version = ?2");
     if (!q) return std::move(q).error();
     q.value()
         .bind(1, id)
@@ -292,7 +297,8 @@ Result<BlueprintVersion> BlueprintRepository::save(std::string_view id, std::int
         .bind(4, hash.value())
         .bind(5, pins_json(pins).dump())
         .bind(6, iso8601_utc(clock_.now_ms()))
-        .bind(7, actor);
+        .bind(7, actor)
+        .bind(8, std::int64_t{content_changed ? 1 : 0});
     if (auto st = q.value().run(); !st) return st.error();
     if (auto st = tx.commit(); !st) return st.error();
     return version(id, v);

@@ -192,6 +192,34 @@ TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     EXPECT_FALSE(view.value()["package"].is_null());
     EXPECT_TRUE(view.value()["bundle"]["filesIntact"].get<bool>());
 
+    // A build describes exactly one content of the draft. Saving the same content keeps it...
+    const Json same_pres = read_json(kChamber / "blueprint.json")["presentation"];
+    ASSERT_TRUE(bp().save_section(id, 1, "presentation", revision(id, 1), same_pres, alice).ok());
+    EXPECT_EQ(bp().status(id, 1).value()["readiness"]["verdict"], "ready");
+    // ...an edit detaches it: the gate asks for a rebuild and publishing is refused, so a stale
+    // package or bundle can never be released.
+    Json edited_pres = same_pres;
+    edited_pres["states"]["IDLE"]["label"] = "Idle (ready)";
+    ASSERT_TRUE(bp().save_section(id, 1, "presentation", revision(id, 1), edited_pres, alice).ok());
+    EXPECT_TRUE(bp().package(id, 1).value()["package"].is_null());
+    const Json detached = bp().status(id, 1).value()["readiness"];
+    EXPECT_NE(detached["verdict"], "ready");
+    bool rebuild_asked = false;
+    for (const Json& item : detached["items"]) {
+        if (item["id"] == "package") {
+            EXPECT_EQ(item["state"], "not_run");
+            rebuild_asked = item["detail"].get<std::string>().find("changed after its last package build") != std::string::npos;
+        }
+    }
+    EXPECT_TRUE(rebuild_asked) << detached.dump(2);
+    auto refused_pub = bp().publish(id, 1, alice);
+    ASSERT_FALSE(refused_pub.ok());
+    EXPECT_EQ(refused_pub.error().code, ErrorCode::StateError);
+    // Scenario evidence is keyed on the document too: re-run, rebuild, ready again.
+    ASSERT_EQ(bp().run_check(id, 1, "scenarios", Json::object(), alice).value()["outcome"], "pass");
+    ASSERT_EQ(bp().run_check(id, 1, "package", Json::object(), alice).value()["outcome"], "pass");
+    EXPECT_EQ(bp().status(id, 1).value()["readiness"]["verdict"], "ready");
+
     // Publish: the version becomes immutable.
     auto pub = bp().publish(id, 1, alice);
     ASSERT_TRUE(pub.ok()) << pub.error().to_string();
@@ -260,6 +288,32 @@ TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     EXPECT_EQ(monitors[0]["kind"], "monitor");
 }
 
+TEST_F(BlueprintTest, MonitorsAreValidatedAgainstThePinnedViews) {
+    const std::string id = "chamber-monitor-views";
+    build_chamber(id);
+    // A property over a state the Digital Twin View does not have, and a conformance monitor on a
+    // label the Physical System View never emits: both are release-blocking assurance errors.
+    Json assurance = read_json(kChamber / "blueprint.json")["assurance"];
+    for (Json& m : assurance["monitors"]) {
+        if (m["id"] == "never-overheated") m["property"] = "A[] !MELTDOWN";
+        if (m["id"] == "conformance") m["events"] = Json::array({"heater_on!", "door_slammed!"});
+    }
+    ASSERT_TRUE(bp().save_section(id, 1, "assurance", revision(id, 1), assurance, alice).ok());
+    const Json val = bp().validate(id, 1).value();
+    std::set<std::string> flagged;
+    for (const Json& f : val["findings"]) {
+        if (f["section"] == "assurance" && f["severity"] == "error") flagged.insert(f["target"].get<std::string>());
+    }
+    EXPECT_TRUE(flagged.count("never-overheated")) << val.dump(2);
+    EXPECT_TRUE(flagged.count("conformance")) << val.dump(2);
+    bool gate_fails = false;
+    const Json readiness = bp().status(id, 1).value()["readiness"];
+    for (const Json& item : readiness["items"]) {
+        if (item["id"] == "monitors") gate_fails = item["state"] == "fail";
+    }
+    EXPECT_TRUE(gate_fails) << readiness.dump(2);
+}
+
 TEST_F(BlueprintTest, CreationTakesIdentityAndRasterNeedsASpatialWorld) {
     auto created = bp().create(Json{{"mode", "blank"}, {"id", "ident-check"}, {"name", "Identity check"},
                                     {"identity", {{"runtimeMode", "cosimulation"}, {"timeUnit", "ms"}, {"ticksPerUnit", 1}, {"modelId", "ignored"}}}},
@@ -317,6 +371,8 @@ TEST_F(BlueprintTest, SeededInstanceDeploysRealProcesses) {
     auto deployed = bp().deploy_instance("chamber-tc1-dt", Json::object(), alice);
     ASSERT_TRUE(deployed.ok()) << deployed.error().to_string();
     EXPECT_EQ(deployed.value()["runtime"]["state"], "running") << deployed.value().dump(2);
+    const std::string v1_package = bp().version("simple-thermal-chamber", 1).value()["packageId"].get<std::string>();
+    EXPECT_EQ(deployed.value()["runtime"]["packageId"], v1_package) << "the supervisor reports the package it runs";
     // The feed drives the runtime; live telemetry reaches the instance's channels through the bridge.
     bool live = false;
     for (int i = 0; i < 100 && !live; ++i) {
@@ -362,4 +418,30 @@ TEST_F(BlueprintTest, SeededInstanceDeploysRealProcesses) {
     auto ended = bp().stop_preview("simple-thermal-chamber", 2, alice);
     ASSERT_TRUE(ended.ok());
     EXPECT_EQ(ended.value()["runtime"]["state"], "stopped");
+
+    // What is recorded as deployed is what runs. Publish v2 (its own package), then deploy that
+    // package through the deployment API (as a change release does): the running instance restarts
+    // on it; a plain start resumes it; an explicit version deploys that version's package again.
+    for (const char* check : {"scenarios", "package"}) {
+        auto r = bp().run_check("simple-thermal-chamber", 2, check, Json::object(), alice);
+        ASSERT_TRUE(r.ok()) << check << ": " << r.error().to_string();
+        ASSERT_EQ(r.value()["outcome"], "pass") << check << ": " << r.value().dump(2).substr(0, 1500);
+    }
+    ASSERT_TRUE(bp().publish("simple-thermal-chamber", 2, alice).ok());
+    const std::string v2_package = bp().version("simple-thermal-chamber", 2).value()["packageId"].get<std::string>();
+    ASSERT_NE(v2_package, v1_package);
+    auto restarted = bp().control_instance("chamber-tc1-dt", "start", alice);
+    ASSERT_TRUE(restarted.ok()) << restarted.error().to_string();
+    EXPECT_EQ(restarted.value()["runtime"]["packageId"], v1_package) << "start resumes the current deployment";
+    auto via_api = s().deploy("chamber-tc1-dt", v2_package, "deployed through the deployment API", alice);
+    ASSERT_TRUE(via_api.ok()) << via_api.error().to_string();
+    EXPECT_TRUE(via_api.value()["instance"]["restarted"].get<bool>()) << via_api.value().dump(2);
+    EXPECT_EQ(bp().instance("chamber-tc1-dt").value()["runtime"]["packageId"], v2_package);
+    auto resumed = bp().control_instance("chamber-tc1-dt", "start", alice);
+    ASSERT_TRUE(resumed.ok()) << resumed.error().to_string();
+    EXPECT_EQ(resumed.value()["runtime"]["packageId"], v2_package) << "a start never silently replaces the deployed package";
+    auto back = bp().deploy_instance("chamber-tc1-dt", Json{{"version", 1}, {"reason", "back to v1"}}, alice);
+    ASSERT_TRUE(back.ok()) << back.error().to_string();
+    EXPECT_EQ(back.value()["runtime"]["packageId"], v1_package);
+    ASSERT_TRUE(bp().control_instance("chamber-tc1-dt", "stop", alice).ok());
 }

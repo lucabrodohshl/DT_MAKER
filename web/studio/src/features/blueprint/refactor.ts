@@ -105,6 +105,13 @@ export function renameMonitor(doc: BlueprintDocument, from: string, to: string):
       alerts: doc.assurance.alerts.map((a) => (a.monitor === from ? { ...a, monitor: to } : a)),
     },
     presentation: { ...doc.presentation, importantMonitors: (doc.presentation.importantMonitors ?? []).map((m) => (m === from ? to : m)) },
+    scenarios: doc.scenarios.map((s) => ({
+      ...s,
+      steps: s.steps.map((st) => {
+        const monitor = st.expect?.monitor as { id?: string } | undefined;
+        return monitor?.id === from ? { ...st, expect: { ...st.expect, monitor: { ...monitor, id: to } } } : st;
+      }),
+    })),
   };
 }
 

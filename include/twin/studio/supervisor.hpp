@@ -42,6 +42,7 @@ struct LaunchPlan {
     std::string instance_id;                       ///< Twin (instance) id.
     std::string mode{"monitor"};                   ///< "monitor" or "cosimulation".
     std::filesystem::path package_dir;             ///< Verified Twin Package directory.
+    std::string package_id;                        ///< Its package id (reported in the status; may be empty).
     std::optional<std::filesystem::path> world_scenario;  ///< twin-world scenario (co-simulation).
     std::optional<std::filesystem::path> feed;     ///< twin-pt-feed script (monitor mode, event-script simulator).
     double speed{1.0};                             ///< Co-simulation / feed speed (logical s per wall s).

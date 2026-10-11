@@ -19,7 +19,7 @@ entries that use the symbol, and the telemetry channels that observe it.
 
 ## Impact analysis
 
-**Maintenance → Impact analysis** (or **Analyze impact** on a version) answers: *if this
+**Studio → Impact analysis** (or **Analyze impact** on a version) answers: *if this
 version replaced the deployed one, what would be affected, and what must be re-verified?*
 Studio compares the version with what every twin currently deploys. It uses the structural
 diff, the interpretation entries that mention changed symbols, and the stored evidence for

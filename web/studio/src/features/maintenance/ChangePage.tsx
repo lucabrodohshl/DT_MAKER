@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '@/api/client';
 import { keys, useChange, useDiff, useEngineeringMutation, useInvalidateEngineering, usePipeline, useTwin } from '@/api/queries';
-import type { Change, StructuralChange } from '@/api/types';
+import type { Change, Deployment, StructuralChange } from '@/api/types';
 import {
   Button,
   Callout,
@@ -123,7 +123,7 @@ export default function ChangePage() {
   });
   const release = useEngineeringMutation(() => api.post(`/changes/${changeId}/release`));
   const abandon = useEngineeringMutation((r: string) => api.post(`/changes/${changeId}/abandon`, { reason: r }));
-  const deploy = useEngineeringMutation((b: { twinId: string; packageId: string; reason: string }) => api.post('/deployments', b));
+  const deploy = useEngineeringMutation((b: { twinId: string; packageId: string; reason: string }) => api.post<Deployment>('/deployments', b));
 
   return (
     <div className="vts-page">
@@ -200,7 +200,15 @@ export default function ChangePage() {
                   {(releaseStage?.state === 'pass' || deployStage?.state === 'pass') && pkg && (
                     <Panel title="Deployment">
                       {deployStage?.state === 'pass' ? (
-                        <Callout tone="ok" title="Deployed">{deployStage.detail}</Callout>
+                        <div className="stack-sm">
+                          <Callout tone="ok" title="Deployed">{deployStage.detail}</Callout>
+                          {deploy.data?.instance?.restarted === false && (
+                            <Callout tone="warning" title="The runtime was not restarted">
+                              The deployment is recorded, but the instance&apos;s runtime could not be restarted on it: {deploy.data.instance.error}. Start the
+                              instance again from its Blueprint (Release → Deployment).
+                            </Callout>
+                          )}
+                        </div>
                       ) : (
                         <div className="stack">
                           <p className="small">Package <PackageLink id={pkg} /> is released. Deploying makes the twin run it; earlier executions keep referring to their own packages.</p>

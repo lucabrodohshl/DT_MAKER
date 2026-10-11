@@ -56,7 +56,7 @@ Studio never paints a state green by default, and each word means one thing:
 | **VALID** | An artefact passed its validator (strict parser, aligner parser, Z3 consistency). |
 | **VERIFIED** | Every formal check passes for exactly the pinned inputs: the five artefacts are VALID, the views are semantically aligned, and the DT view compiled with translation validation. |
 | **PASS / FAIL / UNKNOWN / ERROR** | A checker's verdict. ERROR means the check could not decide (never a negative verdict). Alignment is reported as **strong** or **weak**; strong alignment is UNKNOWN when either view has internal (τ) transitions. |
-| **READY TO RELEASE / RELEASE BLOCKED** | The release gate of a version, computed from evidence for exactly its inputs. |
+| **READY TO RELEASE / RELEASE BLOCKED** | The release gate of a version, computed from its section validators and from evidence for exactly its pinned artefacts and its content; a package build is detached by any later edit. |
 | **VERIFICATION REQUIRED** | (Library) a draft whose release gate does not pass yet. |
 | **DEPLOYED** | The deployment supervisor runs the instance's runtime. |
 | **CONFORMANT** | The running twin's runtime admits every observed event (conformance monitoring). |
@@ -66,21 +66,23 @@ Studio never paints a state green by default, and each word means one thing:
 ## The Studio home
 
 **Studio → Blueprints** lists every Blueprint with its published version, its draft, the draft's
-release gate and its instances. The shelves filter **All**, **Drafts**, **Published**,
+release gate and its instances. The shelves filter **All Blueprints**, **Drafts**, **Published**,
 **Verification required** and **Recently modified**; search matches names, ids, domains and
 descriptions. From here: **New Blueprint**, **From template**, **Clone existing**, **Import**.
 
-The installed **templates** are domain starting points (asset types, a world with its tool
-palette, a simulator and a data contract): *Empty Blueprint*, *Mobile robot* (indoor robots and
-drones) and *Process equipment* (pumps, compressors, fans).
+The installed **templates** are starting points: *Empty Blueprint* (blank sections and the
+generic tool palette), and two domain templates with asset types, a world with its tool palette,
+a simulator and a data contract — *Mobile robot* (indoor robots and drones) and *Process
+equipment* (pumps, compressors, fans).
 
-Below the Blueprints, the **engineering library** keeps the shared formal artefacts (models,
-ontologies, interpretations), changes to deployed twins, evidence, packages and the engineering
-audit.
+Below the Blueprints and the templates, the **engineering library** shows the changes in progress
+on deployed twins, the shared formal artefacts (models, ontologies, interpretations) and the
+recent engineering activity (with a link to the engineering audit). Verification evidence,
+packages and deployments are in the Studio navigation.
 
 ## Five ways to create a twin
 
-**Your twins → + Create / Import Twin** offers:
+**Your twins → Create / Import twin** offers:
 
 1. **New Blueprint** — design a new type of twin with the guided wizard.
 2. **From a template** — start from a domain template.
@@ -94,15 +96,17 @@ audit.
 
 ## The New Blueprint wizard
 
-The wizard has eleven steps. Steps 1 and 2 are the **New Blueprint** page; **Create** makes the
-first draft on the server. Steps 3–11 walk through the real editors with a step bar — **Back**,
-**Skip**, **Next**, **Save and exit** (everything is already saved; reopen the draft any time)
-and **Jump to advanced** (leave the guided flow; every field shown).
+The wizard has eleven steps. Steps 1 and 2 are the **New Blueprint** page. **Create and continue
+(guided)** makes the first draft on the server and walks through steps 3–11 in the real editors
+with a step bar — **Back**, **Skip**, **Next** (on the last step, **Finish**), **Save and exit**
+(everything is already saved; reopen the draft any time) and **Jump to advanced** (leave the
+guided flow). **Create and open editor** makes the draft and opens its overview without the
+guided flow.
 
 | Step | Where | What |
 |---|---|---|
 | 1 Starting point | New Blueprint | Blank, template, clone, bundle import or formal models |
-| 2 Identity | New Blueprint | Name, id, domain, icon, description, runtime mode (monitoring or co-simulation), time unit and resolution |
+| 2 Identity | New Blueprint | Name, id, domain (selects the world tool palette), icon, description; for a blank, template or formal-models start also the runtime mode (monitoring or co-simulation), time unit and resolution — a clone or an imported bundle keeps its source's |
 | 3 Structure | Build → Structure | Asset types and assets |
 | 4 World & layout | Build → World & Layout | Map, topology or diagram (skip for twins without a layout) |
 | 5 Data & connectivity | Build → Data & Connectivity | Signals, events, commands; sources and bindings |
@@ -113,9 +117,10 @@ and **Jump to advanced** (leave the guided flow; every field shown).
 | 10 Scenarios | Test → Scenario Builder | Timed test cases |
 | 11 Verify & release | Assurance → Verification, Release | Run all checks, package, publish |
 
-**Guided** and **expert** modes (workspace options, `?` in the top bar) change how much is
-shown: guided mode explains each page and hides advanced fields; expert mode shows every field
-and the JSON view of each section.
+**Guided** and **expert** modes (**Workspace options**, the `?` button in the top bar) change how
+much is shown: guided mode explains each page; expert mode hides the explanations, shows the
+Operate plugin field of the identity, and adds a **JSON view** to Structure, World & Layout, Data &
+Connectivity, Presentation, Requirements and Monitors.
 
 ## The Blueprint overview
 
@@ -127,10 +132,12 @@ boundary (what is formally verified and what is only integrity-protected).
 
 ## Search and commands
 
-**⌘K** (or `/`) opens the command palette. Without a query it offers commands — *New
-Blueprint*, *Import a twin*, *Instantiate a published Blueprint* and, inside a Blueprint, *Go to*
-every section of the open version. With a query it searches Blueprints and their elements (asset
-types, assets, world objects, signals, events, commands, sources, requirements, monitors,
+**⌘K** (or `/`) opens the command palette. Without a query it lists up to eight commands:
+outside a Blueprint the global ones (*New Blueprint*, *Studio: Twin Blueprints*, *Your twins*,
+*New Blueprint from a template*, *Import a twin (Blueprint bundle)*, *Import formal models*,
+*Instantiate a published Blueprint*), inside one the first *Go to …* sections of the open version.
+Typing filters the commands (e.g. `go to monitors`) and searches Blueprints and their elements
+(asset types, assets, world objects, signals, events, commands, sources, requirements, monitors,
 scenarios and model states) together with twins, assets, artefact versions, ontology symbols,
 evidence, packages and changes, ranked by the backend.
 

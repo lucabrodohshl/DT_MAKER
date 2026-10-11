@@ -11,6 +11,7 @@ import { useEngineeringMutation, usePackages, useRollbackPreview, useTwin, useTw
 import { Button, Callout, EmptyState, ErrorBlock, PageHeader, Panel, QueryState, StatusBadge, TrustBadge, humanize } from '@/design';
 import { Crumbs, PackageLink, RefLink, LearnMore } from '@/features/common/links';
 import { useTwinScope } from '@/app/twinScope';
+import type { Deployment } from '@/api/types';
 
 export default function RollbackPage() {
   const [params, setParams] = useSearchParams();
@@ -24,7 +25,7 @@ export default function RollbackPage() {
   const target = params.get('package') ?? candidates[0]?.id ?? '';
   const preview = useRollbackPreview(twinId || undefined, target || undefined);
   const [reason, setReason] = useState('');
-  const rollback = useEngineeringMutation((b: { twinId: string; packageId: string; reason: string }) => api.post('/deployments/rollback', b));
+  const rollback = useEngineeringMutation((b: { twinId: string; packageId: string; reason: string }) => api.post<Deployment>('/deployments/rollback', b));
   return (
     <div className="vts-page">
       <PageHeader eyebrow={<Crumbs items={[{ label: 'Studio', to: '/studio' }, { label: 'Changes', to: '/studio/changes' }, { label: 'Rollback' }]} />} title="Rollback" meta={<><span>Return a twin to an earlier verified package. Newer artefacts and packages are kept.</span><LearnMore page="release-and-deployment.html#rollback" /></>} />
@@ -76,7 +77,15 @@ export default function RollbackPage() {
                     Roll back to {p.target.id}
                   </Button>
                   {rollback.error && <ErrorBlock error={rollback.error} compact />}
-                  {rollback.isSuccess && <Callout tone="ok" title="Rolled back">The twin now runs {p.target.id}. The previous package remains available.</Callout>}
+                  {rollback.isSuccess &&
+                    (rollback.data?.instance?.restarted === false ? (
+                      <Callout tone="warning" title="Rolled back; the runtime was not restarted">
+                        The rollback to {p.target.id} is recorded, but the runtime could not be restarted on it: {rollback.data.instance.error}. Start the
+                        instance again from its Blueprint (Release → Deployment).
+                      </Callout>
+                    ) : (
+                      <Callout tone="ok" title="Rolled back">The twin now runs {p.target.id}. The previous package remains available.</Callout>
+                    ))}
                 </div>
               </Panel>
             </div>

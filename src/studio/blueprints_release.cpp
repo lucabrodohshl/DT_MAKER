@@ -612,6 +612,7 @@ Result<Json> BlueprintService::deploy_instance(std::string_view id, const Json& 
     if (!tw) return std::move(tw).error();
     Twin t = tw.value();
     if (!t.blueprint_id) return make_error(ErrorCode::StateError, "this twin is not a Blueprint instance");
+    const bool explicit_version = body.contains("version");
     const std::int64_t version = body.value("version", t.blueprint_version.value_or(0));
     auto ver_r = impl_->load(*t.blueprint_id, version);
     if (!ver_r) return std::move(ver_r).error();
@@ -620,10 +621,24 @@ Result<Json> BlueprintService::deploy_instance(std::string_view id, const Json& 
         return make_error(ErrorCode::StateError, "only published Blueprint versions (with package and bundle) can be deployed")
             .with("version", std::to_string(version));
     }
+    // Which package runs: an explicit version deploys that version's package; a plain start resumes
+    // what is deployed for the instance (never silently replacing a package deployed through a change).
+    std::string package_id = *ver.package_id;
+    if (!explicit_version) {
+        if (auto deps = services_.deployments(t.id); deps && deps.value().is_array()) {
+            for (const Json& d : deps.value()) {
+                if (d.value("current", false) && d.contains("packageId") && d.at("packageId").is_string()) {
+                    package_id = d.at("packageId").get<std::string>();
+                    break;
+                }
+            }
+        }
+    }
     // Record the deployment (verifies the package's integrity first). Re-deploying the running
     // package just restarts the processes.
     Json deployment = nullptr;
-    auto d = services_.deploy(id, *ver.package_id, body.value("reason", std::string(version != t.blueprint_version.value_or(version) ? "upgrade" : "deploy")), actor);
+    const std::string reason = body.value("reason", std::string(version != t.blueprint_version.value_or(version) ? "upgrade" : "deploy"));
+    auto d = services_.record_deployment(id, package_id, "deploy", reason, actor);
     if (d) {
         deployment = d.value();
     } else if (d.error().message.find("already deployed") == std::string::npos) {
@@ -633,12 +648,35 @@ Result<Json> BlueprintService::deploy_instance(std::string_view id, const Json& 
         t.blueprint_version = version;
         if (auto st = services_.upsert_twin(t); !st) return st.error();
     }
+    auto launched = launch(t.id, *t.blueprint_id, version, package_id, actor);
+    if (!launched) return launched;
+    launched.value()["deployment"] = deployment;
+    return launched;
+}
+
+Result<Json> BlueprintService::run_instance(std::string_view id, const std::string& package_id, const Actor& actor) {
+    auto tw = services_.twin_record(id);
+    if (!tw) return std::move(tw).error();
+    const Twin& t = tw.value();
+    if (!t.blueprint_id || !t.blueprint_version) return make_error(ErrorCode::StateError, "this twin is not a Blueprint instance");
+    return launch(t.id, *t.blueprint_id, *t.blueprint_version, package_id, actor);
+}
+
+Result<Json> BlueprintService::launch(std::string_view twin_id, std::string_view blueprint_id, std::int64_t version,
+                                      const std::string& package_id, const Actor& actor) {
+    auto tw = services_.twin_record(twin_id);
+    if (!tw) return std::move(tw).error();
+    const Twin t = tw.value();
+    auto ver_r = impl_->load(blueprint_id, version);
+    if (!ver_r) return std::move(ver_r).error();
+    const BlueprintVersion ver = ver_r.value();
+    if (!ver.bundle_id) return make_error(ErrorCode::StateError, "the Blueprint version has no deployment bundle").with("version", std::to_string(version));
     if (supervisor_ == nullptr) return make_error(ErrorCode::Unavailable, "no deployment supervisor");
     PackageRecord pkg;
     BundleRecord bundle;
     {
         auto l = impl_->core.lock();
-        auto p = impl_->core.twins->package(*ver.package_id);
+        auto p = impl_->core.twins->package(package_id);
         if (!p) return std::move(p).error();
         pkg = p.value();
         auto b = impl_->repo->bundle(*ver.bundle_id);
@@ -651,6 +689,7 @@ Result<Json> BlueprintService::deploy_instance(std::string_view id, const Json& 
     plan.instance_id = t.id;
     plan.mode = identity.value("runtimeMode", std::string("monitor"));
     plan.package_dir = pkg.directory;
+    plan.package_id = pkg.id;
     plan.work_dir = services_.config().data_dir / "instances" / t.id;
     plan.package_store = {services_.config().data_dir / "packages"};
     plan.paused = target.value("paused", true);
@@ -681,12 +720,12 @@ Result<Json> BlueprintService::deploy_instance(std::string_view id, const Json& 
     {
         auto l = impl_->core.lock();
         impl_->core.record("instance.deploy", started ? "success" : "fail", t.id,
-                           {{"version", version}, {"packageId", *ver.package_id}, {"bundleId", *ver.bundle_id},
+                           {{"version", version}, {"packageId", package_id}, {"bundleId", *ver.bundle_id},
                             {"error", started ? Json(nullptr) : Json(started.error().message)}},
                            actor, "deployment");
     }
     if (!started) return std::move(started).error();
-    return Json{{"instance", t.id}, {"version", version}, {"deployment", deployment}, {"runtime", started.value()},
+    return Json{{"instance", t.id}, {"version", version}, {"packageId", package_id}, {"runtime", started.value()},
                 {"operate", "/twins/" + t.id}};
 }
 

@@ -226,12 +226,23 @@ public:
     [[nodiscard]] Result<json::Json> run_stage(std::string_view change_id, std::string_view stage, const Actor& actor);
     /// @brief Release a change: publishes its versions and releases its package (blocked unless ready).
     [[nodiscard]] Result<json::Json> release(std::string_view change_id, const Actor& actor);
-    /// @brief Deploy a package to a twin after verifying its integrity (a failing package is refused).
+    /**
+     * @brief Deploy a package to a twin after verifying its integrity (a failing package is refused).
+     *
+     * For a Blueprint instance whose desired state is running, the supervisor then restarts its
+     * runtime on that package (result member "instance"), so what is recorded as deployed is what
+     * executes.
+     */
     [[nodiscard]] Result<json::Json> deploy(std::string_view twin_id, std::string_view package_id,
                                             std::string_view reason, const Actor& actor);
+    /// @brief Record a deployment ("deploy" or "rollback") after verifying the package's integrity,
+    /// without touching running processes (the Blueprint service starts them itself).
+    [[nodiscard]] Result<json::Json> record_deployment(std::string_view twin_id, std::string_view package_id,
+                                                       std::string_view kind, std::string_view reason, const Actor& actor);
     /// @brief Compare current deployment with a rollback target.
     [[nodiscard]] Result<json::Json> rollback_preview(std::string_view twin_id, std::string_view package_id);
-    /// @brief Roll back to an earlier released package (reason required; nothing deleted).
+    /// @brief Roll back to an earlier released package (reason required; nothing deleted). A running
+    /// Blueprint instance is restarted on it, as for deploy().
     [[nodiscard]] Result<json::Json> rollback(std::string_view twin_id, std::string_view package_id,
                                               std::string_view reason, const Actor& actor);
     /**

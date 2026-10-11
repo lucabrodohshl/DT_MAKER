@@ -210,13 +210,31 @@ export default function ModelPage({ role }: { role: 'pt' | 'dt' }) {
       setWork(next);
       setDirty(true);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void save(), 1200);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        void save();
+      }, 1200);
     },
     [current, editable, save],
   );
+  // Leaving the page (another section, another mode) saves a pending edit instead of dropping it;
+  // closing the tab with unsaved edits asks first.
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  });
   useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
+    if (!timer.current) return;
+    clearTimeout(timer.current);
+    timer.current = null;
+    void saveRef.current();
   }, []);
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const onBefore = (ev: BeforeUnloadEvent) => ev.preventDefault();
+    window.addEventListener('beforeunload', onBefore);
+    return () => window.removeEventListener('beforeunload', onBefore);
+  }, [dirty, saving]);
   const undo = () => {
     const prev = history.past[history.past.length - 1];
     if (!prev || !current) return;
@@ -224,7 +242,10 @@ export default function ModelPage({ role }: { role: 'pt' | 'dt' }) {
     setWork(prev);
     setDirty(true);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(), 1200);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void save();
+    }, 1200);
   };
   const redo = () => {
     const next = history.future[0];
@@ -233,7 +254,10 @@ export default function ModelPage({ role }: { role: 'pt' | 'dt' }) {
     setWork(next);
     setDirty(true);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(), 1200);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      void save();
+    }, 1200);
   };
 
   const errorElements = useMemo(() => new Set(diags.filter((d) => d.severity === 'error' && d.element?.name).map((d) => d.element!.name)), [diags]);
@@ -771,7 +795,7 @@ function ImportModelDialog({ role, open, onOpenChange, onImported }: { role: 'pt
       }
     >
       <div className="stack-sm">
-        <input type="file" accept=".xml,.twinta,.ta,.json" aria-label="Model file" onChange={async (ev) => { const f = ev.target.files?.[0]; setResult(null); setFile(f ? { name: f.name, content: await f.text() } : null); }} />
+        <input type="file" accept=".xml,.tta,.twinta,.ta,.json,.txt" aria-label="Model file" onChange={async (ev) => { const f = ev.target.files?.[0]; setResult(null); setFile(f ? { name: f.name, content: await f.text() } : null); }} />
         {error !== null && <ErrorBlock error={error} compact />}
         {result && (
           <>

@@ -42,6 +42,7 @@ function InstanceCard({ i }: { i: InstanceView }) {
           items={[
             ['Version', <span key="v">v{i.blueprintVersion}{i.upgradeAvailable ? <StatusBadge tone="info" label={` v${i.latestPublishedVersion} available`} /> : null}</span>],
             ['Desired state', i.desiredState === 'running' ? 'running (restarted by the supervisor)' : 'stopped'],
+            ['Deployed package', i.deployment ? <span key="p" className="mono xsmall">{i.deployment.packageId}{running && rt?.packageId && rt.packageId !== i.deployment.packageId ? ` (runs ${rt.packageId})` : ''}</span> : '—'],
             ['Runtime', rt?.runtimeUrl ? <span key="r" className="mono xsmall">{rt.runtimeUrl}</span> : '—'],
             ...(rt?.worldUrl ? ([['Simulator', <span key="w" className="mono xsmall">{rt.worldUrl}</span>]] as [string, React.ReactNode][]) : []),
             ['Started', rt?.startedAt ? <TimeStamp key="t" value={rt.startedAt} relative /> : '—'],
@@ -75,18 +76,25 @@ function InstanceCard({ i }: { i: InstanceView }) {
         )}
         {rt?.state === 'failed' && rt.message && <Callout tone="critical" title="The deployment failed">{rt.message}</Callout>}
         <div className="row-wrap">
-          {!running ? (
-            <Button size="sm" variant="primary" icon={<Rocket size={13} />} loading={deploy.isPending} disabled={busy} onClick={() => deploy.mutate({})}>
-              Deploy v{i.blueprintVersion}
-            </Button>
-          ) : (
+          {running ? (
             <Button size="sm" variant="danger" icon={<Square size={13} />} loading={control.isPending && control.variables === 'stop'} disabled={busy} onClick={() => control.mutate('stop')}>
               Stop
             </Button>
-          )}
-          {!running && i.desiredState !== 'running' && rt?.state !== 'not_started' && (
-            <Button size="sm" icon={<Play size={13} />} loading={control.isPending && control.variables === 'start'} disabled={busy} onClick={() => control.mutate('start')}>
+          ) : i.deployment ? (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<Play size={13} />}
+              loading={control.isPending && control.variables === 'start'}
+              disabled={busy}
+              title={`Starts the runtime on ${i.deployment.packageId}, the package deployed for this instance`}
+              onClick={() => control.mutate('start')}
+            >
               Start
+            </Button>
+          ) : (
+            <Button size="sm" variant="primary" icon={<Rocket size={13} />} loading={deploy.isPending} disabled={busy} onClick={() => deploy.mutate({ version: i.blueprintVersion ?? undefined })}>
+              Deploy v{i.blueprintVersion}
             </Button>
           )}
           {i.upgradeAvailable && (

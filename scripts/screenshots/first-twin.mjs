@@ -100,7 +100,7 @@ try {
   await page.getByRole('button', { name: 'Next: identity' }).click();
   await page.getByLabel('Name').fill(NAME);
   await page.getByRole('textbox', { name: /^Id\b/ }).fill(ID);
-  await page.getByLabel('Domain').fill('lab');
+  await page.getByLabel('Domain').fill('thermal');
   await page.getByLabel('Description').fill('A laboratory heating chamber: heater, door sensor and air-temperature sensor, with an over-temperature latch.');
   await page.getByLabel('Icon').selectOption('thermometer');
   await snap(page, '02-identity.png');
