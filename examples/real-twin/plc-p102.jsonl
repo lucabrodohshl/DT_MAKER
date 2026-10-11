@@ -1,0 +1,40 @@
+{"ts": 1760176800000, "TT101_degC": 40.0, "VT101_mm_s": 2.1, "PT101_bar": 0.0, "ST101_rpm": 0, "IT101_A": 0.0, "cooling": false, "running": false}
+{"ts": 1760176805000, "TT101_degC": 70.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true, "event": "START"}
+{"ts": 1760176810000, "TT101_degC": 70.4, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176820000, "TT101_degC": 70.8, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176830000, "TT101_degC": 71.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176840000, "TT101_degC": 71.6, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176850000, "TT101_degC": 72.0, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176860000, "TT101_degC": 72.4, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176870000, "TT101_degC": 72.8, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176880000, "TT101_degC": 73.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176890000, "TT101_degC": 73.6, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true, "event": "DUTY_UP"}
+{"ts": 1760176900000, "TT101_degC": 74.0, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176910000, "TT101_degC": 74.4, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176920000, "TT101_degC": 74.8, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176930000, "TT101_degC": 75.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176940000, "TT101_degC": 75.6, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176950000, "TT101_degC": 76.0, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176960000, "TT101_degC": 88.0, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176970000, "TT101_degC": 90.5, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176972000, "TT101_degC": 91.0, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true, "event": "BEARING_ALARM"}
+{"ts": 1760176980000, "TT101_degC": 93.0, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760176985000, "TT101_degC": 94.2, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": true, "running": true, "event": "AUX_COOLING_ON"}
+{"ts": 1760176990000, "TT101_degC": 93.1, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": true, "running": true}
+{"ts": 1760177000000, "TT101_degC": 89.6, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": true, "running": true}
+{"ts": 1760177010000, "TT101_degC": 86.1, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": true, "running": true}
+{"ts": 1760177020000, "TT101_degC": 82.6, "VT101_mm_s": 3.9, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": true, "running": true}
+{"ts": 1760177030000, "TT101_degC": 79.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true, "event": "AUX_COOLING_DONE"}
+{"ts": 1760177040000, "TT101_degC": 79.6, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177050000, "TT101_degC": 80.0, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177060000, "TT101_degC": 80.4, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177070000, "TT101_degC": 80.8, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177080000, "TT101_degC": 81.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177090000, "TT101_degC": 81.6, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177100000, "TT101_degC": 82.0, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177110000, "TT101_degC": 82.4, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177120000, "TT101_degC": 82.8, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true}
+{"ts": 1760177130000, "TT101_degC": 83.2, "VT101_mm_s": 2.1, "PT101_bar": 6.2, "ST101_rpm": 2950, "IT101_A": 41.5, "cooling": false, "running": true, "event": "STOP"}
+{"ts": 1760177139000, "TT101_degC": 40.0, "VT101_mm_s": 2.1, "PT101_bar": 0.0, "ST101_rpm": 0, "IT101_A": 0.0, "cooling": false, "running": false, "event": "STOPPED"}
+{"ts": 1760177140000, "TT101_degC": 40.0, "VT101_mm_s": 2.1, "PT101_bar": 0.0, "ST101_rpm": 0, "IT101_A": 0.0, "cooling": false, "running": false}
+{"ts": 1760177150000, "TT101_degC": 40.0, "VT101_mm_s": 2.1, "PT101_bar": 0.0, "ST101_rpm": 0, "IT101_A": 0.0, "cooling": false, "running": false}

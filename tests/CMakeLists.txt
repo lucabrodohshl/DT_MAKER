@@ -29,6 +29,14 @@ function(twin_add_test name)
 endfunction()
 
 add_subdirectory(unit)
+
+# The reference bridge for real twins (examples/real-twin): a Python self-test against a fake Studio.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME twin_bridge_selftest
+             COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/examples/real-twin/test_twin_bridge.py")
+    set_tests_properties(twin_bridge_selftest PROPERTIES LABELS "unit")
+endif()
 add_subdirectory(integration)
 add_subdirectory(architecture)
 add_subdirectory(e2e)

@@ -1,0 +1,30 @@
+{
+  "studio": "http://127.0.0.1:8080",
+  "instance": "pump-p102-dt",
+  "timestamp": {"field": "ts", "unit": "ms"},
+  "telemetry": {
+    "TT101_degC": "bearing_temp",
+    "VT101_mm_s": "vibration_rms",
+    "PT101_bar": "discharge_pressure",
+    "ST101_rpm": "shaft_speed",
+    "IT101_A": "motor_current",
+    "cooling": "cooling_active",
+    "running": "motor_running"
+  },
+  "events": {
+    "field": "event",
+    "map": {
+      "START": "start_cmd!",
+      "DUTY_UP": "duty_up!",
+      "BEARING_ALARM": "alarm_raise!",
+      "ALARM_CLEARED": "alarm_clear!",
+      "AUX_COOLING_ON": "aux_cooling_on!",
+      "AUX_COOLING_DONE": "aux_cooling_done!",
+      "STOP": "ramp_down_cmd!",
+      "STOPPED": "halted!",
+      "TRIP": "emergency_trip!",
+      "TRIP_RESET": "trip_reset!"
+    }
+  },
+  "heartbeatSeconds": 1.0
+}
