@@ -128,6 +128,7 @@ claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
 | [Integration audit](docs/integration-audit.md), [final report](docs/final-integration-report.md) | What exists, how it was integrated, limitations |
 | [Studio manual](docs/studio/) | Using Verified Twin Studio (designing twins, operations, engineering, maintenance) |
 | [Build Your First Twin](docs/studio/tutorial-first-twin.md) | A thermal-chamber twin from nothing to a monitored instance, step by step |
+| [Connect a Real Twin](docs/studio/tutorial-connect-real-twin.md) | Feed a deployed instance from a real PLC, gateway or historian ([reference bridge](examples/real-twin/twin_bridge.py)) |
 | [Screenshots](docs/screenshots/) | Captured from the running product (`scripts/capture-screenshots.sh`) |
 | API reference | `make docs` → `build/docs/html/index.html` (Doxygen) |
 
