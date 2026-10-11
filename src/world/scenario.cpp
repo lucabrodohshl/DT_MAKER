@@ -99,6 +99,8 @@ Result<Scenario> with_mission(Scenario base, const Json& mission) {
         if (!cells.insert(cell.value()).second) return make_error(ErrorCode::ValidationError, "two targets are on the same cell").with("target", id);
         out.push_back(TargetSpec{id, name, cell.value()});
     }
+    base.description = "Operator-defined mission: inspect " + std::to_string(out.size()) +
+                       (out.size() == 1 ? " target" : " targets") + ", then return to the home pad.";
     base.targets = std::move(out);
     return base;
 }

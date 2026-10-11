@@ -10,7 +10,7 @@
  * planner plans on. Outlined cells on the left are where the twin's knowledge
  * still differs from reality — the reason replanning happens.
  */
-import { History, Pause, Play, RotateCcw, StepForward } from 'lucide-react';
+import { History, MapPinPlus, Pause, Play, RotateCcw, StepForward } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, ModeBanner, Panel, RuntimeUnavailable, Segmented, Skeleton, StatusBadge } from '@/design';
@@ -18,6 +18,7 @@ import type { DomainPluginProps } from '@/plugins/types';
 import type { SimulationState } from '@/runtime/types';
 import { MapCanvas, type CandidatePath, type MapOverlay } from './MapCanvas';
 import { cellAt, isPlan, planPoints, unknownCount, type Grid } from './model';
+import { NewMissionDialog } from './NewMissionDialog';
 import { CandidatesPanel, OpsPanel, Timeline } from './panels';
 import { useLiveMission, useReplayMission, type MissionView } from './useMission';
 import './drone.css';
@@ -66,7 +67,17 @@ function Legend() {
   );
 }
 
-function Controls({ sim, runtime, onAction }: { sim: SimulationState | null; runtime: DomainPluginProps['runtime']; onAction: () => void }) {
+function Controls({
+  sim,
+  runtime,
+  onAction,
+  onNewMission,
+}: {
+  sim: SimulationState | null;
+  runtime: DomainPluginProps['runtime'];
+  onAction: () => void;
+  onNewMission: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const speed = String(Math.round((sim?.speed_permille ?? 1000) / 1000)) as Speed;
   const call = async (path: string, body: unknown = {}) => {
@@ -91,6 +102,7 @@ function Controls({ sim, runtime, onAction }: { sim: SimulationState | null; run
       )}
       <Button icon={<StepForward size={14} />} onClick={() => void call('/simulation/step')} disabled={running || finished || busy}>Step 0.1 s</Button>
       <Button icon={<RotateCcw size={14} />} onClick={() => void call('/simulation/reset')} disabled={busy}>Reset (new session)</Button>
+      <Button icon={<MapPinPlus size={14} />} onClick={onNewMission} disabled={busy}>New mission</Button>
       <Segmented
         label="Simulation speed"
         value={SPEEDS.includes(speed) ? speed : '1'}
@@ -199,13 +211,22 @@ function MissionLayout({ props, view, live }: { props: DomainPluginProps; view: 
 function LiveView(props: DomainPluginProps) {
   const view = useLiveMission(props);
   const navigate = useNavigate();
+  const [planning, setPlanning] = useState(false);
   if (!props.runtimeConnected) {
     return <RuntimeUnavailable what="the drone mission view" message="The twin runtime for this drone is not connected. Start the demo (make demo) or the runtime." />;
   }
   if (view.loading) return <Skeleton lines={8} />;
   return (
     <div className="stack">
-      <Controls sim={view.sim} runtime={props.runtime} onAction={() => undefined} />
+      <Controls sim={view.sim} runtime={props.runtime} onAction={() => undefined} onNewMission={() => setPlanning(true)} />
+      <NewMissionDialog
+        open={planning}
+        onOpenChange={setPlanning}
+        grid={view.known}
+        mission={view.mission}
+        runtime={props.runtime}
+        twinId={props.twin.id}
+      />
       {view.sim?.status === 'finished' && view.sim.session && (
         <div className="row-wrap">
           <StatusBadge tone="ok" label="Mission finished" />

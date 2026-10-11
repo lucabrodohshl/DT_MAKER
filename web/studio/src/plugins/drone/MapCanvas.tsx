@@ -5,7 +5,7 @@
  * feature also has a shape or pattern (hatching for unknown space and no-fly
  * zones, dashes for invalidated routes), so colour is never the only carrier.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { Grid, MissionTargetJson, PlanJson, Point } from './model';
 import { cellAt, planPoints } from './model';
 
@@ -274,10 +274,22 @@ function draw(canvas: HTMLCanvasElement, grid: Grid, o: MapOverlay, cs: number, 
 }
 
 /** Responsive canvas map (fits the container width). */
-export function MapCanvas({ grid, overlay, label }: { grid: Grid | null; overlay: MapOverlay; label: string }) {
+export function MapCanvas({
+  grid,
+  overlay,
+  label,
+  onCellClick,
+}: {
+  grid: Grid | null;
+  overlay: MapOverlay;
+  label: string;
+  /** Makes the map pickable: called with the clicked cell. */
+  onCellClick?: (x: number, y: number) => void;
+}) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
+  const cellPx = grid && width > 0 ? Math.max(4, Math.floor(width / grid.width)) : 0;
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
@@ -287,13 +299,19 @@ export function MapCanvas({ grid, overlay, label }: { grid: Grid | null; overlay
   }, []);
   useEffect(() => {
     if (!canvas.current || !wrap.current || !grid || width <= 0) return;
-    const cs = Math.max(4, Math.floor(width / grid.width));
-    draw(canvas.current, grid, overlay, cs, readPalette(wrap.current));
-  }, [grid, overlay, width]);
+    draw(canvas.current, grid, overlay, cellPx, readPalette(wrap.current));
+  }, [grid, overlay, width, cellPx]);
+  const pick = (e: MouseEvent<HTMLCanvasElement>) => {
+    if (!onCellClick || !grid || cellPx <= 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / cellPx);
+    const y = Math.floor((e.clientY - r.top) / cellPx);
+    if (x >= 0 && y >= 0 && x < grid.width && y < grid.height) onCellClick(x, y);
+  };
   return (
     <div ref={wrap} className="drone-map">
       {grid ? (
-        <canvas ref={canvas} role="img" aria-label={label} />
+        <canvas ref={canvas} role="img" aria-label={label} onClick={onCellClick ? pick : undefined} style={onCellClick ? { cursor: 'crosshair' } : undefined} />
       ) : (
         <div className="drone-map__empty small muted">No map available.</div>
       )}
