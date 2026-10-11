@@ -4,24 +4,26 @@
  */
 import { expect, test } from '@playwright/test';
 
+const TWIN = 'pump-p101-dt';
 const ASSET = 'pump-p101';
+const TW = `/twins/${TWIN}`;
 
-test('select an asset from the explorer and see its live mode', async ({ page }) => {
-  await page.goto('/assets');
-  await page.getByPlaceholder(/filter by name/i).fill('P-101');
-  await page.getByRole('link', { name: 'Pump P-101' }).first().click();
-  await expect(page).toHaveURL(new RegExp(`/assets/${ASSET}`));
-  await expect(page.getByRole('heading', { name: 'Pump P-101' })).toBeVisible();
+test('select an asset of the twin and see its live mode', async ({ page }) => {
+  await page.goto(`${TW}/assets`);
+  await page.getByPlaceholder(/search assets/i).fill('P-101');
+  await page.locator(`a[href$="/assets/${ASSET}"]`).first().click();
+  await expect(page).toHaveURL(new RegExp(`${TW}/assets/${ASSET}$`));
+  await expect(page.getByRole('heading', { name: 'P-101' }).first()).toBeVisible();
   await expect(page.getByText(/^Mode: /).first()).toBeVisible();
 });
 
 test('telemetry chart renders recorded history', async ({ page }) => {
-  await page.goto(`/assets/${ASSET}/telemetry`);
+  await page.goto(`${TW}/assets/${ASSET}/telemetry`);
   await expect(page.locator('.uplot canvas').first()).toBeVisible();
 });
 
 test('current behaviour, graph and enabled transitions come from the kernel', async ({ page }) => {
-  await page.goto(`/assets/${ASSET}/behavior`);
+  await page.goto(`${TW}/assets/${ASSET}/behavior`);
   await expect(page.getByText('Committed semantic state of the verified kernel')).toBeVisible();
   await expect(page.getByText('Available next actions')).toBeVisible();
   await page.getByRole('tab', { name: 'Behavioural graph' }).click();
@@ -29,7 +31,7 @@ test('current behaviour, graph and enabled transitions come from the kernel', as
 });
 
 test('"Why?" opens the backend evidence chain', async ({ page }) => {
-  await page.goto(`/assets/${ASSET}/behavior`);
+  await page.goto(`${TW}/assets/${ASSET}/behavior`);
   await page.getByRole('button', { name: /why\?/i }).first().click();
   const drawer = page.getByRole('dialog');
   await expect(drawer).toBeVisible();
@@ -37,26 +39,26 @@ test('"Why?" opens the backend evidence chain', async ({ page }) => {
 });
 
 test('prediction explores from the live state', async ({ page }) => {
-  await page.goto(`/assets/${ASSET}/predict`);
+  await page.goto(`${TW}/assets/${ASSET}/predict`);
   await expect(page.getByText(/states explored/)).toBeVisible();
 });
 
 test('ledger chain verifies and an execution can be replayed', async ({ page }) => {
-  await page.goto('/audit/ledger');
+  await page.goto(`${TW}/audit/ledger`);
   await page.locator('a[href*="/audit/executions/"]').first().click();
   await page.getByRole('button', { name: /verify chain now/i }).click();
   await expect(page.getByText(/LEDGER (CHAIN )?VALID|Verified /).first()).toBeVisible();
 
-  await page.goto('/audit/ledger');
-  await page.getByRole('link', { name: /replay/i }).first().click();
-  await expect(page).toHaveURL(/\/replay$/);
+  await page.goto(`${TW}/audit/ledger`);
+  await page.locator('a[href*="/audit/executions/"][href$="/replay"]').first().click();
+  await expect(page).toHaveURL(/\/audit\/executions\/[^/]+\/replay$/);
   await expect(page.getByText(/REPLAY MODE/i).first()).toBeVisible();
   await page.getByRole('button', { name: 'Step forward' }).click();
   await expect(page.getByLabel('Replay position')).toBeVisible();
 });
 
 test('an execution ledger exports as complete JSON', async ({ page }) => {
-  await page.goto('/audit/ledger');
+  await page.goto(`${TW}/audit/ledger`);
   await page.locator('a[href*="/audit/executions/"]:not([href$="/replay"])').first().click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /export ledger/i }).click()]);
   const doc = JSON.parse(await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString('utf8')));

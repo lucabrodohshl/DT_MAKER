@@ -14,7 +14,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 const TWIN = 'indoor-drone-dt';
-const VIEW = '/assets/drone-01/view/drone';
+const VIEW = `/twins/${TWIN}/assets/drone-01/view/drone`;
 
 async function rt<T>(request: APIRequestContext, method: 'GET' | 'POST', path: string, body: unknown = {}): Promise<T> {
   const url = `/api/v1/twins/${TWIN}${path}`;
@@ -37,14 +37,15 @@ test.describe.configure({ mode: 'serial' });
 
 test('the product starts and the frontend reaches the backend', async ({ page }) => {
   await page.goto('/');
+  await expect(page).toHaveURL(/\/twins$/);
   await expect(page.getByText('Verified Twin Studio').first()).toBeVisible();
-  await expect(page.getByText(/Asset estate/i)).toBeVisible();
-  await expect(page.getByText(/Drone-01 mission twin/).first()).toBeVisible();
-  await expect(page.getByText(/P-101 reliability twin/).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your twins' })).toBeVisible();
+  await expect(page.getByText('Drone-01', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('P-101', { exact: true }).first()).toBeVisible();
 });
 
 test('the drone example assets load', async ({ page }) => {
-  await page.goto('/assets/drone-01');
+  await page.goto(`/twins/${TWIN}/assets/drone-01`);
   await expect(page.getByRole('heading', { name: 'Drone-01' })).toBeVisible();
   await expect(page.getByText(/Mission map/)).toBeVisible();
 });
@@ -110,7 +111,7 @@ test('the ledger verifies, replay is identical, and a transition is traceable to
   }
 
   // The GUI shows that very record with its hash.
-  await page.goto(`/audit/executions/${TWIN}/${encodeURIComponent(session)}`);
+  await page.goto(`/twins/${TWIN}/audit/executions/${encodeURIComponent(session)}`);
   await expect(page.getByText(/target_reached!: NAVIGATING → INSPECTING/).first()).toBeVisible();
   await expect(page.getByText(reached!.hash.slice(0, 10)).first()).toBeVisible();
 
@@ -119,6 +120,6 @@ test('the ledger verifies, replay is identical, and a transition is traceable to
   await expect(page.getByText(/LEDGER VALID/)).toBeVisible();
 
   // Replay re-executes the recorded inputs with the recorded package.
-  await page.goto(`/audit/executions/${TWIN}/${encodeURIComponent(session)}/replay`);
+  await page.goto(`/twins/${TWIN}/audit/executions/${encodeURIComponent(session)}/replay`);
   await expect(page.getByText('Replay identical to the recorded execution')).toBeVisible({ timeout: 60_000 });
 });

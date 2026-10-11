@@ -24,7 +24,7 @@ detail level.
 ## 1. Open the published ontology
 
 Switch to **Studio** and go to **Ontologies → Process pump domain**, then open **v1**: the version
-deployed on twin *P-101 reliability twin*.
+deployed on twin *P-101*.
 
 ![Published ontology](../screenshots/tutorial/01-published-ontology.png)
 
@@ -37,7 +37,7 @@ a counter-model.
 ## 2. Create a draft
 
 First create a change workspace for the twin: **Studio → Changes → New change**, twin
-*P-101 reliability twin*, title *Datasheet revision C*. Then, back on v1, click **Create draft
+*P-101*, title *Datasheet revision C*. Then, back on v1, click **Create draft
 from v1**. Enter a change description and attach the draft to the change.
 
 ![Create draft](../screenshots/tutorial/02-create-draft.png)
@@ -102,7 +102,7 @@ The diff shows what changed. It cannot tell you whether the change is safe.
 
 ## 6. Run the refinement check
 
-**Check refinement** → base `process-pump@1`, twin context *P-101 reliability twin* (so its
+**Check refinement** → base `process-pump@1`, twin context *P-101* (so its
 deployed interpretations are included) → **Run refinement check**.
 
 ![Refinement result](../screenshots/tutorial/06-refinement-result.png)
@@ -158,12 +158,13 @@ The pipeline then reports **Ready to release**.
 
 **Release** publishes v3, which becomes immutable, marks PKG-0003 as released and closes the
 change. Deployment is a separate, explicit step: **Deploy** PKG-0003 to the P-101 twin with a
-reason.
+reason. P-101 runs under Studio's deployment supervisor, so its runtime restarts on PKG-0003 at
+once: a new execution starts, and the earlier ones stay in its ledger.
 
 ![Deployments](../screenshots/tutorial/09-deployments.png)
 
-**Studio → Deployments** shows the append-only history: the initial deployment of
-PKG-0001, then PKG-0003 with its reason and actor. The twin's **Maintenance → Rollback** could return to
+**Studio → Deployments** shows the append-only history: the initial deployment of PKG-0001,
+then PKG-0003 with its reason and actor. The twin's **Maintenance → Rollback** could return to
 PKG-0001 at any time (a reason is required), without deleting anything newer.
 
 ## 10. Old executions keep their semantics

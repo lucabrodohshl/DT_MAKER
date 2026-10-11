@@ -22,13 +22,13 @@ async function rejectOpenDrafts(request: APIRequestContext) {
 
 test('broken edit shows diagnostics; valid edit validates, refines and preserves alignment', async ({ page, request }) => {
   await rejectOpenDrafts(request);
-  await page.goto(`/engineering/ontologies/${ONT}/versions/1`);
+  await page.goto(`/studio/ontologies/${ONT}/versions/1`);
   await expect(page.getByText(/is published and immutable/)).toBeVisible();
 
   await page.getByRole('button', { name: /create draft from v1/i }).click();
   await page.getByRole('dialog').getByRole('textbox').first().fill('e2e: document the pump domain');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(new RegExp(`/engineering/ontologies/${ONT}/versions/(?!1$)\\d+$`));
+  await expect(page).toHaveURL(new RegExp(`/studio/ontologies/${ONT}/versions/(?!1$)\\d+$`));
   const draftUrl = page.url();
 
   // Publish is not offered as an action on an unvalidated draft.
@@ -58,12 +58,12 @@ test('broken edit shows diagnostics; valid edit validates, refines and preserves
   // 4. Refinement against the deployed version, with the deployed interpretations.
   await page.getByRole('button', { name: /check refinement/i }).click();
   await page.getByRole('button', { name: /run refinement check/i }).click();
-  await expect(page).toHaveURL(/\/maintenance\/refinement\/EV-\d+/, { timeout: 60_000 });
+  await expect(page).toHaveURL(/\/studio\/refinement\/EV-\d+/, { timeout: 60_000 });
   await expect(page.getByText('Valid refinement').first()).toBeVisible();
 
   // 5. Impact: the alignment is preserved by Theorem 3 and cites the evidence.
   const ref = new URL(draftUrl).pathname.split('/').pop();
-  await page.goto(`/maintenance/impact?ref=${ONT}@${ref}`);
+  await page.goto(`/studio/impact?ref=${ONT}@${ref}`);
   await expect(page.getByText(/Theorem 3/).first()).toBeVisible();
 });
 
@@ -72,7 +72,7 @@ test('a non-refinement is reported with its violated obligations', async ({ page
   const items = (Array.isArray(list) ? list : list.items) as { id: string; kind: string; verdict: string }[];
   const failing = items.find((e) => e.kind === 'refinement' && e.verdict === 'not_a_refinement');
   test.skip(!failing, 'no failing refinement evidence in this data set');
-  await page.goto(`/maintenance/refinement/${failing!.id}`);
+  await page.goto(`/studio/refinement/${failing!.id}`);
   await expect(page.getByText('Not a refinement').first()).toBeVisible();
   await expect(page.getByText(/violated/i).first()).toBeVisible();
 });

@@ -164,8 +164,8 @@ export default function DeploymentPage() {
       description="Where each instance runs, and its runtime processes."
       guide={
         <>
-          Deploying starts an instance&apos;s runtime on its version&apos;s released package and bundle, under this Studio&apos;s deployment supervisor (restarted with Studio, stopped cleanly). <strong>DEPLOYED</strong> means it runs;
-          conformance of its behaviour is monitored live in Operate.
+          Deploying starts an instance&apos;s runtime on its version&apos;s released package and bundle (or on a package deployed to it through a change), under this Studio&apos;s deployment
+          supervisor (restarted with Studio, stopped cleanly). <strong>DEPLOYED</strong> means it runs; conformance of its behaviour is monitored live in Operate.
         </>
       }
     >
