@@ -23,7 +23,8 @@ twin_add_library(studio
         blueprints_preview.cpp
         blueprints_monitors.cpp
         blueprints_connection.cpp
+        blueprints_model.cpp
     PUBLIC_DEPS twin::platform twin::ontology
-    PRIVATE_DEPS twin::compiler twin::alignment twin::authoring twin::monitoring twin::scene twin::world twin::ptfeed twin::runtime_shell twin::package_builder twin::studio_engine twin::ingest httplib::httplib)
+    PRIVATE_DEPS twin::compiler twin::alignment twin::authoring twin::model twin::monitoring twin::scene twin::world twin::ptfeed twin::runtime_shell twin::package_builder twin::studio_engine twin::ingest httplib::httplib)
 target_include_directories(twin_studio PRIVATE
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/include>)

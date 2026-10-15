@@ -23,6 +23,7 @@ Commands:
   package   Build, verify or inspect a Verified Twin Package
   ledger    Verify, anchor or show a tamper-evident execution ledger
   replay    Deterministically replay a ledger against its package
+  model     Check, compile or lift a twin model (twin-model/1): one model, every formal artefact
   version   Print tool and format versions
 
 Run 'twin <command> --help' for the options of a command.)";
@@ -41,6 +42,7 @@ int main(int argc, char** argv) {
     if (command == "package") return twin::cli::run_package(argc - 2, argv + 2);
     if (command == "ledger") return twin::cli::run_ledger(argc - 2, argv + 2);
     if (command == "replay") return twin::cli::run_replay(argc - 2, argv + 2);
+    if (command == "model") return twin::cli::run_model(argc - 2, argv + 2);
     if (command == "version" || command == "--version") {
         std::cout << "twin " << twin::version::kProject << "\n"
                   << "  compiler " << twin::version::kCompiler << "\n"

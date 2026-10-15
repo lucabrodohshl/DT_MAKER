@@ -4,6 +4,7 @@
 #
 #   core <- json <- ir <- compiler(+aligner::dtpta) <- alignment(+aligner::semalign)
 #   ir, json <- authoring (canonical model, import/export; + compiler, alignment)
+#   authoring <- model (twin modelling language: compiles to twin-ta/1, K, I, OWL/SHACL/RDF)
 #   core <- kernel(ir_model only) <- monitoring (properties, monitor documents)
 #   core, json, ir, kernel <- package <- ledger <- runtime
 #   core <- geo <- planner, world; geo <- scene (World & Layout documents, simulator adapter)
@@ -23,6 +24,7 @@ add_subdirectory(monitoring)
 add_subdirectory(compiler)
 add_subdirectory(alignment)
 add_subdirectory(authoring)
+add_subdirectory(model)
 if(TWIN_BUILD_STUDIO)  # Verified Twin Studio (docs/studio/); see cmake/Dependencies.cmake
     add_subdirectory(ontology)
     add_subdirectory(platform)

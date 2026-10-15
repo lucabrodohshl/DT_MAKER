@@ -109,6 +109,8 @@ public:
     [[nodiscard]] Result<std::vector<Blueprint>> blueprints() const;
     /// @brief Updates display metadata (name, description, domain, icon).
     [[nodiscard]] Result<Blueprint> update_meta(const Blueprint& blueprint);
+    /// @brief Removes a Blueprint from the authoring library while retaining versions and instance references.
+    [[nodiscard]] Status archive(std::string_view id);
 
     /// @brief One version (NotFound otherwise).
     [[nodiscard]] Result<BlueprintVersion> version(std::string_view id, std::int64_t version) const;

@@ -143,6 +143,9 @@ Result<Json> BlueprintService::save_model(std::string_view id, std::int64_t v, s
     }
     auto ver = impl_->load_draft(id, v, revision);
     if (!ver) return std::move(ver).error();
+    if (is_model_driven(ver.value().document)) {
+        return make_error(ErrorCode::StateError, "this view is generated from the model; change the model instead").with("reason", "derived_artifact");
+    }
     BlueprintVersion next = ver.value();
     auto ref = impl_->ensure_editable(next, role.value(), actor);
     if (!ref) return std::move(ref).error();
@@ -250,6 +253,10 @@ Result<Json> BlueprintService::save_semantics(std::string_view id, std::int64_t 
     }
     auto ver = impl_->load_draft(id, v, revision);
     if (!ver) return std::move(ver).error();
+    if (is_model_driven(ver.value().document)) {
+        return make_error(ErrorCode::StateError, "the ontology and interpretations are generated from the model; change the model instead")
+            .with("reason", "derived_artifact");
+    }
     BlueprintVersion next = ver.value();
     const std::string r(role);
     if (body.contains("ref")) {

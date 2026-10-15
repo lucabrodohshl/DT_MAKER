@@ -77,6 +77,7 @@ const P: Record<string, Loader> = {
   bpRedirect: () => import('@/features/blueprint/BlueprintRedirect') as never,
   bpNew: () => import('@/features/blueprint/NewBlueprintPage') as never,
   bpWorkspace: () => import('@/features/blueprint/BlueprintWorkspace') as never,
+  modelStudio: () => import('@/features/model/ModelStudioPage') as never,
   bpOverview: () => import('@/features/blueprint/pages/OverviewPage') as never,
   bpStructure: () => import('@/features/blueprint/pages/StructurePage') as never,
   bpWorld: () => import('@/features/blueprint/pages/WorldPage') as never,
@@ -249,6 +250,7 @@ export const routes: RouteObject[] = [
       r('twins/:twinId', page(P.twin!), twinChildren),
       r('studio', page(P.studio!), studioChildren),
       r('studio/blueprints/:bpId', page(P.bpRedirect!)),
+      r('studio/blueprints/:bpId/v/:version/model', page(P.modelStudio!)),
       r('studio/blueprints/:bpId/v/:version', page(P.bpWorkspace!), blueprintChildren),
 
       // Outside any twin: assets that belong to no twin, the estate-wide graph, platform pages.

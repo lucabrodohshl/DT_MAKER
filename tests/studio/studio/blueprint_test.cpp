@@ -110,6 +110,21 @@ TEST_F(BlueprintTest, TemplatesAndPalettesAreData) {
     EXPECT_TRUE(p.value()["palettes"].contains("thermal"));
 }
 
+TEST_F(BlueprintTest, RemovingBlueprintHidesItButRetainsItsVersion) {
+    const std::string id = "remove-from-library";
+    auto created = bp().create(Json{{"mode", "blank"}, {"id", id}, {"name", "Removal check"}}, alice);
+    ASSERT_TRUE(created.ok()) << created.error().to_string();
+    auto removed = bp().remove(id, alice);
+    ASSERT_TRUE(removed.ok()) << removed.error().to_string();
+    EXPECT_EQ(removed.value()["removed"], true);
+    auto listed = bp().list();
+    ASSERT_TRUE(listed.ok()) << listed.error().to_string();
+    for (const Json& item : listed.value()) EXPECT_NE(item["id"], id);
+    auto saved_version = bp().version(id, 1);
+    ASSERT_TRUE(saved_version.ok()) << saved_version.error().to_string();
+    EXPECT_EQ(saved_version.value()["document"]["identity"]["name"], "Removal check");
+}
+
 TEST_F(BlueprintTest, ThermalChamberFromScratchToInstance) {
     const std::string id = "chamber-scratch";
     build_chamber(id);

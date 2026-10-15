@@ -33,6 +33,22 @@ log() { printf '\033[1m[macos]\033[0m %s\n' "$*"; }
 
 [[ "$(uname)" == "Darwin" ]] || { echo "macOS only" >&2; exit 1; }
 
+# Replacing a bundle while its launcher or server is running leaves the old
+# executable in memory beside the new web files. The browser then calls API
+# routes that the old server does not know about. Refuse to overwrite either
+# assembly location until that copy of the app has been quit.
+for candidate in "$APP" "$WORK/dmg/Verified Twin Studio.app"; do
+    launcher="$candidate/Contents/MacOS/VerifiedTwinStudio"
+    server="$candidate/Contents/Resources/bin/twin-studio"
+    if [[ -e "$launcher" || -e "$server" ]]; then
+        running="$(lsof -t "$launcher" "$server" 2>/dev/null || true)"
+        if [[ -n "$running" ]]; then
+            echo "Quit the running Verified Twin Studio at $candidate before rebuilding (PID: $(echo "$running" | paste -sd, -))." >&2
+            exit 1
+        fi
+    fi
+done
+
 # --------------------------------------------------------------------- build
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
     [[ -d third_party/install ]] || ./scripts/bootstrap-deps.sh
@@ -51,7 +67,11 @@ clang++ -std=c++20 -fobjc-arc -O2 -Wall -framework Cocoa apps/macos/launcher.mm 
 clang++ -std=c++20 -fobjc-arc -O2 -framework Cocoa apps/macos/make_icon.mm -o "$WORK/make_icon"
 rm -rf "$WORK/AppIcon.iconset"
 "$WORK/make_icon" "$WORK/AppIcon.iconset"
-iconutil -c icns "$WORK/AppIcon.iconset" -o "$WORK/AppIcon.icns"
+if ! iconutil -c icns "$WORK/AppIcon.iconset" -o "$WORK/AppIcon.icns"; then
+    log "iconutil rejected the iconset; falling back to tiff2icns"
+    sips -s format tiff "$WORK/AppIcon.iconset/icon_512x512@2x.png" --out "$WORK/AppIcon.tiff" >/dev/null
+    tiff2icns "$WORK/AppIcon.tiff" "$WORK/AppIcon.icns"
+fi
 
 # ------------------------------------------------------------------ assemble
 log "assembling $APP"

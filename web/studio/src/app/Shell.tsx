@@ -17,12 +17,12 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { getActor, setActor } from '@/api/client';
 import { lastTwin, twinRoute } from '@/app/twinScope';
-import { Button, Segmented } from '@/design';
+import { Button } from '@/design';
 import { useLive } from '@/live/LiveProvider';
 import { useDisclosure } from './disclosure';
 import { SearchPalette } from './SearchPalette';
 
-/** OPERATE | STUDIO: the two modes of the product (§ "Studio is a mode"). */
+/** The product's areas: Twins (running twins, formerly Operate) and Models (design, formerly Studio). */
 function ModeSwitch() {
   const location = useLocation();
   const studio = location.pathname.startsWith('/studio');
@@ -30,9 +30,9 @@ function ModeSwitch() {
   const current = twinMatch ? decodeURIComponent(twinMatch[1]!) : null;
   const back = lastTwin();
   return (
-    <nav className="vts-mode" aria-label="Mode">
-      <Link to={!studio ? location.pathname : back ? twinRoute(back) : '/twins'} className={clsx('vts-mode__opt', !studio && 'active')} aria-current={!studio ? 'page' : undefined}>Operate</Link>
-      <Link to={current ? `/studio?twin=${encodeURIComponent(current)}` : '/studio'} className={clsx('vts-mode__opt', studio && 'active')} aria-current={studio ? 'page' : undefined}>Studio</Link>
+    <nav className="vts-mode" aria-label="Area">
+      <Link to={!studio ? location.pathname : back ? twinRoute(back) : '/twins'} className={clsx('vts-mode__opt', !studio && 'active')} aria-current={!studio ? 'page' : undefined}>Twins</Link>
+      <Link to={current ? `/studio?twin=${encodeURIComponent(current)}` : '/studio'} className={clsx('vts-mode__opt', studio && 'active')} aria-current={studio ? 'page' : undefined}>Models</Link>
     </nav>
   );
 }
@@ -53,7 +53,7 @@ function LiveIndicator() {
   return (
     <div className="row" aria-live="polite">
       <span className={`vts-badge vts-badge--${tone}`} title={live.lastEventAt ? `Last update ${live.lastEventAt}` : undefined}>
-        <span className="vts-dot" style={{ background: 'currentColor' }} aria-hidden="true" />
+        <span aria-hidden="true">●</span>
         {label}
       </span>
       <Button
@@ -70,7 +70,7 @@ function LiveIndicator() {
 }
 
 function UserMenu() {
-  const { theme, setTheme } = useDisclosure();
+  const { theme, setTheme, disclosure, setDisclosure } = useDisclosure();
   const [actor, setActorState] = useState(getActor());
   return (
     <DropdownMenu.Root>
@@ -98,6 +98,14 @@ function UserMenu() {
             Change name…
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="vts-divider" />
+          <DropdownMenu.Label className="xsmall subtle" style={{ padding: '6px 10px' }}>Detail</DropdownMenu.Label>
+          {(['operations', 'engineering'] as const).map((d) => (
+            <DropdownMenu.CheckboxItem key={d} className="vts-menu__item" checked={disclosure === d} onCheckedChange={() => setDisclosure(d)}>
+              {d === 'operations' ? 'Operator: essentials' : 'Engineer: formal detail'}
+              {disclosure === d ? ' ✓' : ''}
+            </DropdownMenu.CheckboxItem>
+          ))}
+          <DropdownMenu.Separator className="vts-divider" />
           <DropdownMenu.Label className="xsmall subtle" style={{ padding: '6px 10px' }}>Theme</DropdownMenu.Label>
           {(['system', 'light', 'dark'] as const).map((t) => (
             <DropdownMenu.CheckboxItem key={t} className="vts-menu__item" checked={theme === t} onCheckedChange={() => setTheme(t)}>
@@ -116,7 +124,6 @@ function UserMenu() {
 }
 
 export function Shell() {
-  const { disclosure, setDisclosure } = useDisclosure();
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -142,13 +149,11 @@ export function Shell() {
       </a>
       <header className="vts-topbar">
         <Link to="/twins" className="vts-brand" aria-label="Verified Twin Studio — your twins">
-          <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="7" fill="var(--accent)" />
-            <path d="M8 10h7v12H8zM17 10h7v5h-7zM17 17h7v5h-7z" fill="#fff" />
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="0.5" y="0.5" width="15" height="15" fill="none" stroke="var(--ink)" />
+            <path d="M4 4h3v8H4zM9 4h3v3.5H9zM9 8.5h3V12H9z" fill="var(--ink)" />
           </svg>
-          <span>
-            Verified Twin <strong>Studio</strong>
-          </span>
+          <span>Verified Twin Studio</span>
         </Link>
         <ModeSwitch />
         <button type="button" className="vts-search-trigger" onClick={() => setSearchOpen(true)}>
@@ -159,17 +164,8 @@ export function Shell() {
         <div className="grow" />
         <LiveIndicator />
         <a className="vts-btn vts-btn--ghost vts-btn--sm" href="/docs/" target="_blank" rel="noopener" title="Product manual, tutorial and screenshot tour (opens in a new tab)">
-          <CircleHelp size={15} aria-hidden="true" /> Help
+          <CircleHelp size={14} aria-hidden="true" /> Help
         </a>
-        <Segmented
-          label="Detail level"
-          value={disclosure}
-          onChange={setDisclosure}
-          options={[
-            { id: 'operations', label: 'Operator' },
-            { id: 'engineering', label: 'Engineer' },
-          ]}
-        />
         <UserMenu />
       </header>
       <main id="main" className="vts-content" tabIndex={-1}>

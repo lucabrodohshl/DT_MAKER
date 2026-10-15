@@ -1,0 +1,105 @@
+{
+  "format": "twin-model/1",
+  "name": "thermal_chamber",
+  "label": "Simple thermal chamber",
+  "description": "A laboratory heating chamber with a heater, a door sensor and an air-temperature probe, protected by an over-temperature latch.",
+  "root": "ThermalChamber",
+  "time": {"unit": "s", "ticksPerUnit": 1000},
+  "types": [
+    {
+      "id": "t_chamber",
+      "name": "ThermalChamber",
+      "label": "Thermal chamber",
+      "description": "Insulated chamber heated electrically",
+      "properties": [
+        {"id": "p_limit", "name": "temperature_limit", "label": "Over-temperature limit", "kind": "fixed", "type": "real", "unit": "degC", "value": "80"},
+        {"id": "p_setpoint", "name": "setpoint", "label": "Heating setpoint", "kind": "fixed", "type": "real", "unit": "degC", "value": "60"},
+        {"id": "p_volume", "name": "volume_l", "label": "Volume", "kind": "fixed", "type": "integer", "unit": "l", "value": "120"},
+        {"id": "p_serial", "name": "serial", "label": "Serial number", "kind": "per-twin", "type": "string"}
+      ],
+      "events": [
+        {"id": "e_started", "name": "start_heating", "label": "Heating started", "origin": "reported",
+         "meaning": "heater.on and not door.open"},
+        {"id": "e_stopped", "name": "stop_heating", "label": "Heating stopped", "origin": "reported",
+         "meaning": "not heater.on"},
+        {"id": "e_high", "name": "high_temperature", "label": "Over-temperature", "origin": "reported",
+         "description": "Air temperature above the limit; the protection switches the heater off",
+         "meaning": "probe.temperature > temperature_limit"}
+      ],
+      "actions": [
+        {"id": "a_reset", "name": "cooled_down", "label": "Reset after cool-down",
+         "description": "Operator reset of the over-temperature latch",
+         "meaning": "probe.temperature <= temperature_limit"}
+      ],
+      "parts": [
+        {"id": "pt_heater", "name": "heater", "label": "Heater", "type": "Heater"},
+        {"id": "pt_door", "name": "door", "label": "Door sensor", "type": "DoorSensor"},
+        {"id": "pt_probe", "name": "probe", "label": "Air temperature sensor", "type": "TemperatureSensor"},
+        {"id": "pt_lab", "name": "lab", "label": "Materials lab M-2", "type": "Laboratory", "external": true}
+      ],
+      "relationships": [
+        {"id": "r_heats", "type": "heats", "from": "heater", "to": "self"},
+        {"id": "r_monitors", "type": "monitors", "from": "door", "to": "self"},
+        {"id": "r_measures", "type": "measures", "from": "probe", "to": "self"},
+        {"id": "r_located", "type": "locatedIn", "from": "self", "to": "lab"}
+      ],
+      "assumptions": [
+        {"id": "as_setpoint", "name": "setpoint_below_limit", "expr": "setpoint < temperature_limit"}
+      ],
+      "behavior": {
+        "timers": [{"id": "x_t", "name": "t", "description": "time in the current mode"}],
+        "states": [
+          {"id": "s_idle", "name": "IDLE", "label": "Idle", "initial": true,
+           "description": "Heater off, chamber within limits.",
+           "meaning": "not heater.on and probe.temperature <= temperature_limit"},
+          {"id": "s_heating", "name": "HEATING", "label": "Heating",
+           "description": "Heating; the heater-on watchdog ends heating within 600 s.",
+           "meaning": "heater.on and not door.open and probe.temperature <= temperature_limit",
+           "limits": [{"timer": "t", "op": "<=", "bound": 600}]},
+          {"id": "s_overheated", "name": "OVERHEATED", "label": "Overheated", "tone": "critical",
+           "description": "Over-temperature latch set; heater off.",
+           "meaning": "not heater.on and probe.temperature > temperature_limit"}
+        ],
+        "transitions": [
+          {"id": "r1", "from": ["IDLE"], "to": "HEATING", "trigger": {"event": "start_heating"}},
+          {"id": "r2", "from": ["HEATING"], "to": "IDLE", "trigger": {"event": "stop_heating"}},
+          {"id": "r3", "from": ["HEATING"], "to": "OVERHEATED", "trigger": {"event": "high_temperature"}},
+          {"id": "r4", "from": ["OVERHEATED"], "to": "IDLE", "trigger": {"action": "cooled_down"},
+           "window": [{"timer": "t", "op": ">=", "bound": 30}],
+           "description": "The latch can be reset after 30 s of cool-down."}
+        ]
+      }
+    },
+    {
+      "id": "t_heater", "name": "Heater", "description": "Electric heating element",
+      "properties": [
+        {"id": "p_on", "name": "on", "label": "Heater on", "kind": "measured", "type": "boolean", "period": "1"},
+        {"id": "p_power", "name": "rated_power", "label": "Rated power", "kind": "fixed", "type": "integer", "unit": "W", "value": "2000"}
+      ]
+    },
+    {
+      "id": "t_door", "name": "DoorSensor", "label": "Door sensor", "description": "Reed contact on the door",
+      "properties": [
+        {"id": "p_open", "name": "open", "label": "Door open", "kind": "measured", "type": "boolean", "period": "1"}
+      ]
+    },
+    {
+      "id": "t_probe", "name": "TemperatureSensor", "label": "Temperature sensor", "description": "PT100 air probe",
+      "properties": [
+        {"id": "p_temp", "name": "temperature", "label": "Air temperature", "kind": "measured", "type": "real", "unit": "degC",
+         "range": {"min": "-40", "max": "200"}, "period": "1"}
+      ]
+    },
+    {"id": "t_lab", "name": "Laboratory", "description": "A laboratory room"}
+  ],
+  "relationshipTypes": [
+    {"id": "rt_heats", "name": "heats", "inverse": "heatedBy"},
+    {"id": "rt_monitors", "name": "monitors", "inverse": "monitoredBy"},
+    {"id": "rt_measures", "name": "measures", "inverse": "measuredBy"},
+    {"id": "rt_located", "name": "locatedIn", "inverse": "contains_location"}
+  ],
+  "requirements": [
+    {"id": "q_never", "name": "never_overheats", "title": "Chamber never overheats", "kind": "never", "state": "OVERHEATED", "severity": "critical",
+     "description": "The air temperature never exceeds the limit."}
+  ]
+}

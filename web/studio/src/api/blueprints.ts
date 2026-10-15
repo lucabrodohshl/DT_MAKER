@@ -162,6 +162,7 @@ export const blueprintApi = {
   create: (body: Record<string, unknown>) =>
     api.post<BlueprintVersionSummary & { blueprint: BlueprintListItem; imports: { role: string; filename: string; imported: boolean; diagnostics?: unknown[] }[] }>('/blueprints', body),
   updateMeta: (id: string, body: Record<string, unknown>) => api.put<BlueprintListItem>(blueprintPath(id), body),
+  remove: (id: string) => api.del<{ id: string; removed: boolean }>(blueprintPath(id)),
   createDraft: (id: string, from: number, note: string) => api.post<BlueprintVersionSummary>(`${blueprintPath(id, from)}/drafts`, { note }),
   saveSection: (id: string, v: number, section: BlueprintSectionId, revision: number, content: unknown) =>
     api.put<SectionSaveResult>(`${blueprintPath(id, v)}/sections/${section}`, { revision, content }),

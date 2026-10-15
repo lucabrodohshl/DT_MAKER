@@ -20,5 +20,7 @@ int run_package(int argc, char** argv);
 int run_ledger(int argc, char** argv);
 /// `twin replay --package DIR --ledger FILE`
 int run_replay(int argc, char** argv);
+/// `twin model check|compile|lift ...`
+int run_model(int argc, char** argv);
 
 }  // namespace twin::cli

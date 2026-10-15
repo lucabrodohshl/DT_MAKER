@@ -175,9 +175,16 @@ Result<Blueprint> BlueprintRepository::blueprint(std::string_view id) const {
 }
 
 Result<std::vector<Blueprint>> BlueprintRepository::blueprints() const {
-    auto q = db_.prepare("SELECT " + std::string(kBlueprintColumns) + " FROM blueprints ORDER BY name, id");
+    auto q = db_.prepare("SELECT " + std::string(kBlueprintColumns) + " FROM blueprints WHERE archived_at IS NULL ORDER BY name, id");
     if (!q) return std::move(q).error();
     return collect<Blueprint>(q.value(), read_blueprint);
+}
+
+Status BlueprintRepository::archive(std::string_view id) {
+    auto q = db_.prepare("UPDATE blueprints SET archived_at = ?2 WHERE id = ?1 AND archived_at IS NULL");
+    if (!q) return std::move(q).error();
+    q.value().bind(1, id).bind(2, iso8601_utc(clock_.now_ms()));
+    return q.value().run();
 }
 
 Result<Blueprint> BlueprintRepository::update_meta(const Blueprint& b) {

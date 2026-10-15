@@ -11,7 +11,7 @@ export default function BlueprintRedirect() {
       <QueryState query={q}>
         {(b) => {
           const target = b.versions.find((v) => v.state === 'draft') ?? b.versions[0];
-          return target ? <Navigate replace to={blueprintRoute(b.id, target.version)} /> : <p>This Blueprint has no version.</p>;
+          return target ? <Navigate replace to={blueprintRoute(b.id, target.version, 'model')} /> : <p>This Blueprint has no version.</p>;
         }}
       </QueryState>
     </div>

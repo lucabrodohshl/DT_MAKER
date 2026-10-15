@@ -42,6 +42,8 @@ export type TaSelection = { kind: 'location'; id: string } | { kind: 'edge'; id:
 
 export interface TaOverlay {
   current?: Set<string>;
+  /** Locations produced by the selected source model element. */
+  emphasisLocations?: Set<string>;
   enabledNow?: Set<string>;
   enabledLater?: Set<string>;
   recent?: Set<string>;
@@ -62,6 +64,7 @@ interface Props {
 
 const NODE_W = 170;
 const NODE_H = 58;
+const EMPTY_SET = new Set<string>();
 const storageKey = (k: string) => `vts.ta.layout.${k}`;
 
 function readOverrides(key: string): TaLayout {
@@ -184,11 +187,11 @@ function Inner({ graph, layoutKey, layout, overlay = {}, selection, onSelect, he
   const [query, setQuery] = useState('');
   const [overrides, setOverrides] = useState<TaLayout>(() => readOverrides(layoutKey));
   const base = useMemo(() => (layout ? scaleLayout(layout) : autoLayout(graph)), [graph, layout]);
-  const current = useMemo(() => overlay.current ?? new Set<string>(), [overlay.current]);
+  const current = overlay.current ?? EMPTY_SET;
 
   const focus = useMemo(() => {
     if (mode === 'full') return null;
-    const seeds = new Set<string>([...current, ...(selection?.kind === 'location' ? [selection.id] : [])]);
+    const seeds = new Set<string>([...current, ...(overlay.emphasisLocations ?? []), ...(selection?.kind === 'location' ? [selection.id] : [])]);
     if (seeds.size === 0 && graph.locations[0]) seeds.add(graph.locations.find((l) => l.initial)?.id ?? graph.locations[0].id);
     const keep = new Set(seeds);
     for (const e of graph.edges) {
@@ -196,7 +199,7 @@ function Inner({ graph, layoutKey, layout, overlay = {}, selection, onSelect, he
       if (seeds.has(e.target)) keep.add(e.source);
     }
     return keep;
-  }, [mode, current, selection, graph]);
+  }, [mode, current, overlay.emphasisLocations, selection, graph]);
 
   const q = query.trim().toLowerCase();
   const hitLocs = useMemo(() => new Set(q ? graph.locations.filter((l) => l.id.toLowerCase().includes(q)).map((l) => l.id) : []), [q, graph]);
@@ -216,12 +219,12 @@ function Inner({ graph, layoutKey, layout, overlay = {}, selection, onSelect, he
             invariant: l.invariant,
             details,
             current: current.has(l.id),
-            hit: hitLocs.has(l.id),
+            hit: hitLocs.has(l.id) || !!overlay.emphasisLocations?.has(l.id),
             selected: selection?.kind === 'location' && selection.id === l.id,
             dim: !!q && !hitLocs.has(l.id) && hitEdges.size === 0,
           },
         })),
-    [graph, base, overrides, details, focus, selection, q, hitLocs, hitEdges, current],
+    [graph, base, overrides, details, focus, selection, q, hitLocs, hitEdges, current, overlay.emphasisLocations],
   );
 
   const edges = useMemo<Edge<EdgeData>[]>(() => {

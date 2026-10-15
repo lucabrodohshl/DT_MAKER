@@ -133,6 +133,24 @@ std::string slugify(std::string_view text) {
     return out.empty() ? std::string("blueprint") : out;
 }
 
+/// The relationship vocabulary every new model starts with (users add their own).
+Json default_relationship_types() {
+    Json out = Json::array();
+    const std::tuple<const char*, const char*, const char*, bool> rows[] = {
+        {"feeds", "feeds", "fedBy", false},       {"controls", "controls", "controlledBy", false},
+        {"measures", "measures", "measuredBy", false}, {"monitors", "monitors", "monitoredBy", false},
+        {"powers", "powers", "poweredBy", false}, {"drives", "drives", "drivenBy", false},
+        {"heats", "heats", "heatedBy", false},    {"cools", "cools", "cooledBy", false},
+        {"locatedIn", "located in", "", false},   {"connectedTo", "connected to", "", true}};
+    for (const auto& [name, label, inverse, symmetric] : rows) {
+        Json r = {{"id", std::string("rt_") + name}, {"name", name}, {"label", label}};
+        if (std::string(inverse).size() > 0) r["inverse"] = inverse;
+        if (symmetric) r["symmetric"] = true;
+        out.push_back(std::move(r));
+    }
+    return out;
+}
+
 std::string role_suffix(std::string_view role) {
     if (role == "pt_model") return "pt-view";
     if (role == "dt_model") return "dt-view";
@@ -473,6 +491,15 @@ Result<Json> BlueprintService::update_meta(std::string_view id, const Json& body
     return to_json(saved.value());
 }
 
+Result<Json> BlueprintService::remove(std::string_view id, const Actor& actor) {
+    auto l = impl_->core.lock();
+    auto existing = impl_->repo->blueprint(id);
+    if (!existing) return std::move(existing).error();
+    if (auto archived = impl_->repo->archive(id); !archived) return std::move(archived).error();
+    impl_->core.record("blueprint.remove", "success", std::string(id), {{"name", existing.value().name}}, actor, "blueprint");
+    return Json{{"id", id}, {"removed", true}};
+}
+
 Result<Json> BlueprintService::version(std::string_view id, std::int64_t v) {
     auto ver = impl_->load(id, v);
     if (!ver) return std::move(ver).error();
@@ -527,6 +554,11 @@ Result<Json> BlueprintService::save_section(std::string_view id, std::int64_t v,
     }
     auto ver = impl_->load_draft(id, v, revision);
     if (!ver) return std::move(ver).error();
+    if (is_model_driven(ver.value().document) && is_derived_section(section)) {
+        return make_error(ErrorCode::StateError, "the " + std::string(section) + " section is derived from the model; change the model instead")
+            .with("section", std::string(section))
+            .with("reason", "derived_section");
+    }
     BlueprintVersion next = ver.value();
     next.document[std::string(section)] = content;
     if (section == "assurance") next.document["assurance"]["format"] = std::string(monitoring::kMonitorsFormat);
@@ -677,8 +709,38 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
                 formal[role] = FormalFile{body.at(key).value("filename", std::string(role)), body.at(key).value("content", std::string())};
             }
         }
+    } else if (mode == "model") {
+        // A model-driven Blueprint: the twin model is the one document; everything else is derived.
+        if (name.empty()) return make_error(ErrorCode::InvalidArgument, "a new model needs a name");
+        if (body.contains("model") && body.at("model").is_object()) {
+            document["model"] = body.at("model");
+        } else {
+            std::string root;
+            bool upper = true;
+            for (const char c : name) {
+                if (std::isalnum(static_cast<unsigned char>(c)) == 0) {
+                    upper = true;
+                    continue;
+                }
+                root += upper ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : c;
+                upper = false;
+            }
+            if (root.empty() || std::isalpha(static_cast<unsigned char>(root.front())) == 0) root = "System" + root;
+            std::string model_name = slugify(name);
+            std::replace(model_name.begin(), model_name.end(), '-', '_');
+            if (model_name.empty() || std::isalpha(static_cast<unsigned char>(model_name.front())) == 0) model_name = "model_" + model_name;
+            const Json chosen_identity = body.contains("identity") && body.at("identity").is_object() ? body.at("identity") : Json::object();
+            document["model"] = Json{{"format", "twin-model/1"},
+                                     {"name", model_name},
+                                     {"label", name},
+                                     {"root", root},
+                                     {"time", {{"unit", chosen_identity.value("timeUnit", std::string("s"))},
+                                               {"ticksPerUnit", chosen_identity.value("ticksPerUnit", 1000)}}},
+                                     {"types", Json::array({{{"id", "t_" + model_name}, {"name", root}, {"label", name}}})},
+                                     {"relationshipTypes", default_relationship_types()}};
+        }
     } else {
-        return make_error(ErrorCode::InvalidArgument, "mode is blank, template, clone, import, formal or document").with("mode", mode);
+        return make_error(ErrorCode::InvalidArgument, "mode is blank, template, clone, import, formal, document or model").with("mode", mode);
     }
 
     std::string id = body.value("id", std::string());
@@ -701,6 +763,7 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
         for (const auto section : kBlueprintSections) {
             if (document.contains(std::string(section))) doc[std::string(section)] = document.at(std::string(section));
         }
+        if (is_model_driven(document)) doc["model"] = document.at("model");
     }
     doc["identity"]["name"] = name;
     doc["identity"]["domain"] = domain;
@@ -768,6 +831,13 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
             imports.push_back(Json{{"role", role}, {"filename", f->second.filename}, {"imported", true}});
         }
     }
+    // A model-driven Blueprint derives its formal artefacts and sections from the model.
+    Json model_result = nullptr;
+    if (is_model_driven(v.document)) {
+        auto applied = apply_model(*impl_, services_, v, actor);
+        if (!applied) return std::move(applied).error();
+        model_result = applied.value();
+    }
     auto stored = impl_->store(v, actor);
     if (!stored) return std::move(stored).error();
     {
@@ -781,6 +851,7 @@ Result<Json> BlueprintService::create(const Json& body, const Actor& actor) {
     out["blueprint"] = to_json(bp);
     out["blueprint"]["id"] = id;
     out["imports"] = imports;
+    if (!model_result.is_null()) out["model"] = model_result;
     return out;
 }
 

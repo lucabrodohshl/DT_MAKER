@@ -12,7 +12,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { blueprintApi, blueprintRoute, useBlueprintTemplates, useBlueprints, usePalettes, useInvalidateBlueprints } from '@/api/blueprints';
 import { ApiError } from '@/api/client';
 import { Button, Callout, ErrorBlock, StatusBadge } from '@/design';
-import { WIZARD_STEPS, startWizard } from './wizard';
+import { WIZARD_STEPS } from './wizard';
 import { iconFor } from './icons';
 import './blueprint.css';
 
@@ -108,13 +108,13 @@ export default function NewBlueprintPage() {
     setStep(2);
   };
 
-  const create = async (wizard: boolean) => {
+  const create = async (modelStudio: boolean) => {
     setBusy(true);
     setError(null);
     try {
       const identity = mode === 'clone' || mode === 'import' ? {} : { identity: { runtimeMode, timeUnit, ticksPerUnit: Number(ticks) || 1000, ...(icon ? { icon } : {}) } };
       const body: Record<string, unknown> = {
-        mode,
+        mode: mode === 'blank' && modelStudio ? 'model' : mode,
         name: name.trim(),
         id: effectiveId,
         ...(domain ? { domain } : {}),
@@ -129,12 +129,11 @@ export default function NewBlueprintPage() {
       const r = await blueprintApi.create(body);
       await invalidate();
       const failed = (r.imports ?? []).filter((x) => !x.imported);
-      if (wizard) startWizard(r.blueprintId, r.version);
       if (failed.length > 0) {
         setReport({ id: r.blueprintId, version: r.version, imports: r.imports });
         return;
       }
-      navigate(blueprintRoute(r.blueprintId, r.version, wizard ? 'build/structure' : ''));
+      navigate(blueprintRoute(r.blueprintId, r.version, modelStudio ? 'model' : ''));
     } catch (err) {
       setError(err);
     } finally {
@@ -186,8 +185,8 @@ export default function NewBlueprintPage() {
         </table>
         <div className="row">
           <span className="grow" />
-          <Button variant="primary" onClick={() => navigate(blueprintRoute(report.id, report.version, 'build/structure'))}>
-            Continue to the Blueprint
+          <Button variant="primary" onClick={() => navigate(blueprintRoute(report.id, report.version, 'model'))}>
+            Continue to model
           </Button>
         </div>
       </div>
@@ -419,11 +418,11 @@ export default function NewBlueprintPage() {
           </Button>
         ) : (
           <>
-            <Button size="sm" loading={busy} disabled={!name.trim() || !/^[a-z0-9][a-z0-9-]*$/.test(effectiveId)} onClick={() => void create(false)} title="Create the draft and open the full editor (expert path)">
-              Create and open editor
+            <Button size="sm" loading={busy} disabled={!name.trim() || !/^[a-z0-9][a-z0-9-]*$/.test(effectiveId)} onClick={() => void create(false)} title="Open the section-by-section editor">
+              Advanced editor
             </Button>
             <Button size="sm" variant="primary" icon={<Boxes size={14} />} loading={busy} disabled={!name.trim() || !/^[a-z0-9][a-z0-9-]*$/.test(effectiveId)} onClick={() => void create(true)}>
-              Create and continue (guided)
+              Create model
             </Button>
           </>
         )}

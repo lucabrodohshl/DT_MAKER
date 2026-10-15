@@ -29,7 +29,7 @@ struct Migration {
  * Schema migrations, applied in order; `meta.schema_version` records progress.
  * Never edit a released migration: append a new one.
  */
-constexpr std::array<Migration, 3> kMigrations = {{
+constexpr std::array<Migration, 4> kMigrations = {{
     {R"SQL(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE sequences (name TEXT PRIMARY KEY, next INTEGER NOT NULL);
@@ -262,6 +262,12 @@ INSERT INTO packages_v3 SELECT id, twin_id, directory, package_hash, ir_sha256, 
 DROP TABLE packages;
 ALTER TABLE packages_v3 RENAME TO packages;
 )SQL", true},
+    {R"SQL(
+-- Keep published versions, packages and deployed instances intact when a Blueprint
+-- is removed from the authoring library.
+ALTER TABLE blueprints ADD COLUMN archived_at TEXT;
+CREATE INDEX blueprints_visible ON blueprints(archived_at, name, id);
+)SQL"},
 }};
 
 }  // namespace

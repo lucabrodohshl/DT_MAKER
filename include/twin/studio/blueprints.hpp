@@ -70,6 +70,8 @@ public:
     [[nodiscard]] Result<json::Json> get(std::string_view id);
     /// @brief Update name, description, domain or icon.
     [[nodiscard]] Result<json::Json> update_meta(std::string_view id, const json::Json& body, const Actor& actor);
+    /// @brief Remove a Blueprint from the library while preserving its version and instance history.
+    [[nodiscard]] Result<json::Json> remove(std::string_view id, const Actor& actor);
     /// @brief A version: summary, document, pinned artefact versions, editable flag.
     [[nodiscard]] Result<json::Json> version(std::string_view id, std::int64_t version);
     /// @brief New draft derived from @p from (never mutates a published version).
@@ -95,6 +97,26 @@ public:
     /// @brief Save content ({content}) or pin an existing version ({ref}) for "ontology", "pt_interpretation" or "dt_interpretation".
     [[nodiscard]] Result<json::Json> save_semantics(std::string_view id, std::int64_t version, std::string_view role,
                                                     std::int64_t revision, const json::Json& body, const Actor& actor);
+
+    // ------------------------------------------------------------------ the model (model-driven Blueprints)
+    /// @brief The version's twin model (twin-model/1) with its diagnostics and summary ({model: null} if legacy).
+    [[nodiscard]] Result<json::Json> model_document(std::string_view id, std::int64_t version);
+    /**
+     * @brief Save the version's twin model, compile it and write everything derived from it:
+     * the formal artefacts (V_D, K, I_D; V_P and I_P with a physical reference) and the
+     * structure, data, presentation and assurance sections. A model with errors is stored but
+     * derives nothing (the previous derived state stays until it compiles again).
+     */
+    [[nodiscard]] Result<json::Json> save_model_document(std::string_view id, std::int64_t version, std::int64_t revision,
+                                                         const json::Json& model, const Actor& actor);
+    /// @brief Every generated representation of the version's model (automaton, XML, K, I, OWL/SHACL, RDF, trace).
+    [[nodiscard]] Result<json::Json> generated(std::string_view id, std::int64_t version);
+    /**
+     * @brief Lift the version's pinned Digital Twin View (with K and I_D, and the PT view as the physical
+     * reference) into a twin model; reports whether it compiles back to exactly the pinned automaton.
+     * Nothing is saved.
+     */
+    [[nodiscard]] Result<json::Json> lift_model(std::string_view id, std::int64_t version, const json::Json& body);
 
     // ------------------------------------------------------------------ assurance and test
     /// @brief Section findings (structure, world, data, ...) and the cross-reference index.

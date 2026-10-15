@@ -614,6 +614,7 @@ void StudioServer::Impl::blueprint_routes() {
         return b.create(body.value(), a);
     }, 201);
     route("GET", p + "/blueprints/:id", [&b, id_of](const httplib::Request& r, const auto&) { return b.get(id_of(r)); });
+    route("DELETE", p + "/blueprints/:id", [&b, id_of](const httplib::Request& r, const Actor& a) { return b.remove(id_of(r), a); });
     route("PUT", p + "/blueprints/:id", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
         auto body = body_json(r);
         if (!body) return std::move(body).error();
@@ -664,6 +665,33 @@ void StudioServer::Impl::blueprint_routes() {
         if (!rev) return std::move(rev).error();
         return b.import_model(id_of(r), ver.value(), r.path_params.at("role"), rev.value(), body.value().value("filename", std::string()),
                               body.value().value("content", std::string()), a);
+    });
+    // The twin model (model-driven Blueprints): one document, everything else derived.
+    route("GET", v + "/model", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.model_document(id_of(r), ver.value());
+    });
+    route("PUT", v + "/model", [&b, id_of](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        auto rev = revision_of(body.value());
+        if (!rev) return std::move(rev).error();
+        return b.save_model_document(id_of(r), ver.value(), rev.value(), body.value().value("model", Json()), a);
+    });
+    route("GET", v + "/model/generated", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        return b.generated(id_of(r), ver.value());
+    });
+    route("POST", v + "/model/lift", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
+        auto ver = path_version(r);
+        if (!ver) return std::move(ver).error();
+        auto body = body_json(r);
+        if (!body) return std::move(body).error();
+        return b.lift_model(id_of(r), ver.value(), body.value());
     });
     route("GET", v + "/semantics/:role", [&b, id_of](const httplib::Request& r, const auto&) -> Result<Json> {
         auto ver = path_version(r);

@@ -58,3 +58,7 @@ twin_add_test(scene_unit_tests LABEL unit
 twin_add_test(ingest_unit_tests LABEL unit
     SOURCES ingest/ingest_test.cpp
     DEPS twin::ingest)
+
+twin_add_test(model_unit_tests LABEL unit
+    SOURCES model/expression_test.cpp model/model_test.cpp model/lift_test.cpp
+    DEPS twin::model twin::monitoring)

@@ -94,6 +94,13 @@ struct BlueprintService::Impl {
     [[nodiscard]] Result<std::filesystem::path> template_dir(std::string_view template_id) const;
 };
 
+/// @brief Whether a Blueprint document has a twin model (model-driven Blueprint).
+[[nodiscard]] bool is_model_driven(const json::Json& document);
+/// @brief Whether a section is derived from the model in a model-driven Blueprint.
+[[nodiscard]] bool is_derived_section(std::string_view section);
+/// @brief Compile the model of @p v and write the derived pins and sections into @p v (not stored).
+[[nodiscard]] Result<json::Json> apply_model(BlueprintService::Impl& impl, Services& services, platform::BlueprintVersion& v, const Actor& actor);
+
 /// @brief API form of section findings.
 [[nodiscard]] json::Json to_json(const std::vector<SectionFinding>& findings);
 

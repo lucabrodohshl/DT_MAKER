@@ -1,0 +1,135 @@
+{
+  "format": "twin-model/1",
+  "name": "pump_station",
+  "label": "Pump station",
+  "description": "A centrifugal pump fills a storage tank. The tank's level switches stop and restart the pump; the pump protects itself against over-temperature, motor over-current, start and stop failures and over-long runs.",
+  "root": "PumpStation",
+  "time": {"unit": "s", "ticksPerUnit": 1000},
+  "types": [
+    {
+      "id": "t_station",
+      "name": "PumpStation",
+      "label": "Pump station",
+      "parts": [
+        {"id": "pt_pump", "name": "pump_01", "label": "Pump P-01", "type": "CentrifugalPump"},
+        {"id": "pt_tank", "name": "tank_01", "label": "Tank T-01", "type": "StorageTank"},
+        {"id": "pt_site", "name": "site", "label": "Site", "type": "Site", "external": true}
+      ],
+      "relationships": [
+        {"id": "r_feeds", "type": "feeds", "from": "pump_01", "to": "tank_01"},
+        {"id": "r_pump_site", "type": "locatedIn", "from": "pump_01", "to": "site"},
+        {"id": "r_tank_site", "type": "locatedIn", "from": "tank_01", "to": "site"}
+      ],
+      "links": [
+        {"id": "l_full", "from": "tank_01.level_high", "to": "pump_01.stop"},
+        {"id": "l_empty", "from": "tank_01.level_low", "to": "pump_01.start"}
+      ]
+    },
+    {
+      "id": "t_pump",
+      "name": "CentrifugalPump",
+      "label": "Centrifugal pump",
+      "properties": [
+        {"id": "p_running", "name": "running", "label": "Motor running", "kind": "measured", "type": "boolean", "period": "1"},
+        {"id": "p_bearing", "name": "bearing_temp", "label": "Bearing temperature", "kind": "measured", "type": "real", "unit": "degC",
+         "range": {"min": "-20", "max": "150"}, "period": "1"},
+        {"id": "p_flow", "name": "flow", "label": "Flow", "kind": "measured", "type": "real", "unit": "m3/h", "range": {"min": "0", "max": "120"}, "period": "1"},
+        {"id": "p_limit", "name": "temp_limit", "label": "Bearing temperature limit", "kind": "fixed", "type": "real", "unit": "degC", "value": "90"},
+        {"id": "p_serial", "name": "serial", "label": "Serial number", "kind": "per-twin", "type": "string"}
+      ],
+      "events": [
+        {"id": "e_started", "name": "started", "label": "Started", "origin": "reported", "meaning": "running"},
+        {"id": "e_stopped", "name": "stopped", "label": "Stopped", "origin": "reported", "meaning": "not running"},
+        {"id": "e_overheated", "name": "overheated", "label": "Overheated", "origin": "condition",
+         "when": "bearing_temp > temp_limit", "rearm": "bearing_temp < temp_limit - 5"}
+      ],
+      "actions": [
+        {"id": "a_start", "name": "start", "label": "Start", "unexpected": "ignore"},
+        {"id": "a_stop", "name": "stop", "label": "Stop", "unexpected": "ignore"},
+        {"id": "a_reset", "name": "reset", "label": "Reset fault"}
+      ],
+      "parts": [
+        {"id": "pt_motor", "name": "motor", "label": "Drive motor", "type": "Motor"}
+      ],
+      "relationships": [
+        {"id": "r_drives", "type": "drives", "from": "motor", "to": "self"}
+      ],
+      "behavior": {
+        "timers": [{"id": "x_t", "name": "t", "description": "time in the current state"}],
+        "states": [
+          {"id": "s_idle", "name": "Idle", "initial": true, "meaning": "not running"},
+          {"id": "s_starting", "name": "Starting", "description": "Start requested; waiting for the motor to report running."},
+          {"id": "s_running", "name": "Running", "meaning": "running"},
+          {"id": "s_stopping", "name": "Stopping", "description": "Stop requested; waiting for the motor to report stopped."},
+          {"id": "s_fault", "name": "Fault", "meaning": "not running", "tone": "critical"}
+        ],
+        "groups": [
+          {"id": "g_energized", "name": "Energized", "label": "Energized", "states": ["Starting", "Running", "Stopping"]}
+        ],
+        "transitions": [
+          {"id": "tr_start", "from": ["Idle"], "to": "Starting", "trigger": {"action": "start"}},
+          {"id": "tr_started", "from": ["Starting"], "to": "Running", "trigger": {"event": "started"}},
+          {"id": "tr_start_fail", "from": ["Starting"], "to": "Fault", "trigger": {"timeout": 10}, "description": "The motor did not start within 10 s."},
+          {"id": "tr_stop", "from": ["Running"], "to": "Stopping", "trigger": {"action": "stop"}},
+          {"id": "tr_stopped", "from": ["Stopping"], "to": "Idle", "trigger": {"event": "stopped"}},
+          {"id": "tr_stop_fail", "from": ["Stopping"], "to": "Fault", "trigger": {"timeout": 30}, "description": "The motor did not stop within 30 s."},
+          {"id": "tr_overcurrent", "from": ["Energized"], "to": "Fault", "trigger": {"event": "motor.overcurrent"}},
+          {"id": "tr_overheated", "from": ["Running"], "to": "Fault", "trigger": {"event": "overheated"}},
+          {"id": "tr_run_limit", "from": ["Running"], "to": "Fault", "trigger": {"timeout": 3600}, "description": "Runs longer than the permitted hour."},
+          {"id": "tr_reset", "from": ["Fault"], "to": "Idle", "trigger": {"action": "reset"},
+           "window": [{"timer": "t", "op": ">=", "bound": 60}], "description": "A fault can be reset after 60 s."}
+        ]
+      }
+    },
+    {
+      "id": "t_motor",
+      "name": "Motor",
+      "label": "Induction motor",
+      "properties": [
+        {"id": "p_current", "name": "current", "label": "Current", "kind": "measured", "type": "real", "unit": "A", "range": {"min": "0", "max": "60"}, "period": "1"},
+        {"id": "p_rated", "name": "rated_current", "label": "Rated current", "kind": "fixed", "type": "real", "unit": "A", "value": "12"}
+      ],
+      "events": [
+        {"id": "e_overcurrent", "name": "overcurrent", "label": "Over-current", "origin": "condition",
+         "when": "current > 1.5 * rated_current", "rearm": "current < rated_current"}
+      ]
+    },
+    {
+      "id": "t_tank",
+      "name": "StorageTank",
+      "label": "Storage tank",
+      "properties": [
+        {"id": "p_level", "name": "level", "label": "Level", "kind": "measured", "type": "real", "unit": "%", "range": {"min": "0", "max": "100"}, "period": "5"},
+        {"id": "p_high", "name": "high_level", "label": "High level", "kind": "fixed", "type": "real", "unit": "%", "value": "90"},
+        {"id": "p_low", "name": "low_level", "label": "Low level", "kind": "fixed", "type": "real", "unit": "%", "value": "10"}
+      ],
+      "events": [
+        {"id": "e_high", "name": "level_high", "label": "Level high", "origin": "condition", "when": "level >= high_level", "rearm": "level < high_level - 5"},
+        {"id": "e_low", "name": "level_low", "label": "Level low", "origin": "condition", "when": "level <= low_level", "rearm": "level > low_level + 5"},
+        {"id": "e_normal", "name": "level_normal", "label": "Level normal", "origin": "condition", "when": "level < high_level - 5 and level > low_level + 5"}
+      ],
+      "behavior": {
+        "states": [
+          {"id": "ts_normal", "name": "Normal", "initial": true, "meaning": "level > low_level and level < high_level"},
+          {"id": "ts_high", "name": "High", "meaning": "level >= high_level - 5", "tone": "warning"},
+          {"id": "ts_low", "name": "Low", "meaning": "level <= low_level + 5", "tone": "warning"}
+        ],
+        "transitions": [
+          {"id": "tt_high", "from": ["Normal"], "to": "High", "trigger": {"event": "level_high"}},
+          {"id": "tt_high_back", "from": ["High"], "to": "Normal", "trigger": {"event": "level_normal"}},
+          {"id": "tt_low", "from": ["Normal"], "to": "Low", "trigger": {"event": "level_low"}},
+          {"id": "tt_low_back", "from": ["Low"], "to": "Normal", "trigger": {"event": "level_normal"}}
+        ]
+      }
+    },
+    {"id": "t_site", "name": "Site", "label": "Site", "description": "The plant site (shared by every twin)"}
+  ],
+  "relationshipTypes": [
+    {"id": "rt_feeds", "name": "feeds", "label": "feeds", "inverse": "fedBy", "from": ["CentrifugalPump"], "to": ["StorageTank"]},
+    {"id": "rt_located", "name": "locatedIn", "label": "located in", "to": ["Site"]},
+    {"id": "rt_drives", "name": "drives", "label": "drives", "inverse": "drivenBy"}
+  ],
+  "requirements": [
+    {"id": "q_fault", "name": "pump_never_faults", "title": "The pump never enters Fault", "kind": "never", "state": "pump_01.Fault", "severity": "critical"}
+  ]
+}

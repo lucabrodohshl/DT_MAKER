@@ -5,10 +5,11 @@
  * artefacts, recent engineering activity). States are the backend's: "verification required"
  * is a draft whose release gate does not pass for exactly its inputs.
  */
-import { BookOpen, Copy, FileCode2, FileUp, GitPullRequest, LayoutTemplate, Lock, Plus, Search, ShieldCheck, Workflow } from 'lucide-react';
+import { BookOpen, Copy, FileCode2, FileUp, GitPullRequest, LayoutTemplate, Lock, Plus, Search, ShieldCheck, Workflow, X } from 'lucide-react';
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { blueprintRoute, useBlueprintTemplates, useBlueprints } from '@/api/blueprints';
+import { blueprintApi, blueprintRoute, useBlueprintTemplates, useBlueprints, useInvalidateBlueprints } from '@/api/blueprints';
 import { api } from '@/api/client';
 import { useArtifacts, useChanges, useEngineeringMutation, useTwin } from '@/api/queries';
 import type { ArtifactKind, AssetDetail, BlueprintListItem, VersionDetail } from '@/api/types';
@@ -126,12 +127,13 @@ function NewAssetPanel({ twinId }: { twinId: string }) {
 
 type Shelf = 'all' | 'drafts' | 'published' | 'verify' | 'recent';
 
-function BlueprintCard({ b }: { b: BlueprintListItem }) {
+function BlueprintCard({ b, onDelete }: { b: BlueprintListItem; onDelete: (b: BlueprintListItem) => void }) {
   const open = b.draft ?? b.latest;
-  const to = open ? blueprintRoute(b.id, open.version) : `/studio/blueprints/${encodeURIComponent(b.id)}`;
+  const to = open ? blueprintRoute(b.id, open.version, 'model') : `/studio/blueprints/${encodeURIComponent(b.id)}`;
   return (
     <article className="vts-bp-card" aria-label={b.name}>
       <Link to={to} className="vts-bp-card__open" aria-label={`Open ${b.name}`} />
+      <button type="button" className="vts-bp-card__delete" aria-label={`Delete ${b.name}`} title={`Delete ${b.name}`} onClick={() => onDelete(b)}><X size={16} aria-hidden="true" /></button>
       <div className="vts-bp-card__top">
         <div className="vts-bp-card__icon">{iconFor(b.icon)}</div>
         <div className="stack-sm" style={{ gap: 2, minWidth: 0 }}>
@@ -158,12 +160,12 @@ function BlueprintCard({ b }: { b: BlueprintListItem }) {
       </div>
       <div className="vts-bp-card__actions">
         {b.draft && (
-          <Link to={blueprintRoute(b.id, b.draft.version)} className="vts-btn vts-btn--sm vts-btn--primary">
+          <Link to={blueprintRoute(b.id, b.draft.version, 'model')} className="vts-btn vts-btn--sm vts-btn--primary">
             Open draft
           </Link>
         )}
         {b.published && (
-          <Link to={blueprintRoute(b.id, b.published.version)} className="vts-btn vts-btn--sm vts-btn--secondary">
+          <Link to={blueprintRoute(b.id, b.published.version, 'model')} className="vts-btn vts-btn--sm vts-btn--secondary">
             v{b.published.version}
           </Link>
         )}
@@ -186,6 +188,12 @@ export default function StudioHomePage() {
   const twinId = params.get('twin');
   const navigate = useNavigate();
   const blueprints = useBlueprints();
+  const invalidateBlueprints = useInvalidateBlueprints();
+  const [deleteTarget, setDeleteTarget] = useState<BlueprintListItem | null>(null);
+  const removeBlueprint = useMutation({
+    mutationFn: blueprintApi.remove,
+    onSuccess: async () => { await invalidateBlueprints(); setDeleteTarget(null); },
+  });
   const templates = useBlueprintTemplates();
   const changes = useChanges('open');
   const artifacts = useArtifacts();
@@ -280,12 +288,26 @@ export default function StudioHomePage() {
           ) : (
             <div className="vts-bp-cards">
               {shown.map((b) => (
-                <BlueprintCard key={b.id} b={b} />
+                <BlueprintCard key={b.id} b={b} onDelete={(target) => { removeBlueprint.reset(); setDeleteTarget(target); }} />
               ))}
             </div>
           )
         }
       </QueryState>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !removeBlueprint.isPending) setDeleteTarget(null); }}
+        title={`Delete ${deleteTarget?.name ?? 'Blueprint'}?`}
+        description="This removes the Blueprint from the library. Its saved versions and any existing instances are retained.">
+        <div className="stack">
+          <p className="small">Delete <strong>{deleteTarget?.name}</strong> from your Blueprint list?</p>
+          {deleteTarget && deleteTarget.instanceCount > 0 && <p className="small muted">{deleteTarget.instanceCount} existing instance{deleteTarget.instanceCount === 1 ? '' : 's'} will continue using this Blueprint.</p>}
+          {removeBlueprint.error && <ErrorBlock error={removeBlueprint.error} compact />}
+          <div className="row"><span className="grow" />
+            <Button onClick={() => setDeleteTarget(null)} disabled={removeBlueprint.isPending}>Cancel</Button>
+            <Button variant="danger" loading={removeBlueprint.isPending} onClick={() => { if (deleteTarget) removeBlueprint.mutate(deleteTarget.id); }}>Delete Blueprint</Button>
+          </div>
+        </div>
+      </Dialog>
 
       <Panel title="Templates" subtitle="Domain starting points: asset types, world palette, simulator and data contract">
         <QueryState query={templates} isEmpty={(d) => d.length === 0} empty={<EmptyState compact title="No templates installed" />}>
