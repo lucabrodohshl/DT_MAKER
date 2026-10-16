@@ -32,11 +32,10 @@ SHOTS = DOCS / "screenshots"
 PAGES = [
     ("studio/README.md", "index.html", "Overview", "Start here"),
     ("studio/getting-started.md", "getting-started.html", "Getting started", "Start here"),
-    (None, "tour.html", "Screenshot tour", "Start here"),
-    ("studio/tutorial-first-twin.md", "tutorial-first-twin.html", "Tutorial: build your first twin", "Start here"),
+    ("studio/tutorial-first-twin.md", "tutorial-first-twin.html", "Create your first twin", "Start here"),
     ("studio/tutorial-connect-real-twin.md", "tutorial-connect-real-twin.html", "Tutorial: connect a real twin", "Start here"),
-    ("studio/blueprints.md", "blueprints.html", "Twin Blueprints", "Designing twins"),
-    ("studio/blueprint-workspace.md", "blueprint-workspace.html", "The Blueprint workspace", "Designing twins"),
+    ("studio/blueprints.md", "blueprints.html", "Twin designs", "Designing twins"),
+    ("studio/blueprint-workspace.md", "blueprint-workspace.html", "The twin design editor", "Designing twins"),
     ("studio/scenarios-and-preview.md", "scenarios-and-preview.html", "Scenarios & preview", "Designing twins"),
     ("studio/blueprint-release.md", "blueprint-release.html", "Release, instances & deployment", "Designing twins"),
     ("studio/operations.md", "operations.html", "Operations", "Using Studio"),
@@ -338,7 +337,7 @@ def main() -> int:
             body, toc, source = tour_body(), "", "scripts/docs/build_site.py (TOUR)"
         if page == "index.html":
             body = body.replace("</h1>", "</h1>\n" + '<p class="lead">The operations and engineering console for verified digital twins. '
-                                '<a href="getting-started.html">Get started</a> · <a href="tour.html">Screenshot tour</a> · '
+                                '<a href="getting-started.html">Get started</a> · <a href="tutorial-first-twin.html">Create your first twin</a> · '
                                 '<a href="tutorial-evolving-an-ontology.html">Tutorial</a></p>', 1)
         prev_ = PAGES[i - 1] if i > 0 else None
         next_ = PAGES[i + 1] if i + 1 < len(PAGES) else None
