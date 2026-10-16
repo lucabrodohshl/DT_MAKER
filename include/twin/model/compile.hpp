@@ -15,8 +15,7 @@
  *    that produced it.
  *
  * Compilation is a pure function of the document's semantic content and
- * kCompilerVersion: no clock, no randomness, no I/O. Rules are numbered as in
- * docs/superpowers/specs/2026-10-15-model-once-studio/04-compilation.md.
+ * kCompilerVersion: no clock, no randomness, no I/O. See docs/model-architecture.md.
  */
 #pragma once
 

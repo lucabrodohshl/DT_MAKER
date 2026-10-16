@@ -24,6 +24,10 @@
   font-size: var(--text-md);
   white-space: nowrap;
 }
+.vts-brand__mark { width: 28px; height: 28px; flex: none; border-radius: 5px; object-fit: contain; }
+.vts-brand__mark--dark { display: none; }
+:root[data-theme="dark"] .vts-brand__mark--light { display: none; }
+:root[data-theme="dark"] .vts-brand__mark--dark { display: block; }
 .vts-nav { padding: var(--s-2) var(--s-2) var(--s-6); }
 .vts-nav__group { margin-top: var(--s-2); }
 .vts-nav__group ul { list-style: none; margin: 0; padding: 0; }

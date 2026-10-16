@@ -4,7 +4,7 @@
  * @ingroup platform
  *
  * @defgroup platform Studio platform (persistence and lifecycle)
- * @brief Authoritative engineering and operational records of Verified Twin Studio.
+ * @brief Authoritative engineering and operational records of Doppelganger.
  *
  * All Studio records except immutable content live in one SQLite database
  * (`<data-dir>/studio.db`, WAL mode). Immutable content (ontology texts,

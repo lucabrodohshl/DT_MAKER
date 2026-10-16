@@ -1,4 +1,4 @@
-# twin::studio — Verified Twin Studio application services (use cases behind the
+# twin::studio — Doppelganger application services (use cases behind the
 # HTTP API), the live event hub and the HTTP server. Formal conclusions are
 # delegated to twin::ontology, twin::alignment, twin::compiler and twin::package;
 # behavioural state is proxied from twin-runtime, never computed here.

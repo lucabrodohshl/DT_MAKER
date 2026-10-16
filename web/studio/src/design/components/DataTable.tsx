@@ -46,6 +46,8 @@ export function DataTable<T>({
   empty,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
+  // TanStack Table returns callable state; the React Compiler correctly skips this hook.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

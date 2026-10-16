@@ -25,7 +25,7 @@ add_subdirectory(compiler)
 add_subdirectory(alignment)
 add_subdirectory(authoring)
 add_subdirectory(model)
-if(TWIN_BUILD_STUDIO)  # Verified Twin Studio (docs/studio/); see cmake/Dependencies.cmake
+if(TWIN_BUILD_STUDIO)  # Doppelganger (docs/studio/); see cmake/Dependencies.cmake
     add_subdirectory(ontology)
     add_subdirectory(platform)
     add_subdirectory(studio)

@@ -1,4 +1,4 @@
-# twin::ontology — formal ontology services for Verified Twin Studio:
+# twin::ontology — formal ontology services for Doppelganger:
 # strict .ont/.interp parsing, validation, structural diff, refinement (Def. 4),
 # alignment preservation (Theorem 3) and 3-valued interpretation evaluation.
 # The authoritative theory is the aligner's reading (aligner::semalign + Z3);

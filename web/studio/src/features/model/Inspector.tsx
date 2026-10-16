@@ -14,6 +14,7 @@ import {
   dependents,
   effective,
   locate,
+  newId,
   parseDeclaration,
   remove,
   renameMember,
@@ -76,7 +77,7 @@ function Commit({ value, onCommit, mono, placeholder, disabled, multiline, error
   };
   return (
     <div style={{ minWidth: 0 }}>
-      {multiline ? <textarea rows={2} {...props} /> : <input {...props} />}
+      {multiline ? <textarea rows={ariaLabel === 'Formal ontology declarations' ? 9 : 2} {...props} /> : <input {...props} />}
       {msg && <div className="ms-err">{msg}</div>}
     </div>
   );
@@ -158,7 +159,7 @@ function ModelInspector() {
   const root = rootType(doc);
   return (
     <>
-      <Head kind="Model" title={doc.label ?? doc.name} sub={doc.name} />
+      <Head kind="Twin design" title={doc.label ?? doc.name} sub={doc.name} />
       <Block title="Model">
         <Fld label="Label">
           <Commit value={doc.label ?? ''} disabled={!m.editable} onCommit={(v) => m.apply({ doc: { ...doc, label: v || undefined }, label: 'Rename model' })} />
@@ -171,6 +172,14 @@ function ModelInspector() {
         </Fld>
         <Fld label="Time unit">
           <span className="ms-mono">{doc.time?.unit ?? 's'} · {doc.time?.ticksPerUnit ?? 1000} ticks</span>
+        </Fld>
+      </Block>
+      <Block title="Formal ontology (.ont)">
+        <div className="ms-note">Add one declaration per line in the ontology language. These lines are saved in the twin design and included whenever the formal ontology is compiled. Examples: sort Temperature; fun limit : Temperature; axiom safe : (&lt; temperature limit).</div>
+        <Fld label="Extra declarations" top>
+          <Commit multiline mono value={(doc.declarations ?? []).join('\n')} disabled={!m.editable}
+            ariaLabel="Formal ontology declarations"
+            onCommit={(v) => m.apply({ doc: { ...doc, declarations: v.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }, label: 'Edit formal ontology' })} />
         </Fld>
       </Block>
       <Block title="Relationship vocabulary" count={(doc.relationshipTypes ?? []).length}>
@@ -280,6 +289,26 @@ function TypeInspector({ type }: { type: AssetType }) {
             {declErr ? <div className="ms-err">{declErr}</div> : <div className="ms-note">name: type unit [measured|fixed|per-twin] [min..max] [= value]</div>}
           </div>
         )}
+      </Block>
+      <Block title="Formal assumptions" count={(type.assumptions ?? []).length}
+        action={m.editable && <button type="button" onClick={() => m.apply((d) => {
+          const dd = structuredClone(d);
+          const target = typeByName(dd, type.name)!;
+          target.assumptions = [...(target.assumptions ?? []), { id: newId('as'), name: `assumption_${(target.assumptions?.length ?? 0) + 1}`, expr: 'true' }];
+          return { doc: dd, label: 'Add formal assumption' };
+        })}>+ assumption</button>}>
+        <div className="ms-note">These constraints become axioms in the compiled formal ontology.</div>
+        {(type.assumptions ?? []).map((a) => <div key={a.id} className="stack-sm">
+          <Fld label="Axiom name"><Commit mono value={a.name} disabled={!m.editable} onCommit={(v) => m.apply((d) => {
+            const dd = structuredClone(d); typeByName(dd, type.name)!.assumptions!.find((x) => x.id === a.id)!.name = v;
+            return { doc: dd, label: 'Rename formal assumption' };
+          })} /></Fld>
+          <Fld label="Formula"><Commit mono multiline value={a.expr} disabled={!m.editable} onCommit={(v) => m.apply((d) => {
+            const dd = structuredClone(d); typeByName(dd, type.name)!.assumptions!.find((x) => x.id === a.id)!.expr = v;
+            return { doc: dd, label: 'Edit formal assumption' };
+          })} /></Fld>
+          {m.editable && <button type="button" className="vts-btn vts-btn--sm" onClick={() => del(a.id)}>Delete assumption</button>}
+        </div>)}
       </Block>
       <Block
         title="Events"

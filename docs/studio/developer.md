@@ -23,6 +23,10 @@
 - **`twin-studio`** owns the engineering lifecycle and the platform data. It never executes
   behaviour itself: timing windows and scenarios run on the semantic kernel library, previews and
   deployed instances run `twin-runtime` processes under its supervisor.
+- **The canonical twin model** (`include/twin/model`, `src/model`) is the source of the new
+  Structure and Behavior editor. Its compiler derives the timed automaton, formal .ont theory,
+  interpretations, RDF projections and contract. The model API saves with revision checks and
+  returns diagnostics and a semantic digest. The browser never compiles these outputs itself.
 - **Blueprints** (`BlueprintService`, `include/twin/studio/blueprints.hpp`) compose the existing
   authorities — validators, aligner, compiler, kernel, package verifier — and record evidence
   for exactly a version's inputs. Every mutating operation appends an engineering-audit record.
@@ -39,6 +43,7 @@
 | `include/twin/ontology`, `src/ontology` | Strict `.ont`/`.interp` parser, validation, three-valued evaluation, structural diff, refinement checker |
 | `include/twin/platform`, `src/platform` | Database, object store, artefacts and lifecycle, evidence and applicability, audit, assets, telemetry, twins/packages/deployments, app log |
 | `include/twin/studio`, `src/studio` | Services (core, artefacts, checks, release, ops), HTTP server, SSE events, seed, runtime bridge |
+| `include/twin/model`, `src/model` | Canonical twin-model/1 document, validation, compilation, lifting, trace and derived artefacts |
 | `src/studio/blueprints_*.cpp` | Blueprint service: catalogue and sections (`core`), validation and world rasterisation (`validate`), formal artefacts, alignment and compilation (`formal`), timing windows and scenarios (`test`), previews (`preview`), release gate, package, instances and deployment (`release`), live monitors (`monitors`) |
 | `src/studio/supervisor.cpp` | Deployment supervisor of instance and preview processes |
 | `apps/twin-studio` | `serve`, `seed`, `demo`, `version` |
@@ -49,6 +54,7 @@
 | `web/studio/src/design` | Design system: tokens, components, tables, graph layout |
 | `web/studio/src/features` | One folder per product area |
 | `web/studio/src/features/blueprint` | The Blueprint workspace: pages per section, the timed-automaton canvas (`ta/`), the world editor (`world/`), semantics editors, the Scenario Builder (`test/`), the guided wizard, undo/redo and reference-following renames |
+| `web/studio/src/features/model` | New Structure, Behavior and Generated editor with one undo history, autosave and compiled output trace |
 | `web/studio/src/features/studio` | Studio home and navigation |
 | `web/studio/src/plugins` | Plugin contract, registry and the drone reference plugin |
 | `examples/*` | The drone, pump and thermal-chamber examples (Blueprint documents, models, ontologies, interpretations, evolutions, seed data) |
@@ -76,20 +82,19 @@ cd web/studio && npm ci && npm run build
 
 ## Documentation website
 
-The manual in `docs/studio/*.md` is the single source. `python3 scripts/docs/build_site.py`
-(also run by `npm run build` and `make docs-site`) renders it into a static website in
-`web/studio/dist/docs`. The site has:
-- sidebar navigation, full-text search and a table of contents per page
-- a screenshot tour and click-to-enlarge screenshots
-- light and dark themes
+The manual lives in `docs/` and is built by VitePress. It has its own package and lockfile:
 
-`twin-studio` serves it at `/docs/`, and the app's **Help** link and the *Learn more* links on
-key pages point into it. The site uses relative links only, so it also works when opened
-from disk. It needs Python-Markdown (`pip install markdown`).
+```bash
+cd docs && npm ci && npm run dev
+```
+
+`npm run check` builds the static site and validates its routes and assets. The app may bundle
+the resulting files at `/docs/`, but the site does not call the app or its APIs. See
+[Docs hosting](hosting.md) for a standalone preview and deployment settings.
 
 ## API contract
 
-- **Studio API**: [`api/studio.openapi.yaml`](../../api/studio.openapi.yaml), served under
+- **Studio API**: [`api/studio.openapi.yaml`](https://github.com/lucabrodohshl/DT_MAKER/blob/main/api/studio.openapi.yaml), served under
   `/api/v1`. Errors have the shape `{error: {code, message, context: [{key, value}]}}`. The
   HTTP status codes are:
   - 400: invalid argument, parse error, time not representable
@@ -108,8 +113,8 @@ from disk. It needs Python-Markdown (`pip install markdown`).
   operation of a running server, with identifiers discovered from it, and validates the
   responses against the specification (Blueprints, versions, sections, previews, instances and
   their monitors included). `make api-check` runs both.
-- **Runtime API** (through the proxy): [`api/runtime.openapi.yaml`](../../api/runtime.openapi.yaml)
-  and [`../runtime-api.md`](../runtime-api.md).
+- **Runtime API** (through the proxy): [`api/runtime.openapi.yaml`](https://github.com/lucabrodohshl/DT_MAKER/blob/main/api/runtime.openapi.yaml)
+  and [the runtime API guide](runtime-api.md).
 - **Live events**: `GET /api/v1/stream`, SSE with `seq`, server `epoch` and `lastEventId`
   resume. A `resync` event, or a new epoch, tells clients to refetch.
 - **Schema evolution** is explicit:
@@ -121,12 +126,21 @@ from disk. It needs Python-Markdown (`pip install markdown`).
 
 ## Testing
 
+The OpenAPI contract checks use the Python packages in `scripts/openapi/requirements.txt`.
+Install them in a local virtual environment before running `make api-check`:
+
+```bash
+python3 -m venv .venv-build
+.venv-build/bin/python -m pip install -r scripts/openapi/requirements.txt
+PATH="$PWD/.venv-build/bin:$PATH" make api-check
+```
+
 | Suite | Command | Covers |
 |---|---|---|
 | C++ unit and integration | `ctest --test-dir build/studio-release -L studio` | Parser, validation, evaluation, diff, refinement corpus (CS1–CS8, drone, pump), platform repositories, lifecycle, applicability, audit chain, services, HTTP API, proxy, SSE; Blueprints (`studio_blueprint_tests`): creation, sections and revisions, validation, the drone and pump Blueprints end to end, timing windows and scenarios, release gate, package and bundle, instances, deployment, previews, live monitors |
 | Frontend unit and component | `cd web/studio && npm test` | Stream ordering/gaps/pause, logical time, prediction tree, telemetry gaps/quality/CSV, schemas, graph layout, replay accessors; trust badges, error states, refinement verdicts, publish gating and 409, diagnostics, rollback reason, audit-chain failure (API mocked with MSW, in tests only) |
 | End-to-end | `cd web/studio && npm run e2e` (against a running stack; `STUDIO_URL` to point elsewhere) | Asset → telemetry → behaviour → *Why?* → prediction → ledger verification → replay → ledger export; the ontology journey (draft, diagnostics, validate, refinement, impact, publish gating); the drone integration; `blueprint-studio.spec.ts`: a thermal-chamber twin built from scratch to a deployed, monitored instance, the drone preview, the Scenario Builder refusing an illegal step |
-| Screenshots | `scripts/capture-screenshots.sh` | Regenerates `docs/screenshots/` (including both tutorials and the Studio tour: `scripts/screenshots/first-twin.mjs`, `scripts/screenshots/studio.mjs`) from an isolated stack |
+| Screenshots | `scripts/capture-screenshots.sh` | Runs an isolated seeded stack and captures the current interface in `docs/screenshots/current/` plus the README hero with `scripts/screenshots/current.mjs` |
 
 If `npx playwright install` is not possible, set `PLAYWRIGHT_CHROMIUM` to an existing Chromium
 binary.

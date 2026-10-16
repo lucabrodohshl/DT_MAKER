@@ -1,7 +1,7 @@
 # Doxygen configuration of the Verified Twin Execution Kernel and Studio C++ code.
 # Generate with:  make docs   (or: cmake --build build/<preset> --target docs, or: doxygen docs/Doxyfile)
 # Output: build/docs/html/index.html. Paths are relative to the repository root (the working directory).
-PROJECT_NAME           = "Verified Twin Studio — C++ engine"
+PROJECT_NAME           = "Doppelganger — C++ engine"
 PROJECT_BRIEF          = "Verified Digital Twin execution: compiler, semantic kernel, runtime, ledger, platform"
 OUTPUT_DIRECTORY       = build/docs
 CREATE_SUBDIRS         = NO

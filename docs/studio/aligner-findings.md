@@ -2,7 +2,7 @@
 
 These findings come from building Studio's ontology services (`twin::ontology`)
 on top of SemPTDTAlignmentICSE. They extend the compiler/alignment findings
-in [`../existing-aligner-integration.md`](../existing-aligner-integration.md).
+in [aligner integration](existing-aligner-integration.md).
 As with those, nothing in `SemPTDTAlignmentICSE/` is modified. Studio either
 compensates for each behaviour or reports it.
 

@@ -1,4 +1,4 @@
-# Verified Twin Studio — C++ engine {#mainpage}
+# Doppelganger — C++ engine {#mainpage}
 
 This is the API reference of the C++ code: the formal toolchain, the semantic kernel, the
 production runtime, the tamper-evident ledger, the Physical Twin simulators and the Studio
@@ -22,7 +22,7 @@ for what must be correct for this to hold.
 | @ref planner | `twin::planner` | A* route proposals | no |
 | @ref world | `twin::world` | drone Physical Twin, building-information service | no (physical side) |
 | @ref ptfeed | `twin::ptfeed` | scripted Physical Twin feeds | no |
-| @ref studio | `twin::studio` | Verified Twin Studio application layer and HTTP API | no |
+| @ref studio | `twin::studio` | Doppelganger application layer and HTTP API | no |
 
 ## One observation, end to end
 

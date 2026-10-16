@@ -1,180 +1,93 @@
-# Verified Twin Studio
+# Doppelganger
 
-**A domain-agnostic Digital Twin platform for designing, verifying, releasing and operating
-digital twins: Twin Blueprints, live operations, semantic interpretation, verified behavioural
-execution, prediction, planning, auditability and semantic lifecycle management.** Every
-behavioural conclusion is computed by a small semantic
-kernel. That kernel executes a model whose alignment with the physical system has been formally
-verified, and every decision it takes is recorded in a tamper-evident ledger that anyone can
-replay.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/public/brand/doppelganger-dark.png">
+  <img src="docs/public/brand/doppelganger-light.png" alt="Doppelganger logo: two mirrored profiles and an infinity loop" width="128" height="128">
+</picture>
 
-![Verified Twin Studio — the drone twin replans after discovering a closed fire door](docs/screenshots/verified-twin-studio-drone-hero.png)
+Doppelganger is a local platform for designing, verifying and operating digital twins. You describe a twin's structure and behavior in one design, inspect the generated formal models, verify a release, and run instances against a simulator or a plant connection. The runtime's semantic kernel decides state transitions and records them in a tamper-evident ledger.
 
-*Above: the indoor-inspection drone has just observed that fire door FD-2, which the facility
-plan shows open, is closed. Its twin has invalidated the route and entered `REPLANNING`. The
-planner has proposed three candidate routes, each checked for geometric feasibility on the
-twin's **known** map and for behavioural admissibility by the **kernel**. Left: the physical
-world (simulator ground truth). Right: what the twin knows.*
+It is intended for engineers exploring formal digital-twin workflows, developers extending the platform, and researchers who need to inspect the relationship between a model, its runtime behavior and its evidence.
+
+![The indoor drone twin in Doppelganger](docs/screenshots/doppelganger-drone-hero.png)
+
+*The bundled drone example shows the physical simulation beside the twin's known map. See the [operations guide](docs/studio/operations.md) for the meaning of the runtime views.*
+
+## What you can do
+
+- **Design a twin:** edit asset types, parts, properties, events, states and timed transitions in Structure and Behavior. The server generates a timed automaton, formal ontology, interpretation, RDF projections and data contract.
+- **Verify a release:** validate the saved design, inspect alignment and release evidence, build a verified package and publish an immutable version.
+- **Operate an instance:** deploy a published design, connect live data over supported REST or MQTT plant inputs, inspect telemetry and conformance, and replay recorded decisions.
+- **Explore examples:** the repository includes a drone with an evolving map, an industrial pump, and a thermal chamber tutorial.
+
+The browser presents data and results. Formal checks run in the backend, and the runtime kernel is the authority for behavioral state and admissible transitions. The [guarantees and limits](docs/limitations.md) explain the scope of these claims.
 
 ## Quick start
+
+Install CMake 3.25+, a C++20 compiler, Node.js 20.19+ or 22.12+, npm, Python 3, curl, Git, flex, GNU bison 3.6+ and the Z3 development library. On macOS, `brew install z3 bison flex` supplies the last three. The first build fetches and compiles pinned UPPAAL libraries.
 
 ```bash
 make demo
 ```
 
-Then open **http://127.0.0.1:8080**. The first run builds the C++ engine and the web UI and seeds
-two example twins; later runs start in seconds. In **Your twins**, open **Drone-01** and press
-**Start mission** on its mission map. To design a twin of your own, switch to **Studio** and
-follow [Build Your First Twin](docs/studio/tutorial-first-twin.md).
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) when the command prints the URL. Choose **Running twins** to inspect the seeded drone and pump, or **Twin designs → New twin design** to start authoring. Press `Ctrl-C` in the terminal to stop the local stack. Demo data is stored in `var/demo/`; `make demo-fresh` resets that data deliberately.
 
-Requirements: macOS or Linux, CMake ≥ 3.25, a C++20 compiler, Node ≥ 20, Python 3, Z3
-(`brew install z3`). `scripts/bootstrap-deps.sh` builds the pinned UPPAAL libraries (UTAP, UDBM)
-on first use.
+For individual setup steps, see [installation](docs/installation.md) and [troubleshooting](docs/troubleshooting.md). The [first-twin tutorial](docs/studio/tutorial-first-twin.md) walks through a thermal chamber from a blank design.
 
-**macOS app.** `make macos-app` builds `dist/macos/Verified Twin Studio.app` and a `.dmg`. The app
-is self-contained: it bundles every component and the only non-system library (Z3). Double-click
-it, and it starts the whole product in the background and opens the browser. Its menu-bar item
-offers Open, Show Data/Logs, Reset Demo Data and Quit; Quit stops every component. Data lives in
-`~/Library/Application Support/Verified Twin Studio`. The app is signed ad hoc; to distribute it
-to other Macs, sign it with a Developer ID and notarize it (see `scripts/macos/build-app.sh`).
+## Documentation website
 
-## What happens in the demo
+The [documentation](docs/index.md) is a separate VitePress static site. It can run with the application, backend and database stopped:
 
-| | |
+```bash
+cd docs
+npm ci
+npm run dev
+```
+
+`npm run check` builds the site and validates links, pages, search assets and screenshots. `npm run preview` serves the production output from `docs/.vitepress/dist/`. The app bundles the same static site under **Help** at `/docs/`, but the documentation does not call the application. [Hosting instructions](docs/hosting.md) cover a standalone domain or static host.
+
+Start with the [interface guide](docs/studio/getting-started.md), then choose a task:
+
+| Task | Guide |
 |---|---|
-| 1. A mission starts | The twin of Drone-01 executes its verified mission-supervisor model: `READY → TAKING_OFF → NAVIGATING`. |
-| 2. Partial knowledge | The twin knows only the facility plan. That plan is outdated: it shows fire door FD-2 open and does not know the refurbished office. |
-| 3. Discovery | The drone's lidar sees the closed door. The building-information service publishes the observation, and the twin's map changes. |
-| 4. Semantic consequence | The route is now invalid. The twin proposes `path_invalidated!`, and the **kernel** accepts it: `NAVIGATING → REPLANNING`. |
-| 5. Planning | The untrusted planner proposes candidates A, B and C. Each is checked geometrically and by the kernel (its event schedule simulated on a copy of the state). |
-| 6. Decision | `plan_accepted!` takes the twin `REPLANNING → NAVIGATING`, and the drone flies the new route. |
-| 7. Second change | A facility notice declares a no-fly zone in the server room, which forces a second replan through the unmapped office. |
-| 8. Completion | The drone inspects both targets, returns and lands. Every transition is in the ledger: **Verify ledger**, then **Replay mission**. |
+| Create and inspect a design | [Create your first twin](docs/studio/tutorial-first-twin.md) |
+| Feed an instance from a real system | [Connect a running twin](docs/studio/tutorial-connect-real-twin.md) |
+| Change a formal theory safely | [Evolve an ontology](docs/studio/tutorial-evolving-an-ontology.md) |
+| Understand the implementation | [Architecture](docs/architecture.md), [canonical model](docs/model-architecture.md), [developer guide](docs/studio/developer.md) |
+| Integrate with the runtime | [Runtime API](docs/runtime-api.md), [OpenAPI contracts](api/) |
 
-The same generic screens also serve a second twin: an industrial process pump, monitored from
-its control system's events and telemetry, with no domain-specific UI code.
+## Build and test
 
-## Designing twins
+```bash
+cmake --preset studio-release
+cmake --build build/studio-release -j 8
+ctest --test-dir build/studio-release --output-on-failure
 
-In **Studio** mode a type of twin is designed as a **Twin Blueprint**: structure (asset types,
-assets, relationships), world and layout (a spatial map, a topology or a diagram, with ground
-truth kept apart from the twin's knowledge), data contract and connectivity, the Physical System
-View and the Digital Twin View as timed automata, the ontology and the interpretations,
-requirements, monitors and scenarios. The Scenario Builder shows when each event may happen as
-computed by the kernel; **Run all checks** validates, aligns and compiles; the release gate
-admits a version only on evidence for exactly its inputs. A release is a **Verified Core
-Package** (formally verified) plus a **Deployment Bundle** (integrity-protected); instances are
-created from it and deployed by Studio's supervisor, then monitored in **Operate**. The drone
-and the pump ship as Blueprints; `examples/thermal-chamber` holds a third, built from scratch in
-the tutorial. See [Twin Blueprints](docs/studio/blueprints.md).
-
-## Architecture in one picture
-
-```
- PHYSICAL SYSTEM ─ observations ─▶ TELEMETRY ─▶ SEMANTIC INTERPRETATION (label equivalence E from alignment)
-                                                        │
-                                                        ▼
-                                   VERIFIED TWIN STATE (semantic kernel, logical time)
-                                     │            │                     │
-                                     ├─▶ PREDICTION (on copies)         │
-                                     ├─▶ PLANNER (proposals only) ──────┤
-                                     ▼                                  ▼
-                              ACTION / EXECUTION ──────▶ TAMPER-EVIDENT LEDGER (hash chain, replay)
-
- ONTOLOGY + INTERPRETATIONS + PT/DT MODELS ─▶ FORMAL VERIFICATION (SemPTDTAlignmentICSE, Z3)
-     ─▶ COMPILER (translation-validated) ─▶ VERIFIED PACKAGE (hashes + evidence) ─▶ DEPLOYED TWIN
+cd web/studio
+npm ci
+npm run typecheck
+npm run lint
+npm test
 ```
 
-| Process | Port | Role |
-|---|---|---|
-| `twin-studio` | 8080 | Platform API, persistence (SQLite + content-addressed store), web UI, runtime proxy |
-| `twin-runtime` | 8090 / 8092 | One per twin: verified package → session → kernel → ledger; REST + SSE |
-| `twin-world` | 8091 | Drone Physical Twin simulator and building-information service (ground truth lives here) |
-| `twin-pt-feed` | – | Scripted pump control system (events + consistent telemetry) |
-| `twin-ingest` | 19000+ | Plant connection of a deployed instance: REST endpoint, MQTT endpoint, broker subscription (started by Studio) |
+`make build` builds the C++ and web application; `make test-web` runs frontend checks; `make docs-site` checks the independent docs. Browser end-to-end tests use `cd web/studio && npx playwright test` against a running demo. The [contributor guide](CONTRIBUTING.md) has the development workflow.
 
-Details: [docs/architecture.md](docs/architecture.md).
+## Repository map
 
-## Formal assurance
-
-The guarantee, in logical time:
-
-```
-V_D  ≅  IR(V_D)  ≅  K_sem(IR(V_D))  ~weak  K_prod(IR(V_D))
-```
-
-- The DT view `V_D` is verified to be semantically aligned with the PT view `V_P` under the domain
-  ontology Φ, by **SemPTDTAlignmentICSE**.
-- The **compiler** turns `V_D` into a canonical IR and checks its own reading against the
-  aligner's reading of the same document (translation validation).
-- The **semantic kernel** implements the timed-automaton semantics of the IR.
-- The **production runtime** commits only kernel-computed states, writes the ledger before it
-  commits (write-ahead), and fail-stops if it cannot.
-
-The argument is in [`proof/`](proof) (handwritten, not mechanised). What has to be trusted is in
-[docs/trusted-computing-base.md](docs/trusted-computing-base.md). There are no hard real-time
-claims: see [docs/logical-time-model.md](docs/logical-time-model.md).
-
-## Documentation
-
-| | |
+| Path | Responsibility |
 |---|---|
-| [Demo script](docs/demo-script.md) | A 3–5 minute walkthrough for presenters |
-| [Architecture](docs/architecture.md) | Processes, libraries, data flow, evidence |
-| [Runtime API](docs/runtime-api.md), [OpenAPI](api/runtime.openapi.yaml) | REST and SSE contract of `twin-runtime` (narrative and machine-readable) |
-| [Trusted computing base](docs/trusted-computing-base.md) | What must be correct, and what need not be |
-| [Logical time](docs/logical-time-model.md) | The time model and why no real-time claims are made |
-| [Supported model fragment](docs/supported-model-fragment.md), [compiler diagnostics](docs/compiler-diagnostics.md) | Which UPPAAL models compile, and why others are refused |
-| [Aligner integration](docs/existing-aligner-integration.md) | How SemPTDTAlignmentICSE is reused, unmodified |
-| [Integration audit](docs/integration-audit.md), [final report](docs/final-integration-report.md) | What exists, how it was integrated, limitations |
-| [Studio manual](docs/studio/) | Using Verified Twin Studio (designing twins, operations, engineering, maintenance) |
-| [Build Your First Twin](docs/studio/tutorial-first-twin.md) | A thermal-chamber twin from nothing to a monitored instance, step by step |
-| [Connect a Real Twin](docs/studio/tutorial-connect-real-twin.md) | Feed a deployed instance from a real PLC, gateway or historian over its built-in REST and MQTT inputs |
-| [Screenshots](docs/screenshots/) | Captured from the running product (`scripts/capture-screenshots.sh`) |
-| API reference | `make docs` → `build/docs/html/index.html` (Doxygen) |
+| `include/twin/`, `src/` | C++ libraries: model, formal tooling, kernel, runtime, platform and Studio service |
+| `apps/` | CLI, service, runtime, simulator, feed and macOS launcher entry points |
+| `web/studio/` | React and TypeScript interface and browser tests |
+| `docs/` | Standalone static documentation source and product screenshots |
+| `api/` | OpenAPI contracts |
+| `examples/`, `models/` | Bundled examples and model inputs |
+| `tests/` | C++ unit, integration, architecture and end-to-end suites |
+| `SemPTDTAlignmentICSE/` | Existing semantic aligner, with its own license and research material |
+| `proof/` | Handwritten correctness argument |
 
-## Development
+## Security and licensing
 
-| Task | Command |
-|---|---|
-| Whole product (build, seed, start) | `make demo` (`make demo-fresh` resets the demo data) |
-| Engine only (CLI, runtime, simulators) | `cmake --preset release && cmake --build build/release` |
-| Engine + Studio backend | `cmake --preset studio-release && cmake --build build/studio-release` |
-| Frontend only (hot reload, proxies `/api` to :8080) | `cd web/studio && npm ci && npm run dev` |
-| C++ tests (unit, integration, architecture, e2e) | `ctest --test-dir build/release` |
-| Frontend tests | `cd web/studio && npm test` |
-| Browser end-to-end (against a running demo) | `cd web/studio && npx playwright test` |
-| Drone simulator only | `twin-world --scenario <(generated)`: the simulator scenario is generated from the drone Blueprint's world (`examples/indoor-drone/world.json` + `simulation.json`); Studio's supervisor starts it on deployment |
-| Offline toolchain | `twin compile`, `twin align`, `twin package build/verify`, `twin ledger verify`, `twin replay` |
-| API docs, proof | `make docs`, `make proof` |
-| Screenshots | `./scripts/capture-screenshots.sh` (or `make screenshots`) |
-| macOS app and disk image | `make macos-app` |
+Studio currently has no authentication or authorization. The role selector only changes what the interface displays. Keep the service on a trusted local network; read [SECURITY.md](SECURITY.md) before reporting a vulnerability.
 
-## Repository layout
-
-```
-include/twin/<module>/, src/<module>/   C++ libraries (core, json, ir, kernel, compiler, alignment,
-                                        package, ledger, runtime, planner, geo, world, ptfeed,
-                                        ontology, platform, studio)
-apps/                                   twin, twin-runtime, twin-world, twin-pt-feed, twin-ingest, twin-studio; macos/ (app launcher)
-api/                                    OpenAPI contracts (runtime, Studio)
-web/studio/                             Verified Twin Studio (React + TypeScript); plugins/drone
-models/, examples/, scenarios/          drone models, Blueprints and examples (drone, pump, thermal chamber), templates, simulator scenarios
-SemPTDTAlignmentICSE/                   the semantic aligner (unmodified)
-tests/                                  unit, integration, architecture, e2e (GoogleTest); Studio suites
-proof/                                  correctness argument (LaTeX)
-docs/                                   documentation and screenshots
-```
-
-## Limitations
-
-- **Logical time only.** No physical hard-real-time equivalence is claimed.
-- **Handwritten proof.** The proof is not mechanised. The tests validate the implementation;
-  they do not prove it.
-- **Tamper-evident, not immutable.** The ledger makes changes detectable. Immutability would need
-  WORM storage or external anchoring (`twin ledger anchor`).
-- **Simulated physical side.** The Physical Twins are simulated (drone) or scripted (pump).
-- **No authentication.** Studio has none in this version: the role selector only adjusts
-  disclosure depth.
-
-See [docs/final-integration-report.md](docs/final-integration-report.md) for the complete list.
+The root project is currently **unlicensed**. Its source is visible, but no permission to redistribute or modify it is granted by a root license. The bundled `SemPTDTAlignmentICSE/` code has its own MIT license. Licensing terms should be resolved before inviting outside contributions or publishing binary releases.

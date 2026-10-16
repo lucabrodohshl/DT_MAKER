@@ -1,6 +1,6 @@
 /**
  * @file server.hpp
- * @brief The Verified Twin Studio HTTP server: REST API, live stream (SSE), runtime proxy, web UI hosting.
+ * @brief The Doppelganger HTTP server: REST API, live stream (SSE), runtime proxy, web UI hosting.
  * @ingroup studio
  *
  * All routes live under `/api/v1` and are specified in `api/studio.openapi.yaml`.

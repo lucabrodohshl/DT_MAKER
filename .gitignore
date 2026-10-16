@@ -39,3 +39,15 @@ compile_commands.json
 /web/**/dist/
 /web/**/test-results/
 /web/**/playwright-report/
+
+# Standalone documentation site
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+
+# Local tooling
+/.cache/
+/.venv-build/
+/.superpowers/
+__pycache__/
+*.py[cod]

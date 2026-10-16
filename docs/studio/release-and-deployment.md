@@ -1,121 +1,21 @@
-# Releases, deployment and rollback
+# Changes, releases and deployment
 
-This page covers changes to the artefacts of a deployed twin. Releasing a new version of a
-Twin Blueprint is described in [release, instances and deployment](blueprint-release.md).
+The normal path is **Twin designs → open draft → Validate → Publish**. The graphical editor stores the source design; the server compiles its behavior, formal ontology, interpretations and contract. The release area verifies the exact saved version before it can create running twins.
 
 ## Change workspace
 
-A **change** coordinates the artefact drafts that must evolve together for one twin, for
-example ontology `process-pump@3` together with interpretation `p101-dt-semantics@2`. Under
-**Studio → Changes** (or the twin's **Maintenance → Changes**) you can:
-- open a change for a twin, with a title and description
-- **Add artefact**, which creates a draft from the version the twin currently deploys (you can
-  also attach a draft when creating it from a version page)
-- review each artefact's structural diff, the interpretation entries it affects, and links to
-  its source diff and impact
-- follow the **release pipeline**, then **Release** or **Abandon** (abandoning requires a
-  reason)
+For an already deployed twin, open **Studio → Changes** to start a tracked engineering change. Select the affected twin and artefact versions, make an editable draft and record why it is changing. The change workspace keeps the candidate and the deployed baseline visible together.
 
 ## Release pipeline
 
-The pipeline is computed on every view from stored evidence for **the exact candidate
-artefacts**. It is never a checklist that someone ticks.
+Open **Release → Package** from the design. Work through the gate's listed validation, alignment, compilation, monitor and scenario items. Build the verified core and deployment bundle, inspect package integrity and publish the version. A later edit can invalidate evidence; rerun the affected steps. Published versions are immutable.
 
-| Stage | Mandatory | Evidence |
-|---|---|---|
-| Edit & save drafts | yes | the draft versions in the change |
-| Validate | yes | validation evidence for each draft |
-| Check refinement (Def. 4) | advisory | refinement evidence (it enables the Theorem 3 route) |
-| Analyze impact | advisory | computed on demand |
-| Check / re-check alignment | yes | preserved via Theorem 3 (citing both evidence records), or new alignment evidence |
-| Compile DT view | yes | Twin IR hash and compilation evidence (translation validation) |
-| Build verified package | yes | the package and its integrity checks |
-| Verify package | yes | integrity verification of the stored package |
-| Release | yes | publishes the versions and marks the package released |
-| Deploy | advisory | an explicit deployment record |
+## Deployment and rollback
 
-Each stage shows its state (**Pass**, **Fail**, **Unknown**, **Not checked**, **Stale**,
-**Blocked**), the evidence links, the time and any diagnostics. Runnable stages have
-**Run / Re-run**. **Release is blocked** while any mandatory stage is not Pass; the server
-enforces this and lists the blocking stages. Release publishes every version in the change
-(each must be VERIFIED) and closes the change.
+Under **Release → Instances**, create a running twin from a published design. Under **Release → Deployment**, deploy, stop, start, upgrade or roll back the instance. The page shows the exact package and current process state. A rollback selects an earlier released package; it does not edit that package.
 
-![Release pipeline](../screenshots/tutorial/08-pipeline.png)
+For a physical plant, configure its REST or MQTT connection on the instance and use the connection page's actual address, token and message format. See [Connect a real twin](tutorial-connect-real-twin.md).
 
-## Verified packages
+## Audit and logs
 
-A package (**Studio → Packages**) binds immutable artefact versions together:
-- PT view, DT view, ontology, PT and DT interpretations, each with its version and hash
-- the Twin IR hash
-- the alignment evidence
-- the compiler and kernel versions
-- the package hash
-
-**Verify** re-checks its integrity: every content hash, the manifest and the package hash.
-The result lists every check and the first failure, if any. A package is never modified after
-it is built; a correction is a new package.
-
-## Deployment
-
-**Studio → Deployments** is the append-only history per twin. Each entry records:
-- the package and the previous package
-- the kind (deploy / rollback)
-- the reason, actor and time
-
-Deploying verifies the package's integrity first and refuses a package that fails. A twin
-always points at exactly one package: the runtime executes that package, and its ledger
-records the package hash. For a twin that is a running Blueprint instance, Studio's deployment
-supervisor restarts its runtime on the deployed package at once (a new execution starts; the
-earlier ones stay in the ledger and replay with their own package); a stopped instance runs it
-when it is next started.
-
-![Deployments](../screenshots/tutorial/09-deployments.png)
-
-## Rollback
-
-The twin's **Maintenance → Rollback** redeploys a previously released package. Before you
-confirm, it shows:
-- the current deployment and the rollback target
-- per role (model, ontology, interpretations), what differs between them
-- the target's evidence and its **package integrity**, verified at that moment
-
-A **reason is required**. The rollback is a new deployment record of kind *rollback*, and it
-appears in the engineering audit. A running Blueprint instance is restarted on the target, as for
-a deployment. **Nothing newer is deleted**: newer versions, packages and
-evidence remain, and you can deploy them again later.
-
-## Engineering audit trail
-
-**Studio → Engineering audit** records every artefact and lifecycle operation, separately from
-the execution ledger:
-
-| Area | Operations |
-|---|---|
-| Artefacts | `artifact.create`, `artifact.draft.create`, `artifact.draft.save`, `artifact.validate`, `artifact.publish`, `artifact.reject` |
-| Checks | `refinement.run`, `alignment.run`, `model.compile` |
-| Packages | `package.build`, `package.verify`, `package.release` |
-| Changes | `change.create`, `change.release`, `change.abandon` |
-| Deployments | `deployment.deploy`, `deployment.rollback` |
-
-Each record holds:
-- time and actor
-- the artefact ids, versions and hashes
-- the operation and outcome
-- the associated evidence and the reason, if any
-
-Records are hash-chained; **Verify** recomputes the chain and reports the first invalid record.
-
-The actor is the name chosen in the top-bar actor menu (sent as `X-Twin-Actor`). It identifies
-who acted; it is **not** authentication. See the [security notes](developer.md#security-notes).
-
-## System logs
-
-**Administration → System logs** (in a twin's workspace) is the diagnostic log of `twin-studio`.
-You can filter by:
-- time and level
-- component
-- correlation (request) id
-- execution and asset
-
-Logs are diagnostics. They are neither evidence nor an audit trail, and they never contain
-secrets.
+**Engineering audit** records who changed, validated, released or deployed an artefact. The running twin's execution ledger records its operational decisions. Review both when diagnosing a changed result. [Audit and replay](audit-and-replay.md) explains the difference.

@@ -1,9 +1,9 @@
 /**
  * @file services.hpp
- * @brief Verified Twin Studio application services: the operations behind every API route.
+ * @brief Doppelganger application services: the operations behind every API route.
  * @ingroup studio
  *
- * @defgroup studio Verified Twin Studio (application layer and HTTP API)
+ * @defgroup studio Doppelganger (application layer and HTTP API)
  * @brief Engineering lifecycle and operational read models served to the Studio UI.
  *
  * Services composes the platform repositories (persistence), the ontology
@@ -100,6 +100,8 @@ public:
     // ------------------------------------------------------------------ artifacts
     /// @brief Artefacts of a kind (or all) with their published/open versions.
     [[nodiscard]] Result<json::Json> list_artifacts(std::optional<platform::ArtifactKind> kind);
+    /// @brief Archive selected formal artefacts from the library; pinned versions remain available.
+    [[nodiscard]] Result<json::Json> archive_artifacts(const std::vector<std::string>& ids, const Actor& actor);
     /// @brief One artefact with all versions (lineage) and dependants.
     [[nodiscard]] Result<json::Json> artifact(std::string_view id);
     /// @brief One version: metadata, content, structure, diagnostics, validation evidence, usages.

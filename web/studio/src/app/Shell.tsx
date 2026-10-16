@@ -31,8 +31,8 @@ function ModeSwitch() {
   const back = lastTwin();
   return (
     <nav className="vts-mode" aria-label="Area">
-      <Link to={!studio ? location.pathname : back ? twinRoute(back) : '/twins'} className={clsx('vts-mode__opt', !studio && 'active')} aria-current={!studio ? 'page' : undefined}>Twins</Link>
-      <Link to={current ? `/studio?twin=${encodeURIComponent(current)}` : '/studio'} className={clsx('vts-mode__opt', studio && 'active')} aria-current={studio ? 'page' : undefined}>Models</Link>
+      <Link to={!studio ? location.pathname : back ? twinRoute(back) : '/twins'} className={clsx('vts-mode__opt', !studio && 'active')} aria-current={!studio ? 'page' : undefined}>Running twins</Link>
+      <Link to={current ? `/studio?twin=${encodeURIComponent(current)}` : '/studio'} className={clsx('vts-mode__opt', studio && 'active')} aria-current={studio ? 'page' : undefined}>Twin designs</Link>
     </nav>
   );
 }
@@ -148,12 +148,10 @@ export function Shell() {
         Skip to content
       </a>
       <header className="vts-topbar">
-        <Link to="/twins" className="vts-brand" aria-label="Verified Twin Studio — your twins">
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="15" height="15" fill="none" stroke="var(--ink)" />
-            <path d="M4 4h3v8H4zM9 4h3v3.5H9zM9 8.5h3V12H9z" fill="var(--ink)" />
-          </svg>
-          <span>Verified Twin Studio</span>
+        <Link to="/twins" className="vts-brand" aria-label="Doppelganger — your twins">
+          <img className="vts-brand__mark vts-brand__mark--light" src="/brand/doppelganger-light.png" alt="" width="28" height="28" />
+          <img className="vts-brand__mark vts-brand__mark--dark" src="/brand/doppelganger-dark.png" alt="" width="28" height="28" />
+          <span>Doppelganger</span>
         </Link>
         <ModeSwitch />
         <button type="button" className="vts-search-trigger" onClick={() => setSearchOpen(true)}>

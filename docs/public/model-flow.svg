@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 410" role="img" aria-labelledby="title desc">
+  <title id="title">Canonical twin model compilation flow</title>
+  <desc id="desc">The Structure and Behavior editor saves a twin-model/1 document. Validation passes it to the model compiler, which produces a timed automaton, formal ontology and interpretations, graph projections, and a data contract. The automaton and ontology feed release checks.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2e7181"/></marker>
+  </defs>
+  <rect x="1" y="1" width="1198" height="408" rx="18" fill="#f4f8f8" stroke="#cbdfe2"/>
+  <g font-family="Inter, Arial, sans-serif" text-anchor="middle">
+    <g fill="#123846">
+      <rect x="26" y="158" width="164" height="94" rx="12"/>
+      <rect x="236" y="158" width="164" height="94" rx="12"/>
+      <rect x="446" y="158" width="164" height="94" rx="12"/>
+    </g>
+    <g fill="#fff" font-size="19" font-weight="700">
+      <text x="108" y="193">Structure &amp;</text><text x="108" y="220">Behavior editor</text>
+      <text x="318" y="193">twin-model/1</text><text x="318" y="220">document</text>
+      <text x="528" y="193">Validation &amp;</text><text x="528" y="220">compiler</text>
+    </g>
+    <g fill="#e4f2f3" stroke="#74acb5" stroke-width="2">
+      <rect x="675" y="29" width="226" height="74" rx="12"/>
+      <rect x="675" y="121" width="226" height="74" rx="12"/>
+      <rect x="675" y="213" width="226" height="74" rx="12"/>
+      <rect x="675" y="305" width="226" height="74" rx="12"/>
+    </g>
+    <g fill="#123846" font-size="17" font-weight="600">
+      <text x="788" y="61">Timed automaton</text><text x="788" y="84" font-size="14" font-weight="400">and UPPAAL XML</text>
+      <text x="788" y="153">Formal ontology</text><text x="788" y="176" font-size="14" font-weight="400">and interpretations</text>
+      <text x="788" y="245">RDF schema</text><text x="788" y="268" font-size="14" font-weight="400">and knowledge graph</text>
+      <text x="788" y="337">Data contract</text><text x="788" y="360" font-size="14" font-weight="400">and presentation</text>
+    </g>
+    <rect x="972" y="140" width="200" height="130" rx="14" fill="#d2e8e0" stroke="#5e9b7f" stroke-width="2"/>
+    <text x="1072" y="184" fill="#173d32" font-size="19" font-weight="700">Verified release</text>
+    <text x="1072" y="211" fill="#173d32" font-size="17">checks for the</text>
+    <text x="1072" y="238" fill="#173d32" font-size="17">saved version</text>
+  </g>
+  <g fill="none" stroke="#2e7181" stroke-width="3" marker-end="url(#arrow)">
+    <path d="M190 205H228"/><path d="M400 205H438"/>
+    <path d="M610 205H642V66H665"/><path d="M610 205H665V158"/>
+    <path d="M610 205H665V250"/><path d="M610 205H642V342H665"/>
+    <path d="M901 66H935V174H962"/><path d="M901 158H962"/>
+  </g>
+</svg>

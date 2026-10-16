@@ -3,10 +3,10 @@
 `twin-runtime` executes one verified twin package. It listens on
 `http://127.0.0.1:8090` by default. This document is the authoritative contract of its HTTP and
 Server-Sent-Events interface. The routes are implemented in
-[`src/runtime/api_server.cpp`](../src/runtime/api_server.cpp), and the JSON views in
-[`src/runtime/views.cpp`](../src/runtime/views.cpp).
+[`src/runtime/api_server.cpp`](https://github.com/lucabrodohshl/DT_MAKER/blob/main/src/runtime/api_server.cpp), and the JSON views in
+[`src/runtime/views.cpp`](https://github.com/lucabrodohshl/DT_MAKER/blob/main/src/runtime/views.cpp).
 
-Verified Twin Studio forwards every route below to the runtime unchanged. The paths take the form
+Doppelganger forwards every route below to the runtime unchanged. The paths take the form
 `/api/v1/twins/{twinId}/{runtime|simulation|planner|mission|world}/…`.
 
 ## Conventions
@@ -153,6 +153,18 @@ Body: `{"schedule": [{"label": "plan_accepted!", "time": "17"}, …]}`.
 
 Returns `{admissible, steps: [<outcome>], refusal: <error or null>, note}`. The refusal's
 `context` contains `step`, the index of the first inadmissible event. Nothing is recorded.
+
+### `POST /runtime/what-if`
+
+Use the current kernel state to ask which events are available now or after a delay:
+
+```json
+{"start": {"kind": "current"}, "steps": []}
+```
+
+`start` may instead be `{"kind":"initial"}` or `{"kind":"configurations","configurations":[...]}` to explore a recorded state. Each step is a decimal-string delay, such as `{"kind":"delay","delay":"0.5"}`, or an event with a `label` or exact `transition` and optional relative `delay` or absolute `at`. The model's time unit determines the meaning of the decimal strings.
+
+The response includes the selected start state, the result of every step, the first invalid step (or `null`), and a `final` view. The final view reports possible configurations, propositions, invariant deadlines, event availability and exact admissible delay intervals. Each event alternative lists the guard and the invariant or guard atoms that constrain its window. An event can have several disjoint intervals, so use the list rather than assuming one continuous range. The query runs on copies: it does not advance the live twin or append to its ledger. The [OpenAPI contract](https://github.com/lucabrodohshl/DT_MAKER/blob/main/api/runtime.openapi.yaml) defines the complete request and response fields.
 
 ## Executions, ledger, replay
 
@@ -328,7 +340,7 @@ for it: `WorldPort` exposes only `/env/*` and `/pt/*`.
 ## twin-world (Physical Twin and environment service)
 
 The authoritative route table is in
-[`include/twin/world/service.hpp`](../include/twin/world/service.hpp).
+[`include/twin/world/service.hpp`](https://github.com/lucabrodohshl/DT_MAKER/blob/main/include/twin/world/service.hpp).
 
 | Routes | Purpose |
 |---|---|

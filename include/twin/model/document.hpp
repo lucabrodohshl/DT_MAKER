@@ -14,9 +14,7 @@
  * this module (compile.hpp) with explicit, deterministic rules, and an existing
  * timed automaton can be lifted back into the language (lift.hpp).
  *
- * The language is specified in
- * docs/superpowers/specs/2026-10-15-model-once-studio/03-metamodel.md and its
- * compilation rules in 04-compilation.md.
+ * The language and its compilation path are described in docs/model-architecture.md.
  *
  * This file holds the typed document and its strict JSON decoding and
  * canonical encoding. Decoding collects every problem it finds (code TML001)
@@ -49,7 +47,7 @@ inline constexpr std::string_view kFormat = "twin-model/1";
  */
 struct Diagnostic {
     std::string severity;  ///< "error", "warning" or "info".
-    std::string code;      ///< Stable code TMLnnn (04-compilation.md, section 4.7).
+    std::string code;      ///< Stable code TMLnnn (see docs/model-architecture.md).
     std::string message;   ///< Explanation.
     std::string hint;      ///< How to fix it (may be empty).
     std::string path;      ///< Element path in the document.

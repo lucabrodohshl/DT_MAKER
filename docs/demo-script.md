@@ -1,4 +1,4 @@
-# Demo script: Verified Twin Studio (3–5 minutes)
+# Demo script: Doppelganger (3–5 minutes)
 
 A presenter's script for someone who did not build the system. **Bold** marks what to click;
 quoted text is what to say. All data is real: the drone runs in a simulator, but its twin,
@@ -21,7 +21,7 @@ If something looks stale, reload the page: every screen refetches the authoritat
 ### 1. Your twins (20 s)
 
 **Your twins** (Operate).
-> "This is Verified Twin Studio. It runs two digital twins: an inspection drone and an
+> "This is Doppelganger. It runs two digital twins: an inspection drone and an
 > industrial pump. Each twin's mode, alignment and package integrity come from evidence and from
 > the twin's own verified runtime, not from the UI."
 
@@ -137,7 +137,7 @@ Optionally, open **Studio → Ontologies → indoor-drone-domain** to show a ver
 > kernel tells me when each event may happen — available now, later, or not reachable — and
 > why. A release is only possible on evidence for exactly these inputs."
 
-See [Build Your First Twin](studio/tutorial-first-twin.md) for a full walkthrough.
+See [Create your first twin](tutorial-first-twin.md) for a full walkthrough.
 
 ---
 

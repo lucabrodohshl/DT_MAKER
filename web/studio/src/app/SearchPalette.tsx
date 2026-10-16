@@ -62,9 +62,9 @@ const KIND_LABEL: Record<string, string> = {
   package: 'Package',
   deployment: 'Deployment',
   change: 'Change',
-  blueprint: 'Blueprint',
+  blueprint: 'Twin design',
   asset_type: 'Asset type',
-  blueprint_asset: 'Blueprint asset',
+  blueprint_asset: 'Design asset',
   world_object: 'World object',
   telemetry: 'Signal',
   event: 'Event',
@@ -85,13 +85,13 @@ interface Command {
 }
 
 const GLOBAL_COMMANDS: Command[] = [
-  { id: 'new-bp', label: 'New Blueprint', hint: 'Guided wizard', route: '/studio/new', icon: Plus },
-  { id: 'studio', label: 'Studio: Twin Blueprints', hint: 'Blueprint library', route: '/studio', icon: LayoutGrid },
+  { id: 'new-bp', label: 'New twin design', hint: 'Guided wizard', route: '/studio/new', icon: Plus },
+  { id: 'studio', label: 'Studio: Twin designs', hint: 'Design library', route: '/studio', icon: LayoutGrid },
   { id: 'twins', label: 'Your twins', hint: 'Operate', route: '/twins', icon: Boxes },
-  { id: 'template', label: 'New Blueprint from a template', hint: 'Mobile robot, process equipment…', route: '/studio/new?mode=template', icon: Plus },
-  { id: 'import', label: 'Import a twin (Blueprint bundle)', hint: 'twin-blueprint-bundle/1', route: '/studio/new?mode=import', icon: FileUp },
+  { id: 'template', label: 'New twin design from a template', hint: 'Mobile robot, process equipment…', route: '/studio/new?mode=template', icon: Plus },
+  { id: 'import', label: 'Import a twin design bundle', hint: 'twin-blueprint-bundle/1', route: '/studio/new?mode=import', icon: FileUp },
   { id: 'formal', label: 'Import formal models', hint: 'UPPAAL views, ontology, interpretations', route: '/studio/new?mode=formal', icon: FileUp },
-  { id: 'instantiate', label: 'Instantiate a published Blueprint', hint: 'Create a twin instance', route: '/twins?create=instantiate', icon: Rocket },
+  { id: 'instantiate', label: 'Create a running twin from a published design', hint: 'Create a twin instance', route: '/twins?create=instantiate', icon: Rocket },
 ];
 
 export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -140,7 +140,7 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
               autoFocus
               value={q}
               onChange={(e) => { setQ(e.target.value); setActive(0); }}
-              placeholder="Search or run a command: Pump P-101, bearing_temp, HEATING, REQ-S1, > New Blueprint…"
+              placeholder="Search or run a command: Pump P-101, bearing_temp, HEATING, REQ-S1, > New twin design…"
               role="combobox"
               aria-expanded={hits.length > 0}
               aria-controls={listId}

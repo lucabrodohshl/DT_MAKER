@@ -1,6 +1,6 @@
 # Architecture
 
-Verified Twin Studio is one product built from three layers: formal tooling, a verified execution
+Doppelganger is one product built from three layers: formal tooling, a verified execution
 engine, and a platform with its GUI. The organising principle is simple. **Behavioural
 conclusions about the twin come from exactly one place, the semantic kernel, executing the
 compiled form of a model that the semantic aligner has verified.** Everything else proposes,
@@ -151,7 +151,7 @@ reveals that the door is closed.
 | Topic | Document |
 |---|---|
 | Runtime API (REST and SSE) | [`runtime-api.md`](runtime-api.md) |
-| Designing twins in Studio | [`studio/blueprints.md`](studio/blueprints.md) and [Build Your First Twin](studio/tutorial-first-twin.md) |
+| Designing twins in Studio | [Twin designs](blueprints.md) and [Create your first twin](tutorial-first-twin.md) |
 | What must be trusted | [`trusted-computing-base.md`](trusted-computing-base.md) |
 | Logical time | [`logical-time-model.md`](logical-time-model.md) |
 | Accepted models | [`supported-model-fragment.md`](supported-model-fragment.md) and [`compiler-diagnostics.md`](compiler-diagnostics.md) |

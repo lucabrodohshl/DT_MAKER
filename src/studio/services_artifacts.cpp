@@ -68,6 +68,14 @@ Result<json::Json> Services::list_artifacts(std::optional<ArtifactKind> kind) {
     return out;
 }
 
+Result<json::Json> Services::archive_artifacts(const std::vector<std::string>& ids, const Actor& actor) {
+    auto l = impl_->lock();
+    if (auto st = impl_->artifacts->archive_many(ids); !st) return st.error();
+    impl_->record("artifact.archive", "success", ids.size() == 1 ? ids.front() : "selection",
+                  {{"ids", ids}}, actor, "artifact");
+    return json::Json{{"archived", ids}};
+}
+
 Result<json::Json> Services::artifact(std::string_view id) {
     auto l = impl_->lock();
     auto a = impl_->artifacts->get(id);

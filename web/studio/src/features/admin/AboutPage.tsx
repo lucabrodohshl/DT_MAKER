@@ -8,7 +8,7 @@ export default function AboutPage() {
   const plugins = allPlugins();
   return (
     <div className="vts-page">
-      <PageHeader eyebrow="About" title="Verified Twin Studio" meta={<span>Digital Twin operations and engineering console for verified behavioural twins</span>} />
+      <PageHeader eyebrow="About" title="Doppelganger" meta={<span>Digital Twin operations and engineering console for verified behavioural twins</span>} />
       <div className="grid-2">
         <Panel title="Components">
           <QueryState query={about}>

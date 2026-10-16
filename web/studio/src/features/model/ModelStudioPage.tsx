@@ -56,7 +56,7 @@ function StartModel({ detail, revision, onCreated }: { detail: BlueprintVersionD
     finally { setBusy(false); }
   };
   return <div className="ms-start">
-    <Link to="/studio" className="small">← Models</Link>
+    <Link to="/studio" className="small">← Twin designs</Link>
     <h1>{detail.blueprint.name}</h1>
     <p>This version has no canonical model. Start with a system type, or lift its existing Digital Twin view into a model and review the round trip before using it.</p>
     <div className="ms-start__actions">
@@ -64,7 +64,7 @@ function StartModel({ detail, revision, onCreated }: { detail: BlueprintVersionD
         ? <Button variant="primary" loading={busy} onClick={() => void inspectLift()}>Preview model from existing view</Button>
         : <Button variant="primary" loading={busy} onClick={() => void save(blankModel(detail))}>Start blank model</Button>
         : <Button variant="primary" loading={busy} onClick={() => void makeDraft()}>Create editable draft</Button>}
-      <Link className="vts-btn vts-btn--sm" to={base}>Open advanced Blueprint</Link>
+      <Link className="vts-btn vts-btn--sm" to={base}>Open advanced editor</Link>
     </div>
     {error && <p role="alert" className="ms-err">{error}</p>}
     {lift && <section className="ms-start__preview">
@@ -136,8 +136,8 @@ function Workspace({ detail }: { detail: BlueprintVersionDetail }) {
   }, [m]);
   return <div className={`ms${left ? '' : ' is-left-closed'}${right ? '' : ' is-right-closed'}`}>
     <header className="ms-head">
-      <Link to="/studio" aria-label="Back to models"><ChevronLeft size={16} /></Link>
-      <div className="ms-crumbs"><Link to="/studio">Models</Link><span className="ms-sep">/</span><strong>{m.doc.label ?? detail.blueprint.name}</strong></div>
+      <Link to="/studio" aria-label="Back to twin designs"><ChevronLeft size={16} /></Link>
+      <div className="ms-crumbs"><Link to="/studio">Twin designs</Link><span className="ms-sep">/</span><strong>{m.doc.label ?? detail.blueprint.name}</strong></div>
       <div className="ms-version">
         <button type="button" className="vts-btn vts-btn--sm" aria-expanded={versionMenu} onClick={() => setVersionMenu(!versionMenu)}>{detail.label} <ChevronDown size={12} /></button>
         {versionMenu && <div className="ms-version__list">{(bp.data?.versions ?? []).map((v) => <Link key={v.version} to={`${blueprintRoute(m.id, v.version)}/model`} onClick={() => setVersionMenu(false)}>{v.label} · {v.state}</Link>)}</div>}

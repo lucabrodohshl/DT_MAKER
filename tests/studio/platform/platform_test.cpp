@@ -138,6 +138,19 @@ TEST_F(PlatformTest, ArtifactIdsAndRefsAreValidated) {
     EXPECT_FALSE(parse_ref("process-pump@0").ok());
 }
 
+TEST_F(PlatformTest, ArchivingArtifactsHidesLibraryEntriesButPreservesPinnedVersions) {
+    ArtifactRepository repo(*db_, *store_, clock_);
+    ASSERT_TRUE(repo.create(ArtifactKind::Ontology, "domain", "Domain", "", "sort A\n", json::Json::object(), "a", "").ok());
+    ASSERT_TRUE(repo.create(ArtifactKind::Interpretation, "meaning", "Meaning", "", "IDLE : true\n", json::Json::object(), "a", "").ok());
+    EXPECT_FALSE(repo.archive_many({"domain", "missing"}).ok());
+    ASSERT_EQ(repo.list().value().size(), 2U) << "archive must be atomic";
+    ASSERT_TRUE(repo.archive_many({"domain"}).ok());
+    ASSERT_EQ(repo.list().value().size(), 1U);
+    EXPECT_EQ(repo.list().value().front().id, "meaning");
+    EXPECT_EQ(repo.content({"domain", 1}).value(), "sort A\n");
+    EXPECT_FALSE(repo.archive_many({"domain"}).ok());
+}
+
 TEST_F(PlatformTest, EvidenceForOldHashIsStaleNeverValid) {
     ArtifactRepository repo(*db_, *store_, clock_);
     EvidenceRepository evidence(*db_, *store_, clock_);

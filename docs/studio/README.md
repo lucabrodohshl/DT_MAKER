@@ -1,80 +1,39 @@
-# Verified Twin Studio — product manual
+# Doppelganger
 
-Verified Twin Studio is where digital twins are designed, verified, released and operated. It
-works for any twin: the drone, the industrial pump and the thermal chamber that ship as examples
-use the same generic screens. Only the drone adds a domain view, and it does so through a plugin.
+Doppelganger has two connected areas:
 
-It has two modes:
+- **Twin designs** is where you author reusable definitions. In the new editor, Structure and Behavior are the inputs. The server compiles them into a timed automaton, a formal ontology, interpretations, a knowledge graph and a contract. A design is saved as a draft, then verified and published.
+- **Running twins** is where you use a published design as a concrete twin, connect its runtime and data, and watch behavior, telemetry, conformance, prediction and history.
 
-- **Studio** — design a type of twin as a **Twin Blueprint**: its structure, world and layout,
-  data contract and connectivity, the Physical System View and the Digital Twin View, the
-  ontology and interpretations, requirements and monitors, scenarios; verify it; release it as a
-  Verified Core Package plus a Deployment Bundle; create and deploy its instances. Start with
-  [Build Your First Twin](tutorial-first-twin.md).
-- **Operate** — run and monitor the instances: live state, telemetry and meaning, behaviour and
-  conformance, monitors and alerts, prediction, audit and replay.
+Start with [Create your first twin](tutorial-first-twin.md). It walks through the buttons and fields, including where the timed automaton, ontology and interpretation come from. [Getting started](getting-started.md) is a shorter map of the app.
 
-![Overview](../screenshots/01-overview.png)
+## The words used in Studio
 
-## One rule above all
-
-**The browser displays conclusions. It never makes them.**
-
-Every behavioural state, proposition, admissible transition, prediction, conformance verdict,
-ledger verdict, validation result, refinement verdict and impact classification shown in Studio
-comes from an authoritative backend component:
-
-| Conclusion | Decided by |
+| Term | What it means |
 |---|---|
-| Behavioural state, enabled transitions, predictions, what-if | the verified kernel (`twin-runtime`) |
-| Meaning of telemetry (proposition truth) | interpretation evaluation with Z3 in `twin-studio` |
-| Ontology / interpretation validity | the strict parser **and** SemPTDTAlignmentICSE's parser plus Z3 |
-| Ontology refinement (Def. 4) | `twin::ontology::check_refinement` (Z3, three-valued) |
-| Alignment preservation (Theorem 3) | `assess_preservation`, applied only when every premise holds |
-| Semantic alignment | SemPTDTAlignmentICSE (via the compiler) |
-| Package integrity | the package verifier |
-| Ledger validity | the runtime's ledger verifier |
-| Event timing windows, scenario step verdicts | the semantic kernel, on the compiled Digital Twin View |
-| Blueprint section validity, release gate, impact of a version | the Blueprint service, from evidence for exactly the version's inputs |
-| Live monitor results | the runtime (conformance), the property evaluator on the kernel's state, the telemetry store (data quality) |
+| Twin design | A reusable, versioned definition you edit and publish |
+| Running twin | A concrete instance of a published design |
+| Formal ontology | The .ont theory with sorts, functions, relations and axioms |
+| Interpretation | Formulas that give states and events meaning over that ontology |
+| Knowledge graph | Assets and facts, with an RDF schema; narrower than the formal ontology |
+| Timed automaton | The behavior compiled from states, events, transitions and time limits |
 
-A trust badge is never green by default. The badge states are **Pass**, **Fail**, **Unknown**,
-**Not checked**, **Stale**, **Invalidated**, **Check running**, **Unavailable** and
-**Check failed**. Each state has its own icon and label, so the meaning never depends on colour
-alone. A badge that has not been checked shows **Not checked**. Anything the client cannot
-parse shows **Unknown**, never Pass.
+The older API and file format still use “blueprint” in places. The app calls the concept a twin design.
 
-## The loops
+## Follow a task
 
-```
-OPERATIONS:   asset → telemetry → semantic meaning → verified behaviour → prediction → decision → evidence
-ENGINEERING:  ontology/model/interpretation → edit → validate → refinement/alignment → impact
-              → compile → verified package → deploy → operate → maintain → new version
-DESIGN:       blueprint → structure · world · data → PT/DT views → ontology · interpretations
-              → requirements · monitors · scenarios → verify → release → instances → deploy
-```
+- [Create and edit a twin design](tutorial-first-twin.md)
+- [Understand the design editor](blueprint-workspace.md)
+- [Edit a formal ontology](ontology-management.md)
+- [Evolve a published ontology](tutorial-evolving-an-ontology.md)
+- [Release a design and create a running twin](blueprint-release.md)
+- [Connect a running twin to a real system](tutorial-connect-real-twin.md)
+- [Run scenarios and preview behavior](scenarios-and-preview.md)
+- [Read operational views](operations.md)
+- [Review evidence, impact and history](impact-and-staleness.md)
 
-## Contents
+## Who computes the result
 
-| Page | For |
-|---|---|
-| [Getting started](getting-started.md) | Starting the demo, the layout, personas, search, live data and time |
-| [Tutorial: Build Your First Twin](tutorial-first-twin.md) | A thermal chamber twin from nothing to a monitored instance, with real screenshots |
-| [Tutorial: Connect a Real Twin](tutorial-connect-real-twin.md) | Give an instance a plant connection (REST endpoint, MQTT endpoint, broker subscription), send it real data, and read deviations |
-| [Twin Blueprints](blueprints.md) | Blueprints and instances, versions, the separate models, verified core vs. deployment bundle, status words, the Studio home, the five ways to create a twin, the wizard |
-| [The Blueprint workspace](blueprint-workspace.md) | Every editor: structure, world & layout, data & connectivity, presentation, the PT/DT views, ontology, interpretations, cross-layer binding, requirements, monitors, alignment, verification |
-| [Scenarios and preview](scenarios-and-preview.md) | The Scenario Builder with the kernel's timing windows, illegal steps, running scenarios, the isolated Studio preview |
-| [Release, instances and deployment](blueprint-release.md) | The release gate, package and bundle, publishing, instances, the deployment supervisor, live monitors in Operate |
-| [Operations](operations.md) | Assets, knowledge graph, telemetry and meaning, behaviour, conformance, events, prediction, what-if, planning |
-| [Audit, provenance and replay](audit-and-replay.md) | Execution ledger, chain verification, decision provenance, replay, historical reproducibility |
-| [Ontology management](ontology-management.md) | Formal ontology vs. asset knowledge graph, the editor, versioning and lifecycle, diff, interpretation editing |
-| [Refinement checking](refinement.md) | Definition 4, running a check, understanding the four results, evidence, Theorem 3 |
-| [Impact analysis and staleness](impact-and-staleness.md) | Dependency analysis, impact classes, evidence staleness, re-running alignment |
-| [Releases, deployment and rollback](release-and-deployment.md) | Change workspace, release pipeline, packages, deployment, rollback, engineering audit, logs |
-| [Tutorial: Safely evolving an ontology](tutorial-evolving-an-ontology.md) | The whole engineering loop on the pump, with real screenshots |
-| [Domain plugins](plugins.md) | Writing a domain visualisation (developer guide) |
-| [Developer guide](developer.md) | Architecture, API contract, building, testing, security notes |
-| [Aligner findings](aligner-findings.md) | Behaviour of SemPTDTAlignmentICSE that Studio compensates for |
+The browser edits the design and displays results. The server validates and compiles it. Runtime state, admissible transitions, conformance and prediction come from the verified kernel. Ontology and interpretation checks use the formal parsers and solver. Release readiness depends on evidence for the exact saved version. If the design has problems, open **Problems** in the editor and follow the diagnostics back to an element.
 
-The runtime API is documented in [`../runtime-api.md`](../runtime-api.md). The Studio HTTP
-API is specified in [`../../api/studio.openapi.yaml`](../../api/studio.openapi.yaml).
+For API and implementation details, see the [developer guide](developer.md), [Studio API](https://github.com/lucabrodohshl/DT_MAKER/blob/main/api/studio.openapi.yaml) and [runtime API](runtime-api.md).

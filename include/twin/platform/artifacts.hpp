@@ -122,6 +122,8 @@ public:
     [[nodiscard]] Result<Artifact> get(std::string_view id) const;
     /// @brief All artefacts (optionally of one kind), ordered by id.
     [[nodiscard]] Result<std::vector<Artifact>> list(std::optional<ArtifactKind> kind = std::nullopt) const;
+    /// @brief Remove selected artefacts from the library atomically; versions remain resolvable.
+    [[nodiscard]] Status archive_many(const std::vector<std::string>& ids);
     /// @brief All versions of an artefact, newest first.
     [[nodiscard]] Result<std::vector<ArtifactVersion>> versions(std::string_view id) const;
     /// @brief One version.

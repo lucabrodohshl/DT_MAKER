@@ -29,7 +29,7 @@ struct Migration {
  * Schema migrations, applied in order; `meta.schema_version` records progress.
  * Never edit a released migration: append a new one.
  */
-constexpr std::array<Migration, 4> kMigrations = {{
+constexpr std::array<Migration, 5> kMigrations = {{
     {R"SQL(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE sequences (name TEXT PRIMARY KEY, next INTEGER NOT NULL);
@@ -267,6 +267,11 @@ ALTER TABLE packages_v3 RENAME TO packages;
 -- is removed from the authoring library.
 ALTER TABLE blueprints ADD COLUMN archived_at TEXT;
 CREATE INDEX blueprints_visible ON blueprints(archived_at, name, id);
+)SQL"},
+    {R"SQL(
+-- Hide formal artefacts from the authoring library without invalidating pinned versions.
+ALTER TABLE artifacts ADD COLUMN archived_at TEXT;
+CREATE INDEX artifacts_visible ON artifacts(archived_at, kind, id);
 )SQL"},
 }};
 

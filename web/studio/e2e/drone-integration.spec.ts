@@ -38,7 +38,7 @@ test.describe.configure({ mode: 'serial' });
 test('the product starts and the frontend reaches the backend', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/twins$/);
-  await expect(page.getByText('Verified Twin Studio').first()).toBeVisible();
+  await expect(page.getByText('Doppelganger').first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Your twins' })).toBeVisible();
   await expect(page.getByText('Drone-01', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('P-101', { exact: true }).first()).toBeVisible();

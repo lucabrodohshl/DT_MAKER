@@ -357,6 +357,17 @@ void StudioServer::Impl::routes() {
                                  b.value().value("description", std::string()), b.value().value("content", std::string()),
                                  b.value().value("refs", Json::object()), a);
     }, 201);
+    route("POST", p + "/artifacts/archive", [&](const httplib::Request& r, const Actor& a) -> Result<Json> {
+        auto b = body_json(r);
+        if (!b) return std::move(b).error();
+        if (!b.value().contains("ids") || !b.value()["ids"].is_array()) {
+            return make_error(ErrorCode::InvalidArgument, "ids (array) is required");
+        }
+        for (const auto& id : b.value()["ids"]) {
+            if (!id.is_string()) return make_error(ErrorCode::InvalidArgument, "ids must contain strings");
+        }
+        return s.archive_artifacts(b.value()["ids"].get<std::vector<std::string>>(), a);
+    });
     route("GET", p + "/artifacts/:id", [&](const httplib::Request& r, const auto&) { return s.artifact(r.path_params.at("id")); });
     route("GET", p + "/artifacts/:id/versions/:v", [&](const httplib::Request& r, const auto&) -> Result<Json> {
         auto ref = path_ref(r);

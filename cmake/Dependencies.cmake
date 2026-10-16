@@ -46,8 +46,8 @@ if(TWIN_BUILD_TESTS)
     FetchContent_MakeAvailable(googletest)
 endif()
 
-# --- SQLite (public domain) — Verified Twin Studio platform only (TWIN_BUILD_STUDIO) ---
-option(TWIN_BUILD_STUDIO "Build Verified Twin Studio (twin::ontology/platform/studio, twin-studio)" OFF)
+# --- SQLite (public domain) — Doppelganger platform only (TWIN_BUILD_STUDIO) ---
+option(TWIN_BUILD_STUDIO "Build Doppelganger (twin::ontology/platform/studio, twin-studio)" OFF)
 if(TWIN_BUILD_STUDIO)
     FetchContent_Declare(sqlite3_amalgamation
         URL https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip

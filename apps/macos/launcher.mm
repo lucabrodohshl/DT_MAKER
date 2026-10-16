@@ -1,11 +1,11 @@
 /**
  * @file launcher.mm
- * @brief macOS launcher of Verified Twin Studio (the .app's main executable).
+ * @brief macOS launcher of Doppelganger (the .app's main executable).
  *
  * Double-clicking the app must simply work, whatever else runs on this Mac. The
  * launcher therefore:
  *  1. makes sure it is the only launcher using its data directory
- *     (~/Library/Application Support/Verified Twin Studio): if another one is
+ *     (~/Library/Application Support/Doppelganger): if another one is
  *     running it opens that one and quits; processes left over by a launcher that
  *     crashed are stopped (only this app's own twin-* executables, never others);
  *  2. moves data written by an incompatible earlier version aside (kept as a
@@ -21,7 +21,7 @@
  *     back-off; if it keeps failing, it is stopped and a dialog offers the logs,
  *     a data reset or quitting — never a half-running backend.
  * A menu-bar item offers Open, the data/log folders, Reset demo data and Quit;
- * quitting stops every component. Logs go to ~/Library/Logs/Verified Twin Studio/.
+ * quitting stops every component. Logs go to ~/Library/Logs/Doppelganger/.
  *
  * Environment (tests): VTS_DATA_DIR (isolated data directory), VTS_NO_BROWSER,
  * VTS_STUDIO_PORT (preferred port).
@@ -165,7 +165,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
                                                 styleMask:NSWindowStyleMaskTitled
                                                   backing:NSBackingStoreBuffered
                                                     defer:NO];
-        p.title = @"Verified Twin Studio";
+        p.title = @"Doppelganger";
         p.releasedWhenClosed = NO;
         NSTextField* text = [NSTextField labelWithString:@"Starting…"];
         text.frame = NSMakeRect(20, 64, 380, 36);
@@ -283,7 +283,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
 /**
  * If another launcher owns the data directory, return its Studio URL. Otherwise stop
  * the twin-* processes a crashed launcher left behind (only executables named twin-*
- * inside a Verified Twin Studio bundle) and return nil.
+ * inside a Doppelganger bundle) and return nil.
  */
 - (NSString*)claimDataDirectory {
     NSData* data = [NSData dataWithContentsOfFile:self.statePath];
@@ -293,7 +293,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
     NSString* otherPath = ProcessPath(other);
     if (other != getpid() && [otherPath hasSuffix:@"/Contents/MacOS/VerifiedTwinStudio"]) {
         // Another copy of the app owns this data (it may still be starting): use it, never touch its components.
-        [self setStatus:@"Verified Twin Studio is already running; connecting…"];
+        [self setStatus:@"Doppelganger is already running; connecting…"];
         for (int i = 0; i < 180; ++i) {
             NSData* again = [NSData dataWithContentsOfFile:self.statePath];
             NSDictionary* s = again ? [NSJSONSerialization JSONObjectWithData:again options:0 error:nil] : nil;
@@ -347,7 +347,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
         [self stopStack];
         dispatch_async(dispatch_get_main_queue(), ^{
             NSAlert* alert = [[NSAlert alloc] init];
-            alert.messageText = @"Verified Twin Studio could not start";
+            alert.messageText = @"Doppelganger could not start";
             alert.informativeText = [message stringByAppendingFormat:@"\n\nLogs: %@", self.logDir];
             [alert addButtonWithTitle:@"Reset Demo Data and Retry"];
             [alert addButtonWithTitle:@"Show Logs"];
@@ -390,7 +390,7 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
         [self hideProgress];
         dispatch_async(dispatch_get_main_queue(), ^{
             NSAlert* alert = [[NSAlert alloc] init];
-            alert.messageText = @"Verified Twin Studio is already running";
+            alert.messageText = @"Doppelganger is already running";
             alert.informativeText = @"Another copy is still starting or does not respond. Use its menu-bar item, "
                                     @"or quit it and open the app again.";
             [alert addButtonWithTitle:@"OK"];
@@ -513,10 +513,15 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
     NSString* support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES).firstObject;
     NSString* library = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES).firstObject;
     const char* dataOverride = getenv("VTS_DATA_DIR");  // tests: an isolated data directory
-    self.dataDir = dataOverride ? [NSString stringWithUTF8String:dataOverride]
-                                : [support stringByAppendingPathComponent:@"Verified Twin Studio"];
+    NSString* currentDataDir = [support stringByAppendingPathComponent:@"Doppelganger"];
+    NSString* previousDataDir = [support stringByAppendingPathComponent:@"Verified Twin Studio"];
+    // Existing installations keep their database and ledgers after the product rename.
+    NSString* defaultDataDir = ![[NSFileManager defaultManager] fileExistsAtPath:currentDataDir] &&
+                               [[NSFileManager defaultManager] fileExistsAtPath:previousDataDir]
+                                   ? previousDataDir : currentDataDir;
+    self.dataDir = dataOverride ? [NSString stringWithUTF8String:dataOverride] : defaultDataDir;
     self.logDir = dataOverride ? [[NSString stringWithUTF8String:dataOverride] stringByAppendingPathComponent:@"logs"]
-                               : [[library stringByAppendingPathComponent:@"Logs"] stringByAppendingPathComponent:@"Verified Twin Studio"];
+                               : [[library stringByAppendingPathComponent:@"Logs"] stringByAppendingPathComponent:@"Doppelganger"];
     [[NSFileManager defaultManager] createDirectoryAtPath:self.dataDir withIntermediateDirectories:YES attributes:nil error:nil];
     [[NSFileManager defaultManager] createDirectoryAtPath:self.logDir withIntermediateDirectories:YES attributes:nil error:nil];
 
@@ -525,18 +530,18 @@ static BOOL WaitForJson(NSString* url, NSTimeInterval seconds) {
     self.statusLine.enabled = NO;
     [menu addItem:self.statusLine];
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItemWithTitle:@"Open Verified Twin Studio" action:@selector(openStudio:) keyEquivalent:@"o"].target = self;
+    [menu addItemWithTitle:@"Open Doppelganger" action:@selector(openStudio:) keyEquivalent:@"o"].target = self;
     [menu addItemWithTitle:@"Show Data Folder" action:@selector(showData:) keyEquivalent:@""].target = self;
     [menu addItemWithTitle:@"Show Logs" action:@selector(showLogs:) keyEquivalent:@""].target = self;
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItemWithTitle:@"Reset Demo Data…" action:@selector(resetData:) keyEquivalent:@""].target = self;
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItemWithTitle:@"Quit Verified Twin Studio" action:@selector(terminate:) keyEquivalent:@"q"];
+    [menu addItemWithTitle:@"Quit Doppelganger" action:@selector(terminate:) keyEquivalent:@"q"];
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
-    NSImage* glyph = [NSImage imageWithSystemSymbolName:@"checkmark.seal" accessibilityDescription:@"Verified Twin Studio"];
-    [glyph setTemplate:YES];  // "template" is a C++ keyword in Objective-C++
+    NSImage* glyph = [[NSImage alloc] initWithContentsOfFile:[self.resources stringByAppendingPathComponent:@"AppIcon.icns"]];
+    [glyph setSize:NSMakeSize(18, 18)];
     self.statusItem.button.image = glyph;
-    self.statusItem.button.toolTip = @"Verified Twin Studio";
+    self.statusItem.button.toolTip = @"Doppelganger";
     self.statusItem.menu = menu;
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -565,9 +570,9 @@ int main(int argc, const char* argv[]) {
         NSMenuItem* appItem = [[NSMenuItem alloc] init];
         [main addItem:appItem];
         NSMenu* appMenu = [[NSMenu alloc] init];
-        [appMenu addItemWithTitle:@"Open Verified Twin Studio" action:@selector(openStudio:) keyEquivalent:@"o"].target = delegate;
+        [appMenu addItemWithTitle:@"Open Doppelganger" action:@selector(openStudio:) keyEquivalent:@"o"].target = delegate;
         [appMenu addItem:[NSMenuItem separatorItem]];
-        [appMenu addItemWithTitle:@"Quit Verified Twin Studio" action:@selector(terminate:) keyEquivalent:@"q"];
+        [appMenu addItemWithTitle:@"Quit Doppelganger" action:@selector(terminate:) keyEquivalent:@"q"];
         appItem.submenu = appMenu;
         app.mainMenu = main;
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];

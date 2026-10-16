@@ -1,218 +1,110 @@
-# Tutorial: Build Your First Twin
+# Tutorial: create your first twin
 
-You will build a **Simple Thermal Chamber** twin from nothing — a laboratory heating chamber with
-an electric heater, a door sensor and an air-temperature probe, protected by an over-temperature
-latch — verify it, release it, run an instance of it and watch its monitors in Operate. Every
-verdict on the way comes from the backend: the validators, the aligner, the compiler, the
-semantic kernel and the runtime.
+This walkthrough builds a small thermal chamber in the new design editor. You will create one **twin design**, see its timed automaton and formal ontology generated from that design, and then learn where a **running twin** comes from. You do not need to write XML or ontology files to begin.
 
-All the content used below is in `examples/thermal-chamber`:
-[`blueprint.json`](../../examples/thermal-chamber/blueprint.json) (the sections) and `models/` —
-the timed automata [`chamber_pt.xml`](../../examples/thermal-chamber/models/chamber_pt.xml) and
-[`chamber_dt.tta.json`](../../examples/thermal-chamber/models/chamber_dt.tta.json), the ontology
-[`thermal-chamber.ont`](../../examples/thermal-chamber/models/thermal-chamber.ont) and the
-interpretations [`pt.interp`](../../examples/thermal-chamber/models/pt.interp) and
-[`dt.interp`](../../examples/thermal-chamber/models/dt.interp). Type it into the editors, or
-import the files where an editor offers **Import**. The screenshots were taken from the running product
-(`scripts/screenshots/first-twin.mjs`).
+**For:** first-time users and engineers who want to see how one design produces formal artefacts. **Before you start:** [run the demo](installation.md) and open its URL. Allow about 20 minutes. This tutorial uses a small design; the screenshots of Structure, Behavior and Generated show the larger, complete thermal chamber example for comparison.
 
-Start the product (`./scripts/start-demo.sh`) and open <http://localhost:8080>.
+The [complete thermal chamber example](https://github.com/lucabrodohshl/DT_MAKER/blob/main/examples/thermal-chamber/model.json) is a reference if you want to compare your result. The steps below use a smaller version so you can finish it in one sitting.
 
-## 1. Start a new Blueprint
+## 1. Create a twin design
 
-**Studio → New Blueprint**, choose **Blank Blueprint**, then **Next: identity**.
+1. Open **Twin designs** in the top bar and choose **New twin design**.
+2. Select **Blank twin design**, then **Next: identity**.
+3. Name it **Thermal chamber**. Use an identifier such as **thermal-chamber**. Leave time as **seconds** and resolution as **1000 ticks per unit**.
+4. Choose **Create twin design**. Studio opens the Structure, Behavior and Generated editor.
 
-![Starting point](../screenshots/first-twin/01-start.png)
+![Blank twin design selected on the creation screen](../screenshots/current/new-design.png)
 
-## 2. Identity
+<p class="screenshot-caption">Select Blank twin design to author the structure and behavior yourself.</p>
 
-Name **Simple Thermal Chamber**, id `thermal-chamber`, domain `thermal` (it selects the world
-tool palette: chamber, heater, door, sensor), icon *thermometer*, a short description. Keep **Monitoring** (the twin follows the controller's events), time unit
-**seconds** and 1000 ticks per second (millisecond-exact logical time). **Create and continue
-(guided)** creates draft **v1** on the server and opens the guided flow at step 3.
+![Thermal Chamber entered on the identity screen](../screenshots/current/design-identity.png)
 
-![Identity](../screenshots/first-twin/02-identity.png)
+<p class="screenshot-caption">The identifier becomes a stable API and version key. Your choice may differ from the example shown.</p>
 
-## 3. Structure
+The new design starts with a system type. It is a reusable definition, not a running chamber. You can create several running twins from a published version later.
 
-In **Asset types** add *Laboratory*, *ThermalChamber*, *Heater*, *DoorSensor* and
-*TemperatureSensor* (a type can declare properties, e.g. the chamber's volume). In **Assets**:
+## 2. Describe what the chamber is made of
 
-| Asset | Type | Scope | Parent |
-|---|---|---|---|
-| `lab` — Materials lab M-2 | Laboratory | **context** (shared, bound per instance) | — |
-| `chamber` — Thermal chamber | ThermalChamber | instance · **root** | lab |
-| `heater` | Heater | instance | chamber |
-| `door-sensor` | DoorSensor | instance | chamber |
-| `temp-sensor` | TemperatureSensor | instance | chamber |
+Select the system in the left explorer. In the inspector, rename its type to **ThermalChamber** if needed. Under **Properties**, add:
 
-and three **relationships**: heater *heats* chamber, door-sensor *monitors* chamber, temp-sensor
-*measures* chamber. The wizard bar shows where you are; **Next** moves on, **Skip** leaves a step
-for later, **Save and exit** leaves the flow (everything is already saved).
+| One-line entry | Meaning |
+|---|---|
+| temperature: real degC measured -40..200 | A measured chamber value |
+| temperature_limit: real degC fixed = 80 | A fixed limit |
 
-![Structure](../screenshots/first-twin/03-structure.png)
+The one-line property box has a syntax hint below it. Select a property to adjust its kind, unit, range or fixed value in the inspector.
 
-## 4. World & layout
+In **Structure**, double-click empty canvas space to add an asset. Enter **Heater** to create a new Heater type and an instance in the chamber. Open the Heater type from the explorer and add **on: boolean measured**. Return to the chamber type. The canvas shows the chamber and its heater; select a node to edit its details.
 
-A spatial world of 3 m × 2 m: draw the lab floor, the chamber body, the heater element and the
-door as rectangles and the probe as a point (layers *room*, *equipment*, *notes*), and bind each
-object to its asset in the inspector. This is where the chamber is; it does not change what the
-twin does.
+Add a reported event named **start_heating** and another named **stop_heating** in the chamber type inspector. Select each event and set **Means** to the condition it reports, such as **heater.on** and **not heater.on**. These meanings feed the interpretation generated later.
 
-![World & layout](../screenshots/first-twin/04-world.png)
+![Thermal chamber structure with assets and relationships](../screenshots/current/thermal-structure.png)
 
-## 5. Data & connectivity
+<p class="screenshot-caption">The complete example has more assets and links than this short tutorial. The same explorer, canvas and inspector appear in your new design.</p>
 
-Signals: `temperature` (real, degC, asset temp-sensor, plausible −40…200, ontology symbol
-`temperature`), `heater_on` and `door_open` (boolean, symbols `heater_on` and `door_open`).
-Events, each with its labels in both views: *Heating started* (`heater_on!` / `start_heating!`),
-*Heating stopped* (`heater_off!` / `stop_heating!`), *Over-temperature* (`overheat!` /
-`high_temperature!`), *Latch reset* (`latch_reset!` / `cooled_down!`). Command: *Reset
-over-temperature latch*. Under **Connectivity**, a *simulator* source (the controller's event
-script) and a binding for each signal.
+## 3. Draw what the chamber can do
 
-![Data contract](../screenshots/first-twin/05-data.png)
+Open **Behavior**. Choose the chamber machine. Double-click the canvas twice to add states. Select each new state and change its **Name** to **IDLE** and **HEATING**. The first state is initial automatically; select IDLE to confirm the **Initial state** check. Give the states meanings such as **not heater.on** and **heater.on**.
 
-## 6. Physical System View
+Drag from IDLE's output port to HEATING, then pick **start_heating** as the trigger. Add the reverse transition with **stop_heating**. Select a state or transition to edit its meaning, timing limit, trigger, or description in the inspector.
 
-**Behavior → Physical System View → Import** `models/chamber_pt.xml` — the controller's UPPAAL
-model: `IDLE`, `HEATING` (invariant `x <= 600`) and `OVERHEATED`, with `latch_reset!` guarded by
-`x >= 30`. Studio converts it to its canonical model on the server; a construct outside the
-supported fragment would be listed and nothing imported.
+For a timing example, select HEATING and set **At most** to **600** seconds. Studio creates the state timer **t** when you add the first state, and the generated automaton gets the limit **t <= 600**. A transition may also have a time window. Studio validates these numbers against the design's time unit.
 
-![Importing the controller's UPPAAL model](../screenshots/first-twin/06-pt-import.png)
+![Thermal chamber behavior editor](../screenshots/current/thermal-behavior.png)
 
-## 7. Digital Twin View
+<p class="screenshot-caption">The full example adds an OVERHEATED state and cooling transition. Your shorter version should show IDLE and HEATING with two transitions.</p>
 
-The twin's own view, with its own vocabulary: `IDLE`, `HEATING` (`t <= 600`), `OVERHEATED`, and
-`cooled_down!` allowed only when `t >= 30`. Draw it (double-click the canvas for a location, drag
-from a location's handle for a transition, edit guards and resets in the inspector) or import
-`models/chamber_dt.tta.json`.
+## 4. Edit the formal ontology in the design
 
-![Digital Twin View](../screenshots/first-twin/07-dt-view.png)
+Select **Twin design** at the top of the explorer. The inspector's **Formal ontology (.ont)** field accepts extra declarations in the project's ontology language, one per line. Add an axiom such as:
 
-## 8. Ontology
+    axiom safe_limit : (< temperature_limit 100)
 
-**Semantics → Ontology**: the domain theory shared by both views — sort `Temperature`, functions
-`temperature`, `temperature_limit`, `setpoint`, relations `heater_on`, `door_open`,
-`reset_requested`, and axioms such as `(= temperature_limit 80)` and
-`(< setpoint temperature_limit)`. Type it or **Import file** `models/thermal-chamber.ont`; the
-strict parser checks it as you type.
+The generated ontology already includes sorts and symbols derived from types and properties. These extra declarations are saved in the design, so recompiling will include them. For an axiom scoped to one asset type, use that type's **Formal assumptions** section. This language supports sorts, functions, relations and axioms; it is richer than the RDF knowledge graph.
 
-![Ontology](../screenshots/first-twin/08-ontology.png)
+The generated ontology is a compiled result. Edit its source inputs in the inspector, not the generated preview. See [Ontology management](ontology-management.md) for the separate versioned ontology editor used in advanced engineering work.
 
-## 9. Interpretations
+::: tip Keep the first attempt small
+If the axiom produces a diagnostic, remove it and first confirm that the property symbols and generated theory appear. You can return to the formal declaration after the structural and behavior model compiles.
+:::
 
-What each state and event *means*, in the ontology's terms. For the Digital Twin View (I_D):
+## 5. See the direct compilation
 
-```
-IDLE        : (and (not heater_on) (<= temperature temperature_limit))
-HEATING     : (and heater_on (not door_open) (<= temperature temperature_limit))
-OVERHEATED  : (and (not heater_on) (> temperature temperature_limit))
-high_temperature! : (> temperature temperature_limit)
-cooled_down!      : (and reset_requested (<= temperature temperature_limit))
-```
+Wait for **Saved** in the header. Choose **Generated**:
 
-and the same meanings for the controller's own names (I_P, `models/pt.interp`). **Coverage** shows
-every state and event mapped.
+- **Automaton** shows the Digital Twin timed automaton. The IDLE and HEATING states and the event transitions you drew appear here. Use **Source** or **Export XML** to inspect the UPPAAL form.
+- **Formal ontology** shows the compiled .ont theory, including your axiom. The nearby **RDF schema** tab is a vocabulary projection; it is not the full formal theory.
+- **Knowledge graph** shows assets and facts from Structure. It does not replace the ontology.
+- The state and event **Means** fields compile into an interpretation over the ontology. Open **Advanced → Semantics → Interpretations** to inspect the versioned interpretation and its coverage.
 
-![Interpretations](../screenshots/first-twin/09-interpretations.png)
+![Generated timed automaton for the complete thermal chamber example](../screenshots/current/thermal-generated.png)
 
-## 10. Check the chain across layers
+<p class="screenshot-caption">Generated → Automaton displays the compiled machine. The complete example shown has three states; your tutorial model has two.</p>
 
-**Semantics → Cross-layer binding** reads every signal and event from the world through the data
-contract and the ontology to the states and events that use it. Nothing is highlighted: each
-chain is complete.
+![Generated formal ontology for the thermal chamber example](../screenshots/current/thermal-ontology.png)
 
-![Cross-layer binding](../screenshots/first-twin/10-cross-layer.png)
+<p class="screenshot-caption">Generated → Formal ontology shows the actual compiled theory; edit declarations in Structure, then wait for compilation.</p>
 
-## 11. Requirements and 12. monitors
+Select a source element in Structure or Behavior, then return to Generated to see its trace. The server performs compilation; the browser displays the result. If compilation is blocked, open **Problems**, select the reported element and fix it. **Validate** reruns the checks after saving.
 
-Requirements: *Chamber never overheats* (safety, `A[] !OVERHEATED`), *Cool down at least 30 s*
-(timing), *Controller events conform*, *Fresh temperature*. Monitors: behavioural conformance,
-the property `A[] !OVERHEATED`, *Heating at most 10 min* (`A[] (HEATING -> t <= 600)`), and two
-data-quality monitors on `temperature` (stale after 30 s, outside −40…200). The alert policy
-raises an alert when conformance or the overheating monitor is violated and when the temperature
-is stale.
+## Check your draft
 
-![Requirements](../screenshots/first-twin/11-requirements.png)
+1. Confirm the header says **Saved** and **No problems**. If it does not, open **Problems** and select the first diagnostic.
+2. In **Generated → Automaton**, find IDLE, HEATING, start_heating and stop_heating. Select HEATING and confirm the time limit is present.
+3. In **Generated → Formal ontology**, find the property symbols and the axiom you entered. If the axiom is absent, confirm the source declaration saved in **Twin design → Formal ontology (.ont)**.
 
-![Monitors](../screenshots/first-twin/12-monitors.png)
+These checks verify that your design compiled. They do not mean the design has passed the separate release checks.
 
-## 13. Run all checks
+## 6. Publish and create a running twin
 
-**Assurance → Verification → Run all checks**: the five artefacts are validated, the Digital Twin
-View is compiled (with translation validation), the aligner checks that it is a faithful
-abstraction of the controller's view under the ontology, and the scenarios run on the kernel.
-The headline turns **VERIFIED**.
+The design is still a draft. Choose **Publish** to open the release area, resolve the listed verification steps, build a package, and publish the version. Then create an instance from that published design under **Release → Instances**. This instance is the **running twin**. Deployment connects its runtime and, if configured, live data sources.
 
-![Verification](../screenshots/first-twin/13-verification.png)
+Publishing is a separate step because a saved design has not yet passed release checks. See [Release and deployment](blueprint-release.md) and [Connect a real twin](tutorial-connect-real-twin.md).
 
-## 14. Read the alignment
+::: warning If Publish reports a blocked check
+Read the failing check and its assumptions in the release area. A structurally valid draft is not automatically a verified package; the physical and digital views, ontology interpretations, and alignment evidence must match the release gate.
+:::
 
-**Assurance → Alignment**: **PASS** — *Aligned — STRONG alignment* (neither view has internal
-transitions, so weak and strong alignment coincide), the label
-equivalence the aligner found (`heater_on!` ≡ `start_heating!`, `overheat!` ≡
-`high_temperature!`, `latch_reset!` ≡ `cooled_down!`…), the hashes of exactly what was checked,
-the aligner's identity and the run's duration.
+## What you now have
 
-![Alignment](../screenshots/first-twin/14-alignment.png)
-
-## 15. A scenario
-
-**Test → Scenario Builder → Reset before cool-down (refused)**: heating starts at t = 5, the
-over-temperature event comes at t = 100, and resetting at t = 110 is marked as a step the model
-must **refuse**.
-**Run scenario**: PASS — the kernel refused the early reset, as the guard `t >= 30` demands. Try
-adding `cooled_down!` at t = 110 yourself: the builder refuses it, explains *too early: the
-earliest permitted time is t = 130*, and offers **Move to earliest legal time (t = 130)**.
-
-![Scenario](../screenshots/first-twin/15-scenario.png)
-
-## 16. Release
-
-**Release → Package → Build package & bundle**. The gate turns **READY TO RELEASE**: the Verified
-Core Package (formally verified) and the Deployment Bundle (integrity-protected) are built. Then
-**Publish v1** — v1 becomes immutable.
-
-![Release](../screenshots/first-twin/16-release.png)
-
-## 17. An instance
-
-**Release → Instances → New instance**: id `chamber-tc1-dt`, name *Chamber TC-1*, the chamber's
-asset id `chamber-tc1`, and bind the shared lab to `lab-m2` (created in the estate if it does not
-exist yet).
-
-![New instance](../screenshots/first-twin/17-instance.png)
-
-## 18. Deploy
-
-**Deploy now**: the supervisor starts the runtime on v1's package with the controller's event
-script; the instance is **DEPLOYED · RUNNING**.
-
-![Deployment](../screenshots/first-twin/18-deployment.png)
-
-## 19. Operate it
-
-**Open in Operate**: Chamber TC-1 is live — its state, signals and verification come from its
-runtime.
-
-![Chamber TC-1 in Operate](../screenshots/first-twin/19-operate.png)
-
-## 20. Watch its monitors
-
-**Behaviour → Monitors**: every monitor evaluated live by its authority — conformance by the
-runtime, the properties on the kernel's state, data quality on the stored telemetry — the alerts
-raised now and the status of each requirement.
-
-![Live monitors](../screenshots/first-twin/20-operate-monitors.png)
-
-## What next
-
-- Change a state's label in **Presentation** in a new draft: **Impact** shows that no formal
-  evidence is affected.
-- Change the cool-down guard in the Digital Twin View: alignment and compilation become stale and
-  the release gate blocks until they are re-run.
-- Read [Twin Blueprints](blueprints.md), [the Blueprint workspace](blueprint-workspace.md),
-  [scenarios and preview](scenarios-and-preview.md) and
-  [release, instances and deployment](blueprint-release.md).
+You authored one twin design. Structure supplied asset types, properties and relationships; Behavior supplied states, events and timed transitions; meanings and formal declarations supplied the ontology and interpretation. Studio compiled these together into a timed automaton, formal theory, RDF projections and contract. A published version can be used for many running twins.

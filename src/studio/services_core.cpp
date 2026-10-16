@@ -153,7 +153,7 @@ Result<std::unique_ptr<Services>> Services::open(const StudioConfig& config, std
 }
 
 json::Json Services::about() const {
-    return {{"product", "Verified Twin Studio"},
+    return {{"product", "Doppelganger"},
             {"version", std::string(version::kProject)},
             {"compilerVersion", std::string(version::kCompiler)},
             {"kernelVersion", std::string(version::kKernel)},

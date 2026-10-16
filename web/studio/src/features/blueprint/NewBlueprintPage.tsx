@@ -19,10 +19,10 @@ import './blueprint.css';
 type Mode = 'blank' | 'template' | 'clone' | 'import' | 'formal';
 
 const MODES: { id: Mode; title: string; text: string; icon: ReactNode }[] = [
-  { id: 'blank', title: 'Blank Blueprint', text: 'Start from empty sections and build every layer yourself, guided step by step.', icon: <Plus size={20} aria-hidden="true" /> },
+  { id: 'blank', title: 'Blank twin design', text: 'Start with a system type, then build its structure and behaviour in the design editor.', icon: <Plus size={20} aria-hidden="true" /> },
   { id: 'template', title: 'From a template', text: 'Start from a domain template: asset types, a world with its tool palette, a simulator and a data contract.', icon: <LayoutTemplate size={20} aria-hidden="true" /> },
-  { id: 'clone', title: 'Clone an existing Blueprint', text: 'Copy another Blueprint version (its sections and formal artefacts) as the first draft of a new one.', icon: <Copy size={20} aria-hidden="true" /> },
-  { id: 'import', title: 'Import a twin (Blueprint bundle)', text: 'A twin-blueprint-bundle/1 file exported from another Studio, with its formal artefacts.', icon: <Upload size={20} aria-hidden="true" /> },
+  { id: 'clone', title: 'Clone a twin design', text: 'Copy a design version and its formal artefacts into a new draft.', icon: <Copy size={20} aria-hidden="true" /> },
+  { id: 'import', title: 'Import a twin design bundle', text: 'Bring in an exported design and its formal artefacts.', icon: <Upload size={20} aria-hidden="true" /> },
   { id: 'formal', title: 'Import formal models', text: 'An existing verified twin: UPPAAL PT and DT views, the ontology and both interpretations.', icon: <FileCode2 size={20} aria-hidden="true" /> },
 ];
 
@@ -144,7 +144,7 @@ export default function NewBlueprintPage() {
   if (report) {
     return (
       <div className="vts-newbp">
-        <h1 style={{ margin: 0 }}>Blueprint created — import report</h1>
+        <h1 style={{ margin: 0 }}>Twin design created — import report</h1>
         <Callout tone="warning" title="Some files were not imported">
           The draft exists; the roles below are empty until you fix or replace the file. Unsupported constructs are never approximated.
         </Callout>
@@ -197,14 +197,14 @@ export default function NewBlueprintPage() {
     <div className="vts-newbp">
       <div>
         <p className="xsmall subtle" style={{ margin: 0 }}>
-          <Link to="/studio">Studio</Link> › New Blueprint
+          <Link to="/studio">Studio</Link> › New twin design
         </p>
-        <h1 style={{ margin: '4px 0 0' }}>New Blueprint</h1>
+        <h1 style={{ margin: '4px 0 0' }}>New twin design</h1>
         <p className="muted" style={{ margin: '4px 0 0' }}>
-          A Blueprint defines a <strong>type</strong> of twin — its structure, world, data, the physical and twin behaviour views, their meaning and how they are assured. You will create concrete twins (instances) from it once a version is published.
+          A twin design defines a reusable <strong>type</strong> of twin. Build its structure and behaviour, inspect the compiled automaton and formal ontology, then publish a version to create running twins.
         </p>
       </div>
-      <nav className="vts-wizard" aria-label="New Blueprint wizard" style={{ borderRadius: 12, border: '1px solid var(--border)' }}>
+      <nav className="vts-wizard" aria-label="New twin design wizard" style={{ borderRadius: 12, border: '1px solid var(--border)' }}>
         <ol className="vts-wizard__steps">
           {WIZARD_STEPS.map((s) => (
             <li key={s.id}>
@@ -251,7 +251,7 @@ export default function NewBlueprintPage() {
           {mode === 'clone' && (
             <div className="vts-fgrid">
               <label className="vts-f">
-                <span>Blueprint</span>
+                <span>Twin design</span>
                 <select className="vts-select" value={from} onChange={(x) => { setFrom(x.target.value); setFromVersion(null); }}>
                   <option value="">Choose…</option>
                   {(blueprints.data ?? []).map((b) => (
@@ -276,7 +276,7 @@ export default function NewBlueprintPage() {
           {mode === 'import' && (
             <div className="stack-sm">
               <label className="vts-f">
-                <span>Blueprint bundle (.json, exported from Release → Package)</span>
+                <span>Twin design bundle (.json, exported from Release → Package)</span>
                 <input
                   type="file"
                   accept=".json,application/json"
@@ -296,7 +296,7 @@ export default function NewBlueprintPage() {
                 />
               </label>
               {bundle && <StatusBadge tone="ok" label={`${bundle.name}: twin-blueprint-bundle/1`} />}
-              {bundleError && <Callout tone="critical" title="Not a Blueprint bundle">{bundleError}</Callout>}
+              {bundleError && <Callout tone="critical" title="Not a twin design bundle">{bundleError}</Callout>}
             </div>
           )}
           {mode === 'formal' && (
@@ -422,14 +422,14 @@ export default function NewBlueprintPage() {
               Advanced editor
             </Button>
             <Button size="sm" variant="primary" icon={<Boxes size={14} />} loading={busy} disabled={!name.trim() || !/^[a-z0-9][a-z0-9-]*$/.test(effectiveId)} onClick={() => void create(true)}>
-              Create model
+              Create twin design
             </Button>
           </>
         )}
       </div>
       {mode === 'formal' && step === 1 && (
         <p className="xsmall subtle" style={{ margin: 0 }}>
-          <FileUp size={12} aria-hidden="true" /> Files stay on this machine until you create the Blueprint; Studio stores them as new artefact versions of the draft.
+          <FileUp size={12} aria-hidden="true" /> Files stay on this machine until you create the twin design; Studio stores them as new artefact versions of the draft.
         </p>
       )}
     </div>

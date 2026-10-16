@@ -8,7 +8,7 @@ info:
     payload examples, is docs/runtime-api.md; the implementation is src/runtime/api_server.cpp
     and src/runtime/views.cpp.
 
-    Verified Twin Studio forwards these routes unchanged under
+    Doppelganger forwards these routes unchanged under
     `/api/v1/twins/{twinId}/{runtime|simulation|planner|mission|world}/...`.
 
     Conventions:
@@ -135,6 +135,23 @@ paths:
                 max_nodes: { type: integer, minimum: 1, maximum: 4000, default: 400 }
       responses:
         '200': { description: Exploration., content: { application/json: { schema: { $ref: '#/components/schemas/PredictionResult' } } } }
+  /runtime/what-if:
+    post:
+      tags: [prediction]
+      summary: Explain event availability and run a scenario on a copy of the state.
+      description: Exact tick-grid windows and kernel explanations; the live state and ledger are unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start: { $ref: '#/components/schemas/ScenarioStart', description: Defaults to the current committed state. }
+                steps: { type: array, items: { $ref: '#/components/schemas/ScenarioStep' }, description: Defaults to an empty list. }
+      responses:
+        '200': { description: Scenario result and event availability., content: { application/json: { schema: { $ref: '#/components/schemas/WhatIfResult' } } } }
+        '400': { $ref: '#/components/responses/Error' }
   /runtime/simulate:
     post:
       tags: [prediction]
@@ -606,6 +623,126 @@ components:
         steps: { type: array, items: { type: object } }
         refusal: { oneOf: [ { $ref: '#/components/schemas/Error/properties/error' }, { type: 'null' } ] }
         note: { type: string }
+    WindowFactor:
+      type: object
+      description: One source invariant, guard or target invariant atom contributing to an enabling window.
+      required: [origin, atom, value_now, bound, depends_on_delay, min_delay, max_delay, never]
+      properties:
+        origin: { type: string, enum: [source_invariant, guard, target_invariant] }
+        atom: { type: string }
+        value_now: { $ref: '#/components/schemas/LogicalTime' }
+        bound: { $ref: '#/components/schemas/LogicalTime' }
+        depends_on_delay: { type: boolean }
+        min_delay: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        max_delay: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        never: { type: boolean }
+    DelayInterval:
+      type: object
+      description: An admissible interval relative to the current state and in absolute logical time.
+      required: [earliest, latest, earliest_at, latest_at]
+      properties:
+        earliest: { $ref: '#/components/schemas/LogicalTime' }
+        latest: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        earliest_at: { $ref: '#/components/schemas/LogicalTime' }
+        latest_at: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+    EventAlternative:
+      type: object
+      required: [member, location, transition, source, target, guard, resets, window, enabled_now, factors]
+      properties:
+        member: { type: integer }
+        location: { type: string }
+        transition: { type: string }
+        source: { type: string }
+        target: { type: string }
+        guard: { type: string }
+        resets: { type: array, items: { type: string } }
+        window: { oneOf: [ { $ref: '#/components/schemas/DelayInterval' }, { type: 'null' } ] }
+        enabled_now: { type: boolean }
+        factors: { type: array, items: { $ref: '#/components/schemas/WindowFactor' } }
+    EventAvailability:
+      type: object
+      required: [label, status, intervals, alternatives]
+      properties:
+        label: { type: string }
+        status: { type: string, enum: [now, later, blocked] }
+        intervals: { type: array, items: { $ref: '#/components/schemas/DelayInterval' } }
+        alternatives: { type: array, items: { $ref: '#/components/schemas/EventAlternative' } }
+    RecordedConfiguration2: { $ref: '#/components/schemas/Configuration' }
+    WhatIfStateSet:
+      type: object
+      required: [time, configurations, deterministic]
+      properties:
+        time: { $ref: '#/components/schemas/LogicalTime' }
+        configurations: { type: array, items: { $ref: '#/components/schemas/RecordedConfiguration2' } }
+        deterministic: { type: boolean }
+    WhatIfFinal:
+      type: object
+      required: [state, propositions, max_delay, max_delay_at, invariants, availability, unavailable]
+      properties:
+        state: { $ref: '#/components/schemas/WhatIfStateSet' }
+        propositions:
+          type: array
+          items: { type: object, required: [id, interpretation], properties: { id: { type: string }, interpretation: { type: string } } }
+        max_delay: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        max_delay_at: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+        invariants:
+          type: array
+          items: { type: object, required: [location, invariant], properties: { location: { type: string }, invariant: { type: string } } }
+        availability: { type: array, items: { $ref: '#/components/schemas/EventAvailability' } }
+        unavailable:
+          type: array
+          items: { type: object, required: [label, from_locations], properties: { label: { type: string }, from_locations: { type: array, items: { type: string } } } }
+    WhatIfStep:
+      type: object
+      required: [index, kind, status]
+      properties:
+        index: { type: integer }
+        kind: { type: string, enum: [delay, event] }
+        status: { type: string, enum: [ok, invalid, not_evaluated] }
+        requested:
+          type: object
+          required: [delay, at]
+          properties:
+            label: { type: string }
+            transition: { type: [string, 'null'] }
+            delay: { $ref: '#/components/schemas/LogicalTime' }
+            at: { $ref: '#/components/schemas/LogicalTime' }
+        branches:
+          type: array
+          items: { type: object, required: [from, to, transition, label, source, target], properties: { from: { type: integer }, to: { type: integer }, transition: { type: string }, label: { type: string }, source: { type: string }, target: { type: string } } }
+        after: { $ref: '#/components/schemas/WhatIfStateSet' }
+        propositions:
+          type: array
+          items: { type: object, required: [id, interpretation], properties: { id: { type: string }, interpretation: { type: string } } }
+        error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string } } }
+        explanation:
+          type: object
+          properties:
+            requested_delay: { $ref: '#/components/schemas/LogicalTime' }
+            alternatives: { type: array, items: { $ref: '#/components/schemas/EventAlternative' } }
+            reasons: { type: array, items: { type: object, required: [transition, target, reason], properties: { transition: { type: [string, 'null'] }, target: { type: [string, 'null'] }, reason: { type: string } } } }
+            max_delay: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+            max_delay_at: { oneOf: [ { $ref: '#/components/schemas/LogicalTime' }, { type: 'null' } ] }
+            invariants: { type: array, items: { type: object, required: [location, invariant], properties: { location: { type: string }, invariant: { type: string } } } }
+        note: { type: string }
+    WhatIfResult:
+      type: object
+      required: [start, steps, first_invalid, final, note]
+      properties:
+        start: { type: object, required: [kind, state], properties: { kind: { type: string }, state: { $ref: '#/components/schemas/WhatIfStateSet' } } }
+        steps: { type: array, items: { $ref: '#/components/schemas/WhatIfStep' } }
+        first_invalid: { type: [integer, 'null'] }
+        final: { $ref: '#/components/schemas/WhatIfFinal' }
+        note: { type: string }
+    ScenarioStep:
+      oneOf:
+        - { type: object, required: [kind, delay], properties: { kind: { type: string, const: delay }, delay: { type: string } } }
+        - { type: object, required: [kind], properties: { kind: { type: string, const: event }, label: { type: string }, transition: { type: string }, delay: { type: string }, at: { type: string } } }
+    ScenarioStart:
+      oneOf:
+        - { type: object, required: [kind], properties: { kind: { type: string, const: current } } }
+        - { type: object, required: [kind], properties: { kind: { type: string, const: initial } } }
+        - { type: object, required: [kind, configurations], properties: { kind: { type: string, const: configurations }, configurations: { type: array, items: { type: object, required: [location, clocks, time], properties: { location: { type: string }, clocks: { type: object, additionalProperties: { type: string } }, time: { type: string } } } } } }
     RecordKind:
       type: string
       enum: [genesis, step, delay, reject, alarm, context, end]

@@ -1,158 +1,21 @@
-# Operations
+# Use a running twin
 
-The operations views follow the chain **asset → telemetry → meaning → verified behaviour →
-prediction → decision**. Every view is generic and works for any twin. They live in **Operate**:
-**Your twins** lists every twin, and each twin opens in its own workspace with the navigation
-on the left (Overview, Assets, Knowledge graph, Operations, Behaviour, Predict, Audit,
-Engineering, Maintenance, Administration). The screenshots show both examples.
-
-![Your twins](../screenshots/01-overview.png)
+A **running twin** is a concrete instance of a published twin design. Open **Running twins** in the top bar and choose an instance. Its views use the exact package and formal artefacts pinned by its deployed design version.
 
 ## Assets and the knowledge graph
 
-**Assets** shows the twin's asset hierarchy on the left and a searchable table of all its assets
-on the right (**Add asset** creates or links assets under the twin's root):
-- identifier, type and tags
-- the digital twin bound to the asset, if any
+The asset view shows this instance and its surrounding assets, properties and relationships. It is a graph of concrete facts. The formal ontology used to interpret behavior is a separate, richer theory; open the design's **Generated → Formal ontology** to inspect it.
 
-The **asset page** answers the operator's first questions at a glance:
-- what the asset is
-- whether it is healthy
-- what it is doing (the kernel's mode)
-- whether anything is wrong (alerts, conformance)
-- what will probably matter next
+## Telemetry and meaning
 
-It also names the verified artefacts that define the twin: model, ontology, interpretation and
-package, each with its version.
+Telemetry shows the values received from a simulator or real system, with time and quality. Interpretations connect behavior labels to formulas over the ontology. A semantic value is shown only when its evaluation has enough evidence; unknown remains unknown.
 
-**Knowledge graph** explores asset *instances* and their operational relationships
-(`contains`, `feeds`, `powers`, `monitors`, `controls`, `locatedIn`, `observedBy`, ...). It
-always works around a focus:
-- **Depth** sets how many hops from the focus are shown.
-- Nodes marked **＋** have more neighbours; double-click to expand them.
-- Filters select relationship and asset types.
-- **List** gives an accessible, searchable alternative to the canvas.
-- Clicking a node selects it; the details panel then links into the asset.
+## Behaviour and conformance
 
-Large estates are never drawn as a whole.
+The runtime kernel selects the current state and decides which transitions are enabled. The Behavior view shows that state, the possible next events and the recent path. An event outside the model or time window is refused and recorded as a conformance deviation. The browser displays the kernel's decision.
 
-![Knowledge graph](../screenshots/02-asset-knowledge-graph.png)
+## Monitors, prediction and history
 
-> The asset knowledge graph is **not** the formal ontology. See
-> [Ontology management](ontology-management.md#formal-ontology-vs-asset-knowledge-graph).
+Monitors and alerts show current findings and reasons. Prediction and what-if ask the kernel about possible future behavior; they do not change the running twin. Audit and replay let you inspect how the instance reached its state and which package it used.
 
-## Telemetry and what it means
-
-**Operations → Telemetry** (also on each asset page) is schema-driven:
-- **Value types**: numeric, boolean, categorical and string channels.
-- **Display**: units, quality flags (good / uncertain / bad) and freshness (fresh, stale,
-  missing).
-- **Time ranges**: Live, 15 min, 1 h, 6 h, 24 h, 7 d or a custom range.
-- **Navigation**: zoom, hover inspection and a legend.
-- **Export**: CSV or JSON with observation time, ingestion time and quality.
-
-Gaps stay gaps: Studio never interpolates across missing data. Series with different units
-are drawn on separate axes. Dense history is downsampled by the server, which reports that it
-did.
-
-The **meaning** of telemetry comes from the twin's interpretation. Each location and event
-label is a formula over ontology symbols. **Why?** shows the evidence chain, for example:
-
-```
-observations  bearing_temp = 94.1 degC, vibration_rms = 3.2 mm/s
-              (source runtime:pump-p101-dt/telemetry#…, observation time, 2 s old)
-     ↓  interpretation p101-dt-semantics@1:
-          condition_degraded! : (or (> bearing_temp bearing_temp_limit) (> vibration_rms vibration_limit))
-     ↓  ontology process-pump@1:  axiom temp_limit_val : (= bearing_temp_limit 90)
-TRUE  (evaluated by Z3 against the ontology's axioms)
-     ↓  kernel: transition condition_degraded!  NORMAL → DEGRADED (ledger record #n)
-```
-
-A proposition can be **True**, **False**, **Unknown** or **Inconsistent observation**:
-- *Unknown* means an observation is missing or stale, or Z3 could not decide.
-- *Inconsistent observation* means the observed values contradict the ontology's axioms.
-
-## Behaviour
-
-**Behaviour → Current state** is the kernel's committed state:
-- the mode, since when it has held, and the logical time
-- the deadline before the state must be left
-- clocks and active propositions
-- **available next actions**: transitions the kernel reports as admissible, with their time
-  windows
-- **unavailable** actions
-
-Every item links to its definition.
-
-**Behaviour → Behavioural model** draws the DT model:
-- current state, enabled transitions (now / after a delay) and recently taken transitions
-- states and transitions open a detail panel: event, guard, clock resets, interpretation and
-  last execution time
-- large models open centred on the current state; **Fit** shows everything, and
-  **Neighbourhood** limits the view to the current region
-- search and a list view are available
-
-![Behavioural graph](../screenshots/06-behavioral-graph.png)
-
-## Conformance
-
-**Behaviour → Conformance** reports the kernel's judgement of every observation and decision:
-
-| Status | Meaning |
-|---|---|
-| **Conformant** | Every observation was admitted by the model. |
-| **Deviation detected** | The first divergence is shown with its time, the observed event, what the model permitted, the model state, the execution and the ledger record. |
-| **Unknown / insufficient data** | No observations yet, or none judged. |
-
-Problems are classified, so a missing observation is never reported as a violation:
-**Model violation**, **Refused input**, **Monitoring alarm**, **Malformed observation time**,
-**Ambiguous state** (nondeterminism) and **Infrastructure error**.
-
-**Behaviour → Monitors** shows, for a twin created from a Blueprint, the live result of every
-monitor of its Blueprint version, the alerts raised now and the status of each requirement —
-see [live monitors](blueprint-release.md#in-operate).
-
-## Events and alerts
-
-**Operations → Events & alerts** is one timeline for:
-- semantic transitions, refusals and alarms
-- planner decisions and world updates
-- runtime errors and deployment changes
-
-Filters cover severity, asset, type, time and free text. Consecutive identical events are
-grouped (×N). Each event links to its ledger record and to *Why?*.
-
-## Prediction, what-if and planning
-
-These are under **Predict** (**What-if & simulation**, **Predictions**, **Planning**), and on
-each asset page.
-
-- **Predictions** (possible future states): the kernel explores the model from a copy of the
-  current state, within the depth / horizon / node limits you set. Every branch is
-  **admissible by model**. The tree shows
-  the time window of each step. Nothing is called "safe" unless the model provides that basis.
-- **What-if simulation** works on a forked copy of the twin, under a **SIMULATION** banner. You
-  can:
-  - inject events and advance logical time
-  - name and fork scenarios
-  - compare with live and reset
-
-  The kernel answers every step: an admitted step shows the new state; a refused step shows
-  the kernel's reason. No behaviour is simulated in the browser.
-- **Planning** shows a planner's candidates as reported by the runtime: objective/cost and
-  status (**candidate**, **selected**, **rejected**, or **prohibited by model** with the
-  kernel's reason). A plan can be a route, a control sequence, a maintenance sequence or a
-  schedule. Domain plugins may render it richer; the drone draws routes on its map.
-
-![Planning episodes](../screenshots/07-prediction-plans.png)
-
-## Domain views
-
-When a plugin applies to a twin, the twin's **Overview** shows its view (**Full screen** opens
-it alone) and the asset page gets an extra tab. The drone's mission map shows the physical
-world, the twin-known world, the drone, the executed path, current and invalidated plans,
-discovered obstacles and targets. Without a plugin, every generic view still works. The pump
-has no plugin.
-
-![Drone replanning](../screenshots/05-drone-replanning.png)
-![Pump](../screenshots/13-pump-example.png)
+If the runtime is disconnected, check Deployment on the instance. An unavailable runtime is not a passing conformance check. See [Connect a real twin](tutorial-connect-real-twin.md) for the plant input workflow.

@@ -1,5 +1,5 @@
 # =============================================================================
-# Verified Twin Studio test suites (label "studio"; only built with
+# Doppelganger test suites (label "studio"; only built with
 # -DTWIN_BUILD_STUDIO=ON, never part of the default ctest run).
 #   ctest --preset studio-debug
 # =============================================================================

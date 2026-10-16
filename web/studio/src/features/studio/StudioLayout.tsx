@@ -12,8 +12,8 @@ import '../twins/twins.css';
 
 const NAV = [
   { group: '', items: [
-    { to: '/studio', label: 'Blueprints', icon: LayoutGrid, end: true },
-    { to: '/studio/new', label: 'New Blueprint', icon: Plus },
+    { to: '/studio', label: 'Twin designs', icon: LayoutGrid, end: true },
+    { to: '/studio/new', label: 'New twin design', icon: Plus },
   ] },
   { group: 'Change deployed twins', items: [
     { to: '/studio/changes', label: 'Changes', icon: GitPullRequest },
@@ -21,7 +21,7 @@ const NAV = [
     { to: '/studio/history', label: 'Version history', icon: GitCompare },
   ] },
   { group: 'Formal artefacts', items: [
-    { to: '/studio/models', label: 'Models (PT / DT)', icon: Workflow },
+    { to: '/studio/models', label: 'Timed automata', icon: Workflow },
     { to: '/studio/ontologies', label: 'Ontologies', icon: BookOpen },
     { to: '/studio/interpretations', label: 'Interpretations', icon: FileCode2 },
   ] },

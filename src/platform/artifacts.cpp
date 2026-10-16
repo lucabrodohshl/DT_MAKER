@@ -183,7 +183,8 @@ Result<Artifact> ArtifactRepository::get(std::string_view id) const {
 }
 
 Result<std::vector<Artifact>> ArtifactRepository::list(std::optional<ArtifactKind> kind) const {
-    auto q = db_.prepare(kind ? "SELECT id FROM artifacts WHERE kind = ?1 ORDER BY id" : "SELECT id FROM artifacts ORDER BY id");
+    auto q = db_.prepare(kind ? "SELECT id FROM artifacts WHERE archived_at IS NULL AND kind = ?1 ORDER BY id"
+                              : "SELECT id FROM artifacts WHERE archived_at IS NULL ORDER BY id");
     if (!q) return std::move(q).error();
     if (kind) q.value().bind(1, to_string(*kind));
     std::vector<std::string> ids;
@@ -200,6 +201,30 @@ Result<std::vector<Artifact>> ArtifactRepository::list(std::optional<ArtifactKin
         out.push_back(std::move(a).value());
     }
     return out;
+}
+
+Status ArtifactRepository::archive_many(const std::vector<std::string>& ids) {
+    if (ids.empty()) return make_error(ErrorCode::InvalidArgument, "select at least one artifact");
+    Transaction tx(db_);
+    if (!tx.begun()) return tx.begun().error();
+    for (const auto& id : ids) {
+        auto check = db_.prepare("SELECT archived_at FROM artifacts WHERE id = ?1");
+        if (!check) return std::move(check).error();
+        check.value().bind(1, id);
+        auto row = check.value().step();
+        if (!row) return std::move(row).error();
+        if (!row.value() || !check.value().is_null(0)) {
+            return make_error(ErrorCode::NotFound, "artifact is not in the library").with("id", id);
+        }
+    }
+    const std::string now = iso8601_utc(clock_.now_ms());
+    for (const auto& id : ids) {
+        auto q = db_.prepare("UPDATE artifacts SET archived_at = ?1 WHERE id = ?2");
+        if (!q) return std::move(q).error();
+        q.value().bind(1, now).bind(2, id);
+        if (auto st = q.value().run(); !st) return st.error();
+    }
+    return tx.commit();
 }
 
 Result<std::vector<ArtifactVersion>> ArtifactRepository::query_versions(std::string_view where, std::string_view a,

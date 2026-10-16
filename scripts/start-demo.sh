@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Verified Twin Studio — one-command demo.
+# Doppelganger — one-command demo.
 #
 #   ./scripts/start-demo.sh            (or: make demo)
 #
 # Builds what is missing, seeds the example Blueprints on first start (each one
 # is validated, aligned, compiled, scenario-tested, packaged and published for
-# real, and its instance is deployed), starts Verified Twin Studio and prints
+# real, and its instance is deployed), starts Doppelganger and prints
 # the URL:
 #
-#   twin-studio   :8080  Verified Twin Studio (web UI + platform API + proxy)
+#   twin-studio   :8080  Doppelganger (web UI + platform API + proxy)
 #
 # Studio's deployment supervisor then starts the processes of every deployed
 # twin instance on free local ports (18100-18999), exactly as a Release ->
@@ -131,7 +131,7 @@ fi
 WEB_ROOT=()
 [[ -f web/studio/dist/index.html ]] && WEB_ROOT=(--web-root web/studio/dist)
 
-log "starting Verified Twin Studio on :$STUDIO_PORT (it deploys the twin instances itself)"
+log "starting Doppelganger on :$STUDIO_PORT (it deploys the twin instances itself)"
 "$BIN/twin-studio" serve --data-dir "$STUDIO_DATA" --port $STUDIO_PORT ${WEB_ROOT[@]+"${WEB_ROOT[@]}"} \
     --bin-dir "$BIN" --templates examples/templates >"$LOGS/twin-studio.log" 2>&1 &
 PIDS+=($!)
@@ -156,7 +156,7 @@ wait_instance indoor-drone-dt
 cat <<EOF
 
   ┌────────────────────────────────────────────────────────────────────┐
-  │  Verified Twin Studio is running:  http://127.0.0.1:$STUDIO_PORT            │
+  │  Doppelganger is running:  http://127.0.0.1:$STUDIO_PORT            │
   └────────────────────────────────────────────────────────────────────┘
   Showcase: Your Twins → Indoor Inspection Drone → Start mission
   Author:   Studio → Blueprints (each example is an editable, versioned Blueprint)

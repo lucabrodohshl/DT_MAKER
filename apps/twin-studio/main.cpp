@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief `twin-studio` — the Verified Twin Studio server.
+ * @brief `twin-studio` — the Doppelganger server.
  *
  * Commands:
  *   twin-studio serve  [--data-dir DIR] [--host H] [--port N] [--web-root DIR] [--bin-dir DIR] [--templates DIR]
@@ -169,7 +169,7 @@ int serve(Services& services, const Args& a, std::vector<fs::path> feeds) {
     for (const auto& [twin, url] : options.runtime_urls) {
         feed_threads.emplace_back([&services, twin, url, &stop] { run_runtime_bridge(services, twin, url, stop); });
     }
-    std::cout << "Verified Twin Studio listening on http://" << options.host << ":" << port.value() << "\n"
+    std::cout << "Doppelganger listening on http://" << options.host << ":" << port.value() << "\n"
               << "  data dir:  " << services.config().data_dir << "\n"
               << "  web UI:    " << (options.web_root ? options.web_root->string() : std::string("(not served; use the Vite dev server)")) << "\n";
     for (const auto& [t, u] : options.runtime_urls) std::cout << "  runtime:   " << t << " -> " << u << " (telemetry persisted)\n";

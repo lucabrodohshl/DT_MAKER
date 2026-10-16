@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Verified Twin Studio — engine services
+  title: Doppelganger — engine services
   version: 1.0.0
   description: |
     Engine operations behind Studio Mode, served by twin-studio under `/api/v1` next to the

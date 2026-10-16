@@ -36,6 +36,10 @@ export function Explorer() {
   };
   return <>
     <section className="ms-section">
+      <div className="ms-section__head">Twin design</div>
+      <ul className="ms-tree"><li><button type="button" aria-selected={m.selection === null} onClick={() => m.select(null)}><span className="ms-tree__ext">◇</span><span className="truncate">{m.doc.label ?? m.doc.name}</span></button></li></ul>
+    </section>
+    <section className="ms-section">
       <div className="ms-section__head">System <span>{root ? effective(m.doc, root, 'parts').length : 0} assets</span></div>
       <ul className="ms-tree">
         {root && <li>

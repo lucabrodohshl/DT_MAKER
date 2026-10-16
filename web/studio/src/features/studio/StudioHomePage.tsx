@@ -221,7 +221,7 @@ export default function StudioHomePage() {
   const list = blueprints.data ?? [];
   const recentCut = now - 7 * 24 * 3600 * 1000;
   const shelves: { id: Shelf; label: string; test: (b: BlueprintListItem) => boolean }[] = [
-    { id: 'all', label: 'All Blueprints', test: () => true },
+    { id: 'all', label: 'All twin designs', test: () => true },
     { id: 'drafts', label: 'Drafts', test: (b) => !!b.draft },
     { id: 'published', label: 'Published', test: (b) => !!b.published },
     { id: 'verify', label: 'Verification required', test: (b) => !!b.draft && b.draftReadiness !== 'ready' },
@@ -237,8 +237,8 @@ export default function StudioHomePage() {
     <div className="vts-page stack">
       <PageHeader
         eyebrow="Studio"
-        title="Twin Blueprints"
-        meta={<span>Design, verify and release Digital Twin types; create and deploy their instances.</span>}
+        title="Twin designs"
+        meta={<span>Create a reusable twin design, inspect what it compiles, then publish it to create running twins.</span>}
         actions={
           <>
             <Button icon={<FileUp size={14} />} onClick={() => navigate('/studio/new?mode=import')}>
@@ -251,7 +251,7 @@ export default function StudioHomePage() {
               From template
             </Button>
             <Button variant="primary" icon={<Plus size={14} />} onClick={() => navigate('/studio/new')}>
-              New Blueprint
+              New twin design
             </Button>
           </>
         }
@@ -262,9 +262,9 @@ export default function StudioHomePage() {
       <div className="vts-lib__tools" role="search">
         <label className="vts-lib__search">
           <Search size={15} aria-hidden="true" />
-          <input type="search" value={q} onChange={(e) => set('q', e.target.value)} placeholder="Search Blueprints…" aria-label="Search Blueprints" />
+          <input type="search" value={q} onChange={(e) => set('q', e.target.value)} placeholder="Search twin designs…" aria-label="Search twin designs" />
         </label>
-        <div className="row-wrap" role="tablist" aria-label="Blueprint shelves">
+        <div className="row-wrap" role="tablist" aria-label="Twin design shelves">
           {shelves.map((s) => (
             <button key={s.id} type="button" role="tab" aria-selected={shelf === s.id} className="vts-chip" aria-pressed={shelf === s.id} onClick={() => set('shelf', s.id === 'all' ? '' : s.id)}>
               {s.label} <span className="vts-tag">{list.filter(s.test).length}</span>
@@ -277,14 +277,14 @@ export default function StudioHomePage() {
         query={blueprints}
         isEmpty={(d) => d.length === 0}
         empty={
-          <EmptyState title="No Blueprints yet" action={<Button variant="primary" icon={<Plus size={14} />} onClick={() => navigate('/studio/new')}>New Blueprint</Button>}>
-            A Blueprint defines a type of twin. Start blank, from a template, or import the formal models of an existing twin.
+          <EmptyState title="No twin designs yet" action={<Button variant="primary" icon={<Plus size={14} />} onClick={() => navigate('/studio/new')}>New twin design</Button>}>
+            A twin design defines a reusable type of twin. Start blank, from a template, or import an existing twin design.
           </EmptyState>
         }
       >
         {() =>
           shown.length === 0 ? (
-            <EmptyState compact title="Nothing on this shelf">{q ? 'No Blueprint matches the search.' : 'Choose another shelf.'}</EmptyState>
+            <EmptyState compact title="Nothing on this shelf">{q ? 'No twin design matches the search.' : 'Choose another shelf.'}</EmptyState>
           ) : (
             <div className="vts-bp-cards">
               {shown.map((b) => (
@@ -296,15 +296,15 @@ export default function StudioHomePage() {
       </QueryState>
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !removeBlueprint.isPending) setDeleteTarget(null); }}
-        title={`Delete ${deleteTarget?.name ?? 'Blueprint'}?`}
-        description="This removes the Blueprint from the library. Its saved versions and any existing instances are retained.">
+        title={`Delete ${deleteTarget?.name ?? 'twin design'}?`}
+        description="This removes the twin design from the library. Its saved versions and any existing running twins are retained.">
         <div className="stack">
-          <p className="small">Delete <strong>{deleteTarget?.name}</strong> from your Blueprint list?</p>
-          {deleteTarget && deleteTarget.instanceCount > 0 && <p className="small muted">{deleteTarget.instanceCount} existing instance{deleteTarget.instanceCount === 1 ? '' : 's'} will continue using this Blueprint.</p>}
+          <p className="small">Delete <strong>{deleteTarget?.name}</strong> from your twin designs?</p>
+          {deleteTarget && deleteTarget.instanceCount > 0 && <p className="small muted">{deleteTarget.instanceCount} running twin{deleteTarget.instanceCount === 1 ? '' : 's'} will continue using this design.</p>}
           {removeBlueprint.error && <ErrorBlock error={removeBlueprint.error} compact />}
           <div className="row"><span className="grow" />
             <Button onClick={() => setDeleteTarget(null)} disabled={removeBlueprint.isPending}>Cancel</Button>
-            <Button variant="danger" loading={removeBlueprint.isPending} onClick={() => { if (deleteTarget) removeBlueprint.mutate(deleteTarget.id); }}>Delete Blueprint</Button>
+            <Button variant="danger" loading={removeBlueprint.isPending} onClick={() => { if (deleteTarget) removeBlueprint.mutate(deleteTarget.id); }}>Delete twin design</Button>
           </div>
         </div>
       </Dialog>
@@ -397,7 +397,7 @@ export default function StudioHomePage() {
                     </Link>
                   );
                 })}
-                <span className="xsmall subtle">Shared, versioned artefacts; Blueprints pin exact versions of them.</span>
+                <span className="xsmall subtle">Shared, versioned artefacts; twin designs pin exact versions of them.</span>
               </div>
             )}
           </QueryState>

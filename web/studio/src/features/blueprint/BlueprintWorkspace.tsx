@@ -476,7 +476,7 @@ function Frame() {
   const rel = location.pathname.split(`/v/${e.version}`)[1]?.replace(/^\//, '') ?? '';
   const here = locateBp(rel);
   useEffect(() => {
-    document.title = `${here?.item.label ?? 'Studio'} · ${e.detail.blueprint.name} ${e.detail.label} — Verified Twin Studio`;
+    document.title = `${here?.item.label ?? 'Studio'} · ${e.detail.blueprint.name} ${e.detail.label} — Doppelganger`;
   }, [here, e.detail.blueprint.name, e.detail.label]);
   return (
     <div className={clsx('vts-bp', collapsed && 'is-collapsed')}>

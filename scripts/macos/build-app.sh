@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Build "Verified Twin Studio.app" and a .dmg for macOS (Apple Silicon or Intel,
+# Build "Doppelganger.app" and a .dmg for macOS (Apple Silicon or Intel,
 # matching the build machine).
 #
 #   ./scripts/macos/build-app.sh            (or: make macos-app)
 #
-# Output: dist/macos/Verified Twin Studio.app and dist/macos/VerifiedTwinStudio-<version>.dmg
+# Output: dist/macos/Doppelganger.app and dist/macos/Doppelganger-<version>.dmg
 #
 # The bundle is self-contained: the product executables, the only non-system
 # library they need (Z3, rewritten to load from the bundle), the built web UI,
 # the examples and scenarios. The launcher (apps/macos/launcher.mm) starts the
-# stack under ~/Library/Application Support/Verified Twin Studio and opens the
+# stack under ~/Library/Application Support/Doppelganger and opens the
 # browser. The bundle is signed ad hoc; for distribution outside this Mac, sign
 # with a Developer ID and notarize:
 #   codesign --deep --force --options runtime --sign "Developer ID Application: …" "<app>"
@@ -23,7 +23,7 @@ cd "$ROOT"
 PRESET="studio-release"
 BIN="build/$PRESET/bin"
 OUT="dist/macos"
-APP="$OUT/Verified Twin Studio.app"
+APP="$OUT/Doppelganger.app"
 WORK="build/macos"
 VERSION="$(sed -n 's/^project([^)]*VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt | head -1)"
 VERSION="${VERSION:-1.0.0}"
@@ -37,13 +37,13 @@ log() { printf '\033[1m[macos]\033[0m %s\n' "$*"; }
 # executable in memory beside the new web files. The browser then calls API
 # routes that the old server does not know about. Refuse to overwrite either
 # assembly location until that copy of the app has been quit.
-for candidate in "$APP" "$WORK/dmg/Verified Twin Studio.app"; do
+for candidate in "$APP" "$WORK/dmg/Doppelganger.app"; do
     launcher="$candidate/Contents/MacOS/VerifiedTwinStudio"
     server="$candidate/Contents/Resources/bin/twin-studio"
     if [[ -e "$launcher" || -e "$server" ]]; then
         running="$(lsof -t "$launcher" "$server" 2>/dev/null || true)"
         if [[ -n "$running" ]]; then
-            echo "Quit the running Verified Twin Studio at $candidate before rebuilding (PID: $(echo "$running" | paste -sd, -))." >&2
+            echo "Quit the running Doppelganger at $candidate before rebuilding (PID: $(echo "$running" | paste -sd, -))." >&2
             exit 1
         fi
     fi
@@ -62,11 +62,18 @@ for t in "${TOOLS[@]}"; do [[ -x "$BIN/$t" ]] || { echo "missing $BIN/$t" >&2; e
 [[ -f web/studio/dist/index.html ]] || { echo "missing web/studio/dist (build the UI)" >&2; exit 1; }
 
 mkdir -p "$WORK"
-log "compiling the launcher and the icon"
+log "compiling the launcher and preparing the icon"
 clang++ -std=c++20 -fobjc-arc -O2 -Wall -framework Cocoa apps/macos/launcher.mm -o "$WORK/VerifiedTwinStudio"
-clang++ -std=c++20 -fobjc-arc -O2 -framework Cocoa apps/macos/make_icon.mm -o "$WORK/make_icon"
 rm -rf "$WORK/AppIcon.iconset"
-"$WORK/make_icon" "$WORK/AppIcon.iconset"
+mkdir -p "$WORK/AppIcon.iconset"
+ICON_SOURCE="web/studio/public/brand/doppelganger-dark.png"
+for spec in '16 1' '16 2' '32 1' '32 2' '128 1' '128 2' '256 1' '256 2' '512 1' '512 2'; do
+    read -r points scale <<< "$spec"
+    pixels=$((points * scale))
+    suffix=""
+    [[ "$scale" == 2 ]] && suffix="@2x"
+    sips -z "$pixels" "$pixels" "$ICON_SOURCE" --out "$WORK/AppIcon.iconset/icon_${points}x${points}${suffix}.png" >/dev/null
+done
 if ! iconutil -c icns "$WORK/AppIcon.iconset" -o "$WORK/AppIcon.icns"; then
     log "iconutil rejected the iconset; falling back to tiff2icns"
     sips -s format tiff "$WORK/AppIcon.iconset/icon_512x512@2x.png" --out "$WORK/AppIcon.tiff" >/dev/null
@@ -110,8 +117,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Verified Twin Studio</string>
-  <key>CFBundleDisplayName</key><string>Verified Twin Studio</string>
+  <key>CFBundleName</key><string>Doppelganger</string>
+  <key>CFBundleDisplayName</key><string>Doppelganger</string>
   <key>CFBundleIdentifier</key><string>org.verifiedtwin.studio</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
@@ -121,7 +128,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSHumanReadableCopyright</key><string>Verified Twin Studio ${VERSION}</string>
+  <key>NSHumanReadableCopyright</key><string>Doppelganger ${VERSION}</string>
 </dict>
 </plist>
 PLIST
@@ -135,12 +142,12 @@ codesign --verify --deep --strict "$APP"
 
 # ----------------------------------------------------------------------- dmg
 log "creating the disk image"
-DMG="$OUT/VerifiedTwinStudio-$VERSION.dmg"
+DMG="$OUT/Doppelganger-$VERSION.dmg"
 STAGE="$WORK/dmg"
 rm -rf "$STAGE" "$DMG"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Verified Twin Studio" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "Doppelganger" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 log "done: $APP"
 log "      $DMG ($(du -h "$DMG" | cut -f1))"

@@ -10,8 +10,8 @@ import type { TraceEntry } from './types';
 type Tab = 'graph' | 'ontology' | 'theory' | 'automaton' | 'contract';
 type Format = 'visual' | 'source';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'graph', label: 'Knowledge graph' }, { id: 'ontology', label: 'Ontology' },
-  { id: 'theory', label: 'Domain theory' }, { id: 'automaton', label: 'Automaton' },
+  { id: 'graph', label: 'Knowledge graph' }, { id: 'ontology', label: 'RDF schema' },
+  { id: 'theory', label: 'Formal ontology' }, { id: 'automaton', label: 'Automaton' },
   { id: 'contract', label: 'Contract' },
 ];
 
@@ -50,7 +50,7 @@ export function Generated({ tab, setTab }: { tab: Tab; setTab: (v: Tab) => void 
   }), [selectedTrace]);
   const source = !a ? '' : tab === 'graph' ? (schema ? a.schemaTurtle : a.graphTurtle)
     : tab === 'ontology' ? a.schemaTurtle
-      : tab === 'theory' ? `${a.ontology}\n\n; Digital Twin interpretation\n${a.dtInterpretation}${a.ptInterpretation ? `\n\n; Physical reference interpretation\n${a.ptInterpretation}` : ''}`
+      : tab === 'theory' ? a.ontology
         : tab === 'automaton' ? a.automatonXml
           : JSON.stringify(a.sections, null, 2);
   const ext = tab === 'automaton' ? 'xml' : tab === 'contract' ? 'json' : tab === 'theory' ? 'ont' : 'ttl';
@@ -73,6 +73,7 @@ export function Generated({ tab, setTab }: { tab: Tab; setTab: (v: Tab) => void 
       {q.error && <p role="alert" className="ms-err">{q.error instanceof Error ? q.error.message : 'Could not load generated representations.'}</p>}
       {!q.isPending && !a && !q.error && <div className="ms-empty ms-empty--static"><div><strong>No generated result yet.</strong><span>Fix the model problems below; the server will compile it when it saves.</span></div></div>}
       {a && (format === 'source' || tab === 'theory' || tab === 'contract') && <pre className="ms-src">{source}</pre>}
+      {a && tab === 'theory' && <div className="ms-note">This formal ontology is compiled from the twin design. Select the design in the explorer to edit its extra sorts, functions, relations, and axioms; select an asset type to edit its assumptions. Interpretations come from state and event meanings.</div>}
       {a && format === 'visual' && tab === 'automaton' && taGraph && <div className="ms-ta">
         <TaDiagram graph={taGraph} layoutKey={`${m.id}:${m.version}:${m.digest}`} overlay={overlay} selection={taSelection} onSelect={setTaSelection} height={560} />
         {traceForTa && <div className="ms-trace-detail"><strong>Produced by</strong> {traceForTa.sources.map((s) => <button type="button" key={`${s.id}:${s.rule}`} onClick={() => m.select(s.id)}>{s.rule} · {s.id}</button>)}</div>}

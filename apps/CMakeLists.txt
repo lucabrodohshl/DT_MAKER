@@ -7,7 +7,7 @@
 #   twin-ingest   plant connectivity of a deployed twin: REST and MQTT inputs -> its runtime
 # =============================================================================
 add_subdirectory(twin)
-if(TWIN_BUILD_STUDIO)  # twin-studio: Verified Twin Studio API server
+if(TWIN_BUILD_STUDIO)  # twin-studio: Doppelganger API server
     add_subdirectory(twin-studio)
 endif()
 add_subdirectory(twin-world)

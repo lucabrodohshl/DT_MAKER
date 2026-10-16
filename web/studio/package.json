@@ -1,8 +1,8 @@
 {
-  "name": "verified-twin-studio",
+  "name": "doppelganger-studio",
   "private": true,
   "version": "1.0.0",
-  "description": "Verified Twin Studio — Digital Twin operations and engineering console (UI). Renders backend conclusions; contains no twin semantics.",
+  "description": "Doppelganger digital twin operations and engineering UI. Renders backend conclusions; contains no twin semantics.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "docs": "python3 ../../scripts/docs/build_site.py --out dist/docs"
+    "docs": "npm --prefix ../../docs ci --no-audit --no-fund && npm --prefix ../../docs run build && node scripts/bundle-docs.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

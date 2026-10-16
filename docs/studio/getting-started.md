@@ -1,126 +1,37 @@
 # Getting started
 
-## Start the demo
+## Open the right area
 
-```bash
-./scripts/start-demo.sh          # or: make demo
-```
+Use the top bar to switch between **Twin designs** and **Running twins**. A twin design is the reusable recipe. A running twin is a particular instance made from a published recipe.
 
-This command builds whatever is missing and seeds both examples on the first start. It then
-starts every process and prints the URL (http://127.0.0.1:8080):
+![Running twins overview with the seeded pump and drone](../screenshots/current/running-twins.png)
 
-| Process | Port | Role |
-|---|---|---|
-| `twin-studio` | 8080 | Web UI, platform API (SQLite + content-addressed object store), runtime proxy |
-| `twin-runtime` | 8090 | Indoor inspection drone twin (co-simulation; waits for *Start mission*) |
-| `twin-world` | 8091 | Drone physical-twin simulator and building-information service |
-| `twin-runtime` | 8092 | Industrial pump P-101 twin (monitor mode) |
-| `twin-pt-feed` | — | Scripted PLC feed of pump P-101 |
+<p class="screenshot-caption">The demo starts with a process pump and an inspection drone. This view shows running instances, not editable designs.</p>
 
-The script accepts these options:
-- `--fresh` deletes the demo data first.
-- `--no-build` uses the existing binaries.
-- `--data DIR` chooses another data directory (default `var/demo`).
+On **Twin designs**, choose **New twin design**. Choose **Blank twin design**, a template, a clone, an exported bundle, or formal files. For the normal new workflow, pick blank and then **Create twin design** on the identity step. This opens the new graphical editor.
 
-You can override the ports with `STUDIO_PORT`, `DRONE_PORT`, `WORLD_PORT` and `PUMP_PORT`.
+![Twin designs list](../screenshots/current/twin-designs.png)
 
-The seed provides history from the start: a week of pump telemetry, recorded executions,
-ontology versions (one published, one rejected, non-refining relaxation), validation, refinement
-and alignment evidence, packages and deployments. Replay, the ledger and the engineering views
-are therefore usable before you run anything.
+<p class="screenshot-caption">The design library lists reusable definitions and their versions.</p>
 
-Everything is persisted in the data directory and survives restarts. The browser keeps only
-viewer conveniences: theme, the Operator/Engineer detail level and the actor name.
+## Your first editing session
 
-## Layout
+The editor has three tabs:
 
-The product has two modes, switched in the top bar:
+1. **Structure**: add types, parts, properties, events, actions and relationships. Double-click empty canvas space to add an asset; select an element to edit it on the right. The left explorer lets you switch types.
+2. **Behavior**: draw states and connect them with event, action or timeout transitions. Select each state or transition to set meanings and time limits.
+3. **Generated**: inspect the compiled timed automaton, formal ontology, RDF schema, knowledge graph and contract. This view refreshes after the design saves.
 
-- **Operate** — the twins that run: **Your twins** (`/twins`) lists every twin with its state
-  and trust badges and offers **+ Create / Import Twin**. Each twin opens in its own workspace
-  (`/twins/<id>`) with its navigation on the left: Overview, Assets, Knowledge graph,
-  Operations (live monitoring, telemetry, events & alerts), Behaviour (current state,
-  behavioural model, semantic facts, conformance, monitors), Predict (what-if & simulation,
-  predictions, planning), Audit (timeline, decision provenance, replay, ledger), Engineering
-  (the models, ontology, interpretations, verification, package and deployment of this twin),
-  Maintenance (changes, impact, versions, release readiness, rollback) and Administration (data
-  sources, runtime health, storage, system logs). **Open in Studio** in the twin's header opens
-  the Blueprint version it runs.
-- **Studio** — where twins are designed: **Blueprints** (`/studio`), **New Blueprint**, the
-  workspace of each Blueprint version (`/studio/blueprints/<id>/v/<version>`, see
-  [the Blueprint workspace](blueprint-workspace.md)), and the engineering library — changes,
-  impact analysis, version history, models, ontologies, interpretations, verification,
-  packages, deployments and the engineering audit.
+The **Twin design** item at the top of the explorer opens the inspector for extra formal ontology declarations. An asset type's **Formal assumptions** section adds axioms for that type. State and event **Means** fields build the interpretation. The formal ontology is more expressive than the knowledge graph.
 
-The **top bar** holds the mode switch, global search (⌘K / Ctrl-K, or `/`), the live
-connection state with a button to pause and resume live updates, **Help** (this manual), the
-**Operator / Engineer** detail level and the actor menu (the name recorded in the engineering
-audit, and the theme).
+Studio saves edits automatically. **Save** forces a save; **Validate** opens the Problems drawer. Rename, move and edit operations share one undo history. If the server reports a problem, click it to return to the relevant element.
 
-**Breadcrumbs** on every page show the twin, asset, execution, Blueprint or version in context.
-Every entity has a URL, so links can be shared:
+## From design to running twin
 
-- `/twins/pump-p101-dt/operations/telemetry`
-- `/twins/pump-p101-dt/audit/executions/<session>/replay`
-- `/studio/blueprints/indoor-inspection-drone/v/1/test/scenarios`
-- `/studio/ontologies/process-pump/versions/1`
+**Publish** opens the advanced release area. Complete its verification steps and build a package. A published version is immutable. Under **Release → Instances**, create a running twin from that version. Use **Running twins** for deployment, telemetry, monitoring, prediction and replay.
 
-## Operator and Engineer detail
+## Library actions
 
-The two detail levels show the same product at different depths (progressive disclosure):
-- **Operator** shows status, modes, telemetry, alerts, predictions and plain-language
-  explanations.
-- **Engineer** adds guards, clocks, formulas, hashes, evidence identifiers and checker
-  identities.
+The Studio sidebar has separate lists for **Ontologies**, **Interpretations** and **Timed automata**. These are versioned formal artefacts used by designs and advanced engineering. Select rows with the left checkboxes to **Export** or **Delete** them from the library. Delete asks for confirmation and retains saved versions required by existing designs and running twins. Export opens a save picker in supported browsers; otherwise the browser downloads the file.
 
-Nothing is hidden for security reasons. Access control belongs to the server; the switch only
-reduces visual noise.
-
-## Personas
-
-| You are | Start at |
-|---|---|
-| Operator | Your twins → the twin → *Overview*, *Behaviour* and *Events & alerts* |
-| Reliability engineer | Telemetry (history, export), Behaviour → Conformance and Monitors, Audit → Timeline, Replay |
-| Twin designer | Studio → Blueprints → [the Blueprint workspace](blueprint-workspace.md); new twins with [Build Your First Twin](tutorial-first-twin.md) |
-| Digital-twin / formal engineer | Studio → Models, Verification, Packages; in a Blueprint: Behavior, Semantics, Assurance |
-| Ontology engineer | Studio → Ontologies, Interpretations; the twin's Maintenance |
-| Auditor | Audit → Execution ledger (verify), Decision provenance; Studio → Engineering audit |
-| Administrator | Studio → Deployments; the twin's Maintenance → Rollback and Administration → System logs |
-
-## Search
-
-Global search covers:
-- assets and twins
-- ontology symbols, such as `bearing_temp_limit`
-- artefact versions, such as `process-pump@1`
-- interpretation entries, evidence identifiers, packages, deployments and changes
-
-Search does not index raw ledger payloads. To search those, use the ledger page's filters.
-
-## Live data
-
-Live updates arrive over Server-Sent Events. Every event carries a sequence number:
-- When an event is missed or the server restarts (detected through a new epoch), Studio
-  refetches the authoritative state. It never guesses.
-- Updates never reorder a table you are reading, move the focus, reset a selection, or touch a
-  draft you are editing.
-- **Pause** stops applying updates and counts the ones that arrive. **Resume** refetches
-  everything at once.
-
-When data is old, Studio says so: *Data is stale: last update 23 minutes ago*. It never shows
-stale data as live.
-
-## Time
-
-Studio distinguishes four kinds of time and labels each of them:
-
-| Time | Where | Meaning |
-|---|---|---|
-| **Logical model time** | behaviour, prediction, ledger, replay | The kernel's exact integer ticks, shown as decimal text (never floating point) |
-| **Observation time** | telemetry | When the source observed the value |
-| **Ingestion time** | telemetry detail, CSV export | When Studio received it |
-| **Evidence time** | engineering | When a check ran, a version was published or a package deployed |
-
-Wall-clock times are shown in your browser's time zone. The zone name appears in the tooltip,
-and the ISO-8601 UTC value is used in exports.
+For a complete guided example, continue to [Create your first twin](tutorial-first-twin.md).

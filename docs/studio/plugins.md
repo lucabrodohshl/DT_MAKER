@@ -56,8 +56,8 @@ The product specification's lifecycle hooks map onto these props:
 | `onTelemetry`, `onTransition`, `onPrediction`, planner updates | `subscribe(['telemetry' \| 'decision' \| 'planning' \| 'plan' \| 'map' \| …], cb, onGap)` |
 | `onReplayFrame` | `mode === 'replay'` and `replay` changes |
 
-Event payloads are documented in [`../runtime-api.md`](../runtime-api.md#live-stream) and
-[`../../api/runtime.openapi.yaml`](../../api/runtime.openapi.yaml). Replay frames carry the
+Event payloads are documented in [the runtime API](runtime-api.md#live-stream) and
+[its OpenAPI contract](https://github.com/lucabrodohshl/DT_MAKER/blob/main/api/runtime.openapi.yaml). Replay frames carry the
 recomputed ledger record body. Use the accessors in `@/runtime/replay` (`frameTicks`,
 `frameTransition`, `frameLabel`, `stateAt`, `propositionsAt`) rather than reading fields ad
 hoc.
